@@ -4,4 +4,17 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  test: {
+    server: {
+      deps: {
+        external: ['nodemailer', 'exceljs'],
+      },
+    },
+  },
+  ssr: {
+    external: ['nodemailer', 'exceljs'],
+  },
+  optimizeDeps: {
+    include: ['nodemailer', 'exceljs'],
+  },
 })
