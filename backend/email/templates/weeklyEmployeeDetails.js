@@ -14,7 +14,7 @@ const TH_STYLE = 'padding: 8px 10px; text-align: left; border: 1px solid #ccc; b
 const TD_LABEL_STYLE = 'padding: 8px 10px; border: 1px solid #ccc; background: #fafafa; white-space: nowrap; font-weight: 500;';
 const TD_VALUE_STYLE = 'padding: 8px 10px; border: 1px solid #ccc;';
 
-/** Department values (must match src/config/org.js DEPARTMENTS). */
+/** Department values (must match backend/config/org.js DEPARTMENTS). */
 export const DEPARTMENT_OPERATIONS = 'Operatiuni';
 export const DEPARTMENT_MANAGEMENT = 'Management';
 export const DEPARTMENT_SALES = 'Vanzari';

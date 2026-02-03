@@ -9,7 +9,7 @@ import { getWeeklySubject } from '../email/content/weeklyTexts.js';
 import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
 import { buildWeeklyXlsx } from '../export/xlsx.js';
 import { formatRaportFilename } from '../export/weeklyReportWorkbook.js';
-import { ORG } from '../../src/config/org.js';
+import { ORG } from '../config/org.js';
 
 const JOB_TYPE = 'weekly';
 const TIMEZONE = 'Europe/Bucharest';

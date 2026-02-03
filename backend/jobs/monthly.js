@@ -8,7 +8,7 @@ import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/s
 import { buildMonthlyXlsx } from '../export/xlsx.js';
 import { requireOpenAI, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openaiClient.js';
 import { loadMonthlyEmployeePrompt, loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
-import { ORG, MANAGERS, DEPARTMENTS } from '../../src/config/org.js';
+import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
 
 const JOB_TYPE = 'monthly';
 const TIMEZONE = 'Europe/Bucharest';

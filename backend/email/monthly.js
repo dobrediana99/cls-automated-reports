@@ -4,7 +4,7 @@
  * Management email: department prompt from monthlyDepartmentPrompt.md; Total Company doar tabel.
  */
 
-import { DEPARTMENTS } from '../../src/config/org.js';
+import { DEPARTMENTS } from '../config/org.js';
 import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
 import { escapeHtml } from './templates/weeklyEmployeeDetails.js';

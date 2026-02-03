@@ -1,5 +1,5 @@
-// Builds the same employee-by-department structure as frontend DEPARTMENTS from src/config/org.js.
-import { ORG, DEPARTMENTS } from '../../src/config/org.js';
+// Builds the same employee-by-department structure as frontend DEPARTMENTS from backend/config/org.js.
+import { ORG, DEPARTMENTS } from '../config/org.js';
 
 const DEP_KEY = {
   [DEPARTMENTS.MANAGEMENT]: 'management',

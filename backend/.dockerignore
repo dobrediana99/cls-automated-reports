@@ -1,0 +1,10 @@
+# Backend build context: exclude dev artifacts and secrets
+node_modules
+.env
+.env.*
+!.env.example
+.git
+*.log
+.DS_Store
+coverage
+out

@@ -1,0 +1,15 @@
+# Root-level .dockerignore (used when build context is repo root).
+# When context is backend/, use backend/.dockerignore instead.
+node_modules
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+dist
+out
+coverage
+logs
+*.log
+.DS_Store
+backend/node_modules

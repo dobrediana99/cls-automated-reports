@@ -14,6 +14,25 @@ The backend is a minimal HTTP server for deployment on Google Cloud Run. It expo
    - **Development (with auto-reload):** `npm run dev:server`
 3. The server listens on `http://localhost:8080` by default (override with the `PORT` environment variable).
 
+### Docker & Cloud Run (backend only)
+
+The backend can be deployed to **Google Cloud Run** using the image built from `backend/Dockerfile`. Do not copy `.env` into the image; configure secrets via Cloud Run environment variables or Secret Manager.
+
+**Local run (Docker):**
+
+- Build (context = backend, Dockerfile in backend):  
+  `docker build -t cls-backend -f backend/Dockerfile backend`
+- Run:  
+  `docker run -p 8080:8080 -e PORT=8080 cls-backend`
+- Healthcheck:  
+  `curl http://localhost:8080/health`
+
+**Cloud Run:**
+
+- Build context: **backend** (directory)
+- Dockerfile path: **backend/Dockerfile** (or `Dockerfile` when building from backend directory in Cloud Build)
+- Set `PORT=8080` (Cloud Run sets this automatically). Configure `JOB_TOKEN`, `MONDAY_API_TOKEN`, `OPENAI_API_KEY`, and email/sender env vars in the Cloud Run service.
+
 ### Calling `/health`
 
 ```bash

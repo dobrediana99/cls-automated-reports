@@ -3,7 +3,7 @@
  * Uses standardized texts from content/weeklyTexts.js and template weeklyEmployeeDetails.
  */
 
-import { DEPARTMENTS } from '../../src/config/org.js';
+import { DEPARTMENTS } from '../config/org.js';
 import { getWeeklyIntroHtml } from './content/weeklyTexts.js';
 import { buildWeeklyEmployeeEmailHtml } from './templates/weeklyEmployeeDetails.js';
 
