@@ -1,107 +1,149 @@
 /**
- * OpenAI API client for monthly report analysis. Server-side only; Bearer OPENAI_API_KEY.
- * Timeout + retry on 429/5xx. Strict JSON output validation (fail fast on missing/empty keys).
+ * Vertex AI (Gemini) client for monthly report analysis. Same public API as before.
+ * Authenticates via IAM (no API key). Requires GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT.
+ * Retry on transient failures and on JSON parse failure (with stricter prompt).
  */
 
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_MODEL = 'gpt-4.1-mini';
-const TIMEOUT_MS = 90_000;
+import { VertexAI } from '@google-cloud/vertexai';
+
+const DEFAULT_MODEL = 'gemini-1.5-pro';
+const DEFAULT_LOCATION = 'europe-west1';
 const MAX_ATTEMPTS = 3;
 const INITIAL_BACKOFF_MS = 2000;
+const STRICT_JSON_APPEND = '\n\nRăspunde DOAR cu un obiect JSON valid, fără markdown, fără text înainte sau după.';
 
-function getApiKey() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key || typeof key !== 'string' || !key.trim()) {
-    throw new Error('OPENAI_API_KEY is not set. Monthly job requires OpenAI for analysis.');
+function getProject() {
+  const project = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
+  if (!project || typeof project !== 'string' || !project.trim()) {
+    throw new Error(
+      'Vertex AI requires a GCP project. Set GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT (Cloud Run sets this automatically).'
+    );
   }
-  return key.trim();
+  return project.trim();
+}
+
+function getVertexConfig() {
+  return {
+    project: getProject(),
+    location: (process.env.VERTEX_LOCATION || DEFAULT_LOCATION).trim(),
+    model: (process.env.GEMINI_MODEL || DEFAULT_MODEL).trim(),
+  };
+}
+
+/**
+ * Check if Vertex AI is configured (for job to fail fast before sending).
+ * Validates that runtime has GCP project ID (e.g. on Cloud Run).
+ */
+export function requireOpenAI() {
+  getProject();
 }
 
 function getModel() {
-  return process.env.OPENAI_MODEL?.trim() || DEFAULT_MODEL;
+  return (process.env.GEMINI_MODEL || DEFAULT_MODEL).trim();
 }
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function isRetryableStatus(status) {
-  return status === 429 || (status >= 500 && status < 600);
+function isRetryableError(err) {
+  const code = err?.code || err?.status;
+  const message = err?.message || '';
+  if (typeof code === 'number' && (code === 429 || (code >= 500 && code < 600))) return true;
+  if (/RESOURCE_EXHAUSTED|UNAVAILABLE|DEADLINE_EXCEEDED|INTERNAL/i.test(String(code))) return true;
+  if (/rate limit|429|timeout|ECONNRESET|ETIMEDOUT/i.test(message)) return true;
+  return false;
 }
 
 /**
- * Call OpenAI chat completions with JSON mode. Retries on 429/5xx.
- * @param {{ systemPrompt: string, userContent: string, model?: string }} opts
+ * Convert OpenAI-style messages to Gemini request: systemInstruction + user content.
+ * @param {{ role: string, content: string }[]} messages
+ * @returns {{ systemInstruction: string, userContent: string }}
+ */
+function messagesToPrompt(messages) {
+  let systemPrompt = '';
+  let userContent = '';
+  for (const m of messages) {
+    const text = (m.content && String(m.content).trim()) || '';
+    if (m.role === 'system') systemPrompt = systemPrompt ? systemPrompt + '\n\n' + text : text;
+    else if (m.role === 'user') userContent = userContent ? userContent + '\n\n' + text : text;
+  }
+  return { systemInstruction: systemPrompt || 'You are a helpful assistant.', userContent: userContent || '' };
+}
+
+/**
+ * Call Vertex AI Gemini with JSON output. Retries on transient errors and on JSON parse failure.
+ * @param {{ model?: string, messages: { role: string, content: string }[] }} opts
  * @returns {{ content: string, usage?: object, model: string }}
  */
-async function chatCompletion(opts) {
-  const apiKey = getApiKey();
-  const model = opts.model ?? getModel();
-  const messages = [
-    { role: 'system', content: opts.systemPrompt },
-    { role: 'user', content: opts.userContent },
-  ];
+async function callGeminiJson({ model, messages }) {
+  const config = getVertexConfig();
+  const modelName = model || config.model;
+  const { systemInstruction, userContent } = messagesToPrompt(messages);
 
-  let lastError;
+  const vertexAI = new VertexAI({ project: config.project, location: config.location });
+  const generativeModel = vertexAI.getGenerativeModel({
+    model: modelName,
+    generationConfig: {
+      responseMimeType: 'application/json',
+      maxOutputTokens: 8192,
+    },
+  });
+
+  let lastParseError = null;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
     try {
-      const response = await fetch(OPENAI_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          response_format: { type: 'json_object' },
-        }),
-        signal: controller.signal,
-      });
+      const systemText = attempt === 1 ? systemInstruction : systemInstruction + STRICT_JSON_APPEND;
+      const request = {
+        contents: [{ role: 'user', parts: [{ text: userContent }] }],
+        systemInstruction: { role: 'system', parts: [{ text: systemText }] },
+      };
 
-      clearTimeout(timeoutId);
+      const result = await generativeModel.generateContent(request);
+      const response = result?.response;
+      if (!response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+        const feedback = response?.promptFeedback;
+        throw new Error(feedback ? `Vertex AI prompt feedback: ${JSON.stringify(feedback)}` : 'Vertex AI response missing text');
+      }
 
-      const data = await response.json().catch(() => ({}));
+      const content = response.candidates[0].content.parts[0].text;
+      const usage = response.usageMetadata
+        ? {
+            promptTokenCount: response.usageMetadata.promptTokenCount,
+            candidatesTokenCount: response.usageMetadata.candidatesTokenCount,
+            totalTokenCount: response.usageMetadata.totalTokenCount,
+          }
+        : undefined;
 
-      if (!response.ok) {
-        const err = new Error(data.error?.message || `OpenAI HTTP ${response.status}`);
-        err.status = response.status;
-        if (isRetryableStatus(response.status) && attempt < MAX_ATTEMPTS) {
-          const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
-          await sleep(delay);
+      try {
+        JSON.parse(content);
+      } catch (parseErr) {
+        lastParseError = parseErr;
+        if (attempt < MAX_ATTEMPTS) {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('[llm] JSON parse failed, attempt ' + attempt + '/' + MAX_ATTEMPTS + ', retrying with stricter instruction');
+          }
+          await sleep(INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1));
           continue;
         }
-        throw err;
+        throw new Error('LLM response is not valid JSON. Monthly job fails.');
       }
 
-      const content = data.choices?.[0]?.message?.content;
-      if (content == null || typeof content !== 'string') {
-        throw new Error('OpenAI response missing choices[0].message.content');
+      if (process.env.NODE_ENV !== 'production' && attempt > 1) {
+        console.log('[llm] model=' + modelName + ' attempts=' + attempt);
       }
-
-      return {
-        content,
-        usage: data.usage,
-        model: data.model || model,
-      };
+      return { content, usage, model: modelName };
     } catch (err) {
-      lastError = err;
-      if (err.name === 'AbortError') {
-        lastError = new Error('OpenAI request timeout');
+      if (!isRetryableError(err) || attempt >= MAX_ATTEMPTS) throw err;
+      const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('[llm] transient error attempt ' + attempt + '/' + MAX_ATTEMPTS + ' delay=' + delay + 'ms');
       }
-      if (attempt < MAX_ATTEMPTS && (err.status && isRetryableStatus(err.status))) {
-        const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
-        await sleep(delay);
-        continue;
-      }
-      throw lastError;
+      await sleep(delay);
     }
   }
 
-  throw lastError;
+  throw new Error('LLM response is not valid JSON. Monthly job fails.');
 }
 
 const EMPLOYEE_KEYS = ['interpretareHtml', 'concluziiHtml', 'actiuniHtml', 'planHtml'];
@@ -168,9 +210,12 @@ Fără alte chei. Conținutul trebuie să facă referire la datele din input.`;
  * @returns {{ interpretareHtml: string, concluziiHtml: string, actiuniHtml: string, planHtml: string }}
  */
 export async function generateMonthlySections({ systemPrompt, inputJson }) {
-  const { content, usage, model } = await chatCompletion({
-    systemPrompt: systemPrompt + '\n\n' + EMPLOYEE_JSON_INSTRUCTION,
-    userContent: `Date pentru analiză (JSON):\n${JSON.stringify(inputJson, null, 2)}`,
+  const { content, usage, model } = await callGeminiJson({
+    model: getModel(),
+    messages: [
+      { role: 'system', content: systemPrompt + '\n\n' + EMPLOYEE_JSON_INSTRUCTION },
+      { role: 'user', content: `Date pentru analiză (JSON):\n${JSON.stringify(inputJson, null, 2)}` },
+    ],
   });
 
   let parsed;
@@ -193,9 +238,12 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
  * @returns {{ rezumatExecutivHtml: string, vanzariHtml: string, operationalHtml: string, comparatiiHtml: string, recomandariHtml: string }}
  */
 export async function generateMonthlyDepartmentSections({ systemPrompt, inputJson }) {
-  const { content, usage, model } = await chatCompletion({
-    systemPrompt: systemPrompt + '\n\n' + DEPARTMENT_JSON_INSTRUCTION,
-    userContent: `Date pentru analiză (JSON, 3 luni):\n${JSON.stringify(inputJson, null, 2)}`,
+  const { content, usage, model } = await callGeminiJson({
+    model: getModel(),
+    messages: [
+      { role: 'system', content: systemPrompt + '\n\n' + DEPARTMENT_JSON_INSTRUCTION },
+      { role: 'user', content: `Date pentru analiză (JSON, 3 luni):\n${JSON.stringify(inputJson, null, 2)}` },
+    ],
   });
 
   let parsed;
@@ -210,11 +258,4 @@ export async function generateMonthlyDepartmentSections({ systemPrompt, inputJso
     console.log('[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok');
   }
   return result;
-}
-
-/**
- * Check if OpenAI is configured (for job to fail fast before sending).
- */
-export function requireOpenAI() {
-  getApiKey();
 }

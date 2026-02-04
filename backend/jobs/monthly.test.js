@@ -73,13 +73,13 @@ describe('runMonthly', () => {
     );
   });
 
-  it('throws when OPENAI_API_KEY is not set (requireOpenAI fails)', async () => {
+  it('throws when Vertex AI is not configured (requireOpenAI fails)', async () => {
     process.env.DRY_RUN = '1';
     vi.mocked(requireOpenAI).mockImplementationOnce(() => {
-      throw new Error('OPENAI_API_KEY is not set. Monthly job requires OpenAI for analysis.');
+      throw new Error('Vertex AI requires a GCP project. Set GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT (Cloud Run sets this automatically).');
     });
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
-      'OPENAI_API_KEY'
+      'GOOGLE_CLOUD_PROJECT'
     );
   });
 });
