@@ -6,8 +6,8 @@
 
 import { VertexAI } from '@google-cloud/vertexai';
 
-const DEFAULT_MODEL = 'gemini-1.5-pro';
-const DEFAULT_LOCATION = 'europe-west1';
+const DEFAULT_MODEL = process.env.VERTEX_MODEL || 'gemini-1.5-flash';
+const DEFAULT_LOCATION = process.env.VERTEX_LOCATION || 'us-central1';
 const MAX_ATTEMPTS = 3;
 const INITIAL_BACKOFF_MS = 2000;
 const STRICT_JSON_APPEND = '\n\nRăspunde DOAR cu un obiect JSON valid, fără markdown, fără text înainte sau după.';
@@ -26,7 +26,7 @@ function getVertexConfig() {
   return {
     project: getProject(),
     location: (process.env.VERTEX_LOCATION || DEFAULT_LOCATION).trim(),
-    model: (process.env.GEMINI_MODEL || DEFAULT_MODEL).trim(),
+    model: (process.env.VERTEX_MODEL || DEFAULT_MODEL).trim(),
   };
 }
 
