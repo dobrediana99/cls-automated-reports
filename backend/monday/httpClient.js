@@ -206,9 +206,15 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
           continue;
         }
         const msg = json.errors[0]?.message ?? String(json.errors[0]);
-        lastError = new Error(msg);
-        lastError.statusCode = 400;
-        throw lastError;
+	console.error('[monday][graphql-error]', {
+	op,
+	msg,
+	errors: json.errors,
+	variables,
+	});
+	lastError = new Error(msg);
+	lastError.statusCode = 400;
+	throw lastError;
       }
 
       return json;
