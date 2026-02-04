@@ -42,16 +42,9 @@ export async function oidcAuth(req, res, next) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const allowedEmail = process.env.SCHEDULER_SA_EMAIL?.trim();
-    if (allowedEmail) {
-      const tokenEmail = payload.email && String(payload.email).trim();
-      if (tokenEmail !== allowedEmail) {
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-    }
-
     return next();
   } catch (_err) {
+    console.error('[oidcAuth] verifyIdToken failed:', err?.message || err);
     return res.status(401).json({ error: 'Unauthorized' });
   }
 }
