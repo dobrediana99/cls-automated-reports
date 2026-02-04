@@ -1,4 +1,5 @@
 import express from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import { getPreviousCalendarWeekRange } from './lib/dateRanges.js';
 import { getPreviousCalendarMonthRange } from './lib/dateRanges.js';
 import { runWeekly } from './jobs/weekly.js';
@@ -11,14 +12,48 @@ const PORT = Number(process.env.PORT) || 8080;
 
 app.use(express.json());
 
-/** Require X-Job-Token header to match JOB_TOKEN for /run/*. Header name is case-insensitive (req.get). */
-export function jobTokenAuth(req, res, next) {
-  const token = req.get('X-Job-Token');
-  const expected = process.env.JOB_TOKEN;
-  if (!expected || token !== expected) {
+const oauth2Client = new OAuth2Client();
+
+/**
+ * Validates Google OIDC ID token (Bearer) for Cloud Scheduler calls.
+ * Uses OIDC_AUDIENCE (e.g. Cloud Run service URL). Optionally restricts to SCHEDULER_SA_EMAIL.
+ * 401 on missing/invalid token; 403 if SCHEDULER_SA_EMAIL is set and token email does not match.
+ */
+export async function oidcAuth(req, res, next) {
+  const authHeader = req.get('Authorization');
+  if (!authHeader || typeof authHeader !== 'string') {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  next();
+  const match = /^\s*Bearer\s+(.+)\s*$/i.exec(authHeader);
+  const idToken = match?.[1]?.trim();
+  if (!idToken) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const audience = process.env.OIDC_AUDIENCE;
+  if (!audience || typeof audience !== 'string' || !audience.trim()) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const ticket = await oauth2Client.verifyIdToken({ idToken, audience: audience.trim() });
+    const payload = ticket.getPayload();
+    if (!payload) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const allowedEmail = process.env.SCHEDULER_SA_EMAIL?.trim();
+    if (allowedEmail) {
+      const tokenEmail = payload.email && String(payload.email).trim();
+      if (tokenEmail !== allowedEmail) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    }
+
+    return next();
+  } catch (_err) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
 }
 
 app.get('/health', (_req, res) => {
@@ -55,7 +90,7 @@ export async function runJobWithIdempotency(jobType, getRange, runJob) {
   }
 }
 
-app.post('/run/weekly', jobTokenAuth, async (_req, res) => {
+app.post('/run/weekly', oidcAuth, async (_req, res) => {
   try {
     const result = await runJobWithIdempotency('weekly', getPreviousCalendarWeekRange, () => runWeekly());
     if (result.skipped) {
@@ -71,7 +106,7 @@ app.post('/run/weekly', jobTokenAuth, async (_req, res) => {
   }
 });
 
-app.post('/run/monthly', jobTokenAuth, async (req, res) => {
+app.post('/run/monthly', oidcAuth, async (req, res) => {
   try {
     const refresh = req.query?.refresh === '1' || req.query?.refresh === true || req.body?.refresh === true || req.body?.refresh === 1;
     const result = await runJobWithIdempotency('monthly', getPreviousCalendarMonthRange, () => runMonthly({ refresh }));
@@ -92,7 +127,7 @@ if (!process.env.VITEST) {
   app.listen(PORT, () => {
     logSenderConfig();
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[job-auth] JOB_TOKEN is set:', !!process.env.JOB_TOKEN);
+      console.log('[oidc-auth] OIDC_AUDIENCE is set:', !!process.env.OIDC_AUDIENCE);
     }
     console.log(`Backend listening on port ${PORT}`);
   });

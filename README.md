@@ -8,7 +8,7 @@ The backend is a minimal HTTP server for deployment on Google Cloud Run. It expo
 
 ### Running the backend locally
 
-1. Copy `.env.example` to `.env` and fill in at least `JOB_TOKEN` if you want to call the protected endpoints.
+1. Copy `.env.example` to `.env` and fill in at least `OIDC_AUDIENCE` (and optionally `SCHEDULER_SA_EMAIL`) if you want to call the protected endpoints from Cloud Scheduler (OIDC Bearer token).
 2. Start the server:
    - **Production-style:** `npm run start`
    - **Development (with auto-reload):** `npm run dev:server`
@@ -31,7 +31,7 @@ The backend can be deployed to **Google Cloud Run** using the image built from `
 
 - Build context: **backend** (directory)
 - Dockerfile path: **backend/Dockerfile** (or `Dockerfile` when building from backend directory in Cloud Build)
-- Set `PORT=8080` (Cloud Run sets this automatically). Configure `JOB_TOKEN`, `MONDAY_API_TOKEN`, `OPENAI_API_KEY`, and email/sender env vars in the Cloud Run service.
+- Set `PORT=8080` (Cloud Run sets this automatically). Configure `OIDC_AUDIENCE` (Cloud Run URL for OIDC), `MONDAY_API_TOKEN`, Vertex AI (GCP project), and email/sender env vars in the Cloud Run service.
 
 ### Calling `/health`
 
@@ -102,20 +102,20 @@ Instrucțiunile pentru emailurile lunare (angajați + management) sunt **înghe�
 - **Trimitere reală (NON-DRY_RUN):** Job-ul trimite emailuri cu Nodemailer (GMAIL_USER, GMAIL_APP_PASSWORD). În `SEND_MODE=test` toate emailurile merg la `TEST_EMAILS`. Idempotency marchează sent **doar** după ce toate emailurile au fost trimise cu succes.
 - **DRY_RUN=1:** Nu trimite emailuri; salvează în `out/` HTML-urile generate și XLSX-ul lunii.
 
-**Comenzi curl (înlocuiește `<JOB_TOKEN>` cu valoarea din `.env`):**
+**Comenzi curl:** Endpoint-urile `/run/weekly` și `/run/monthly` cer **Authorization: Bearer &lt;id_token&gt;** (OIDC). Cloud Scheduler poate fi configurat cu OIDC target; token-ul trebuie să aibă audience = URL-ul serviciului Cloud Run (OIDC_AUDIENCE). Pentru test local cu token obținut din gcloud sau din altă sursă:
 
 ```bash
 # Monthly normal (folosește cache dacă există)
 curl -s -X POST "http://localhost:8080/run/monthly" \
-  -H "X-Job-Token: <JOB_TOKEN>" -H "Content-Type: application/json"
+  -H "Authorization: Bearer <ID_TOKEN>" -H "Content-Type: application/json"
 
 # Monthly cu refresh (ignoră cache, reface toate cele 3 luni)
 curl -s -X POST "http://localhost:8080/run/monthly?refresh=1" \
-  -H "X-Job-Token: <JOB_TOKEN>" -H "Content-Type: application/json"
+  -H "Authorization: Bearer <ID_TOKEN>" -H "Content-Type: application/json"
 
 # Sau refresh din body
 curl -s -X POST "http://localhost:8080/run/monthly" \
-  -H "X-Job-Token: <JOB_TOKEN>" -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <ID_TOKEN>" -H "Content-Type: application/json" \
   -d "{\"refresh\": true}"
 ```
 
@@ -158,9 +158,10 @@ Pentru a rula weekly manual (după ștergere marker) și a verifica idempotency:
 ```powershell
 # Șterge markerul pentru perioada curentă (ex. weekly-2026-01-26..2026-02-01.sent)
 Remove-Item backend\state\weekly-*.sent -ErrorAction SilentlyContinue
-# Rulează job-ul (DRY_RUN sau cu JOB_TOKEN pe server)
-$env:DRY_RUN = "1"; $env:JOB_TOKEN = "your-token"
-Invoke-RestMethod -Uri "http://localhost:8080/run/weekly" -Method POST -Headers @{ "X-Job-Token" = $env:JOB_TOKEN } -ContentType "application/json"
+# Rulează job-ul (DRY_RUN sau cu OIDC: set OIDC_AUDIENCE și folosește Bearer ID token)
+$env:DRY_RUN = "1"
+# Cu OIDC: Invoke-RestMethod -Uri "http://localhost:8080/run/weekly" -Method POST -Headers @{ "Authorization" = "Bearer $idToken" } -ContentType "application/json"
+Invoke-RestMethod -Uri "http://localhost:8080/run/weekly" -Method POST -Headers @{ "Authorization" = "Bearer <ID_TOKEN>" } -ContentType "application/json"
 ```
 
 ---
