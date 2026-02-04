@@ -1,13 +1,14 @@
 /**
  * Vertex AI (Gemini) client for monthly report analysis. Same public API as before.
  * Authenticates via IAM (no API key). Requires GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT.
+ * Env: VERTEX_MODEL, VERTEX_LOCATION only (no GEMINI_*).
  * Retry on transient failures and on JSON parse failure (with stricter prompt).
  */
 
 import { VertexAI } from '@google-cloud/vertexai';
 
-const DEFAULT_MODEL = process.env.VERTEX_MODEL || 'gemini-1.5-flash';
-const DEFAULT_LOCATION = process.env.VERTEX_LOCATION || 'us-central1';
+const DEFAULT_MODEL = 'gemini-2.0-flash';
+const DEFAULT_LOCATION = 'europe-west1';
 const MAX_ATTEMPTS = 3;
 const INITIAL_BACKOFF_MS = 2000;
 const STRICT_JSON_APPEND = '\n\nRăspunde DOAR cu un obiect JSON valid, fără markdown, fără text înainte sau după.';
@@ -22,6 +23,9 @@ function getProject() {
   return project.trim();
 }
 
+/**
+ * Single source for Vertex config. Reads project, VERTEX_LOCATION, VERTEX_MODEL only.
+ */
 function getVertexConfig() {
   return {
     project: getProject(),
@@ -38,8 +42,17 @@ export function requireOpenAI() {
   getProject();
 }
 
-function getModel() {
-  return (process.env.GEMINI_MODEL || DEFAULT_MODEL).trim();
+/** Log Vertex failure without tokens/secrets. */
+function logVertexError(location, model, err, operationName) {
+  const statusCode = err?.status ?? err?.code;
+  const message = err?.message ?? String(err);
+  console.error('[vertex] error', {
+    model,
+    location,
+    operationName: operationName ?? null,
+    statusCode: statusCode != null ? statusCode : undefined,
+    message,
+  });
 }
 
 function sleep(ms) {
@@ -73,12 +86,13 @@ function messagesToPrompt(messages) {
 
 /**
  * Call Vertex AI Gemini with JSON output. Retries on transient errors and on JSON parse failure.
- * @param {{ model?: string, messages: { role: string, content: string }[] }} opts
+ * Uses getVertexConfig() for model/location (VERTEX_MODEL, VERTEX_LOCATION only).
+ * @param {{ messages: { role: string, content: string }[], operationName?: string }} opts
  * @returns {{ content: string, usage?: object, model: string }}
  */
-async function callGeminiJson({ model, messages }) {
+async function callGeminiJson({ messages, operationName }) {
   const config = getVertexConfig();
-  const modelName = model || config.model;
+  const modelName = config.model;
   const { systemInstruction, userContent } = messagesToPrompt(messages);
 
   const vertexAI = new VertexAI({ project: config.project, location: config.location });
@@ -134,6 +148,7 @@ async function callGeminiJson({ model, messages }) {
       }
       return { content, usage, model: modelName };
     } catch (err) {
+      logVertexError(config.location, modelName, err, operationName);
       if (!isRetryableError(err) || attempt >= MAX_ATTEMPTS) throw err;
       const delay = INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1);
       if (process.env.NODE_ENV !== 'production') {
@@ -211,11 +226,11 @@ Fără alte chei. Conținutul trebuie să facă referire la datele din input.`;
  */
 export async function generateMonthlySections({ systemPrompt, inputJson }) {
   const { content, usage, model } = await callGeminiJson({
-    model: getModel(),
     messages: [
       { role: 'system', content: systemPrompt + '\n\n' + EMPLOYEE_JSON_INSTRUCTION },
       { role: 'user', content: `Date pentru analiză (JSON):\n${JSON.stringify(inputJson, null, 2)}` },
     ],
+    operationName: 'employee',
   });
 
   let parsed;
@@ -239,11 +254,11 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
  */
 export async function generateMonthlyDepartmentSections({ systemPrompt, inputJson }) {
   const { content, usage, model } = await callGeminiJson({
-    model: getModel(),
     messages: [
       { role: 'system', content: systemPrompt + '\n\n' + DEPARTMENT_JSON_INSTRUCTION },
       { role: 'user', content: `Date pentru analiză (JSON, 3 luni):\n${JSON.stringify(inputJson, null, 2)}` },
     ],
+    operationName: 'department',
   });
 
   let parsed;
