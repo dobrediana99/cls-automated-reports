@@ -162,9 +162,10 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const body = variables !== undefined
-        ? { query, variables, operationName: op }
-        : { query, operationName: op };
+      const body = {
+        query,
+        ...(variables !== undefined ? { variables } : {}),
+      };
       const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
         headers: {
