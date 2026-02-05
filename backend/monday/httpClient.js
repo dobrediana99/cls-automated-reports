@@ -85,15 +85,21 @@ function isNetworkError(err) {
 }
 
 /**
- * GraphQL 200 response with errors: treat as retryable if message contains 429 / rate limit / column_values - 429.
+ * GraphQL 200 response with errors: treat as retryable if rate limit (429), internal/5xx message, or extensions.status_code >= 500.
  */
 function isRetryableGraphQLError(errors) {
   if (!Array.isArray(errors) || errors.length === 0) return false;
-  const msg = (errors[0]?.message ?? String(errors[0])).toLowerCase();
+  const first = errors[0];
+  const msg = (first?.message ?? String(first)).toLowerCase();
+  const ext = first?.extensions;
+  const statusCode = ext?.status_code ?? ext?.statusCode;
+  const is5xx = typeof statusCode === 'number' && statusCode >= 500;
   return (
     msg.includes('429') ||
     msg.includes('rate limit') ||
-    msg.includes('column_values') && msg.includes('429')
+    (msg.includes('column_values') && msg.includes('429')) ||
+    msg.includes('internal server error') ||
+    is5xx
   );
 }
 
@@ -156,7 +162,9 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
     const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     try {
-      const body = variables !== undefined ? { query, variables } : { query };
+      const body = variables !== undefined
+        ? { query, variables, operationName: op }
+        : { query, operationName: op };
       const response = await fetch(MONDAY_API_URL, {
         method: 'POST',
         headers: {
@@ -206,15 +214,15 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
           continue;
         }
         const msg = json.errors[0]?.message ?? String(json.errors[0]);
-	console.error('[monday][graphql-error]', {
-	op,
-	msg,
-	errors: json.errors,
-	variables,
-	});
-	lastError = new Error(msg);
-	lastError.statusCode = 400;
-	throw lastError;
+        console.error('[monday][graphql-error]', {
+          op,
+          msg,
+          variables: variables ?? null,
+          errors: JSON.parse(JSON.stringify(json.errors)),
+        });
+        lastError = new Error(msg);
+        lastError.statusCode = 400;
+        throw lastError;
       }
 
       return json;
