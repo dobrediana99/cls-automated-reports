@@ -150,12 +150,14 @@ function validateChunkResponse(data, chunk) {
 
 /**
  * Fetch one chunk with retries. Throws on non-transient error or incomplete after retries.
+ * On 403: if chunk has more than one item, splits in half and recurses; if single item, skips and returns [].
  */
 async function fetchActivitiesChunk(chunk, chunkIndex, mondayRequestFn, stats) {
   const query = buildActivitiesQuery(chunk);
   let lastError;
   for (let attempt = 1; attempt <= ACTIVITIES_MIN_ATTEMPTS; attempt++) {
     try {
+      console.log('[timeline][chunk]', { chunkIndex, count: chunk.length, sample: chunk.slice(0, 10) });
       const data = await mondayRequestFn(query, undefined, 'timeline');
       const { ok, missing } = validateChunkResponse(data, chunk);
       if (!ok) {
@@ -191,6 +193,16 @@ async function fetchActivitiesChunk(chunk, chunkIndex, mondayRequestFn, stats) {
       return activities;
     } catch (err) {
       lastError = err;
+      if (err?.statusCode === 403) {
+        if (chunk.length > 1) {
+          const mid = Math.ceil(chunk.length / 2);
+          const left = await fetchActivitiesChunk(chunk.slice(0, mid), chunkIndex, mondayRequestFn, stats);
+          const right = await fetchActivitiesChunk(chunk.slice(mid), chunkIndex, mondayRequestFn, stats);
+          return [...left, ...right];
+        }
+        console.error('[timeline][skip-forbidden]', { chunkIndex, itemId: chunk[0] });
+        return [];
+      }
       if (err.chunkIndex !== undefined && err.missingIds) throw err;
       if (!isTransientError(err) && err?.statusCode != null) {
         throw err;
