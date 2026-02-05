@@ -177,15 +177,19 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
 
       clearTimeout(timeoutId);
 
+      const rawText = await response.text();
+
       let json;
       try {
-        json = await response.json();
+        json = rawText ? JSON.parse(rawText) : {};
       } catch (_) {
         json = {};
       }
 
       if (!response.ok) {
         const status = response.status;
+        const details = rawText ? rawText.slice(0, 2000) : "";
+        console.error("[monday][http-error]", { op, status, details });
         const config = getConfig();
         if (isRetryableStatus(status) && attempt < config.maxAttempts) {
           const retryAfterSecs = parseRetryAfter(response.headers?.get?.('Retry-After'));
