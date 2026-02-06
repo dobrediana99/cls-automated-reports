@@ -21,7 +21,28 @@ export function getPersonRow(report, person) {
         : person.department === DEPARTMENTS.OPERATIONS
           ? opsStats
           : [];
-  return list.find((r) => r.name === person.name || String(r.mondayId) === String(person.mondayUserId)) || null;
+
+  if (!list || list.length === 0) {
+    console.warn('[getPersonRow] empty list for department', { person: person.name, department: person.department });
+    return null;
+  }
+
+  const hasMondayId = person.mondayUserId != null && String(person.mondayUserId).trim() !== '';
+  if (hasMondayId) {
+    const byMondayId = list.find((r) => String(r.mondayId) === String(person.mondayUserId));
+    if (byMondayId) return byMondayId;
+    console.warn('[getPersonRow] no row for mondayUserId', { name: person.name, mondayUserId: person.mondayUserId, department: person.department });
+  }
+
+  const byName = list.filter((r) => r.name === person.name);
+  if (byName.length === 1) return byName[0];
+  if (byName.length > 1) {
+    console.warn('[getPersonRow] ambiguous match by name', { name: person.name, department: person.department });
+    return null;
+  }
+
+  console.warn('[getPersonRow] no match', { name: person.name, department: person.department });
+  return null;
 }
 
 const BODY_STYLE = 'font-family: Arial, sans-serif; font-size: 14px; max-width: 600px; margin: 0 auto; padding: 16px;';
