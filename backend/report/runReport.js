@@ -5,7 +5,7 @@ function safeVal(v) {
   return typeof v === 'number' && !isNaN(v) ? v : 0;
 }
 
-function computeTotals(rows) {
+export function computeTotals(rows) {
   const init = {
     contactat: 0,
     calificat: 0,

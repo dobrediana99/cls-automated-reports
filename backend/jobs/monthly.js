@@ -3,6 +3,8 @@ import path from 'path';
 import nodemailer from 'nodemailer';
 import { writeDryRunFile } from './dryRun.js';
 import { getMonthlyPeriods, loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
+import { buildMonthlySnapshot } from '../report/buildMonthlySnapshot.js';
+import { readMonthlySnapshotFromGCS, writeMonthlySnapshotToGCS } from '../store/monthlySnapshots.js';
 import { buildMonthlyEmployeeEmail, getPersonRow, buildMonthlyDepartmentEmail } from '../email/monthly.js';
 import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
 import { buildMonthlyXlsx } from '../export/xlsx.js';
@@ -47,13 +49,41 @@ export async function runMonthly(opts = {}) {
   const refresh = opts.refresh === true || opts.refresh === 1;
 
   if (refresh && process.env.NODE_ENV !== 'production') {
-    console.log('[monthly] refresh=1 -> ignoring cache for all 3 months');
+    console.log('[monthly] refresh=1 -> regenerating all 3 snapshots');
   }
 
   const periods = getMonthlyPeriods({ baseDate: now });
-  const result0 = await loadOrComputeMonthlyReport({ period: periods[0], refresh });
-  const result1 = await loadOrComputeMonthlyReport({ period: periods[1], refresh });
-  const result2 = await loadOrComputeMonthlyReport({ period: periods[2], refresh });
+  let result0;
+  let result1;
+  let result2;
+
+  if (process.env.SNAPSHOT_BUCKET) {
+    const results = [];
+    for (const period of periods) {
+      let snapshot = !refresh ? await readMonthlySnapshotFromGCS(period.yyyyMm) : null;
+      if (!snapshot) {
+        snapshot = await buildMonthlySnapshot({
+          month: period.yyyyMm,
+          startDate: period.start,
+          endDate: period.end,
+          refresh,
+        });
+        await writeMonthlySnapshotToGCS(period.yyyyMm, snapshot);
+      }
+      results.push({
+        meta: snapshot.derived.meta,
+        reportSummary: snapshot.derived.reportSummary,
+        report: snapshot.derived.report,
+      });
+    }
+    result0 = results[0];
+    result1 = results[1];
+    result2 = results[2];
+  } else {
+    result0 = await loadOrComputeMonthlyReport({ period: periods[0], refresh });
+    result1 = await loadOrComputeMonthlyReport({ period: periods[1], refresh });
+    result2 = await loadOrComputeMonthlyReport({ period: periods[2], refresh });
+  }
 
   const reports = [result0.report, result1.report, result2.report];
   const metas = [result0.meta, result1.meta, result2.meta];
