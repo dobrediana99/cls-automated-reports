@@ -4,13 +4,20 @@ import nodemailer from 'nodemailer';
 import { writeDryRunFile } from './dryRun.js';
 import { getMonthlyPeriods, loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { buildMonthlySnapshot } from '../report/buildMonthlySnapshot.js';
-import { readMonthlySnapshotFromGCS, writeMonthlySnapshotToGCS } from '../store/monthlySnapshots.js';
+import {
+  readMonthlySnapshotFromGCS,
+  writeMonthlySnapshotToGCS,
+  writeMonthlyRunManifestToGCS,
+} from '../store/monthlySnapshots.js';
 import { buildMonthlyEmployeeEmail, getPersonRow, buildMonthlyDepartmentEmail } from '../email/monthly.js';
 import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
 import { buildMonthlyXlsx } from '../export/xlsx.js';
-import { requireOpenAI, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openaiClient.js';
+import { requireVertex, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/vertexClient.js';
 import { loadMonthlyEmployeePrompt, loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
+
+// Behavior A: Snapshots are persisted before email send. If email env is missing or send fails,
+// the job exits with code 1 but computed checkpoints remain in GCS so reruns skip heavy Monday queries.
 
 const JOB_TYPE = 'monthly';
 const TIMEZONE = 'Europe/Bucharest';
@@ -37,7 +44,7 @@ function ensureOutDir() {
 /**
  * Runs the monthly job.
  * Uses cache in out/cache/monthly/<YYYY-MM>.json; refresh forces recompute for all 3 months.
- * Fetches data for 3 periods: report month (previous calendar month), 2 months ago, 3 months ago.
+ * Snapshots persist even if email fails (behavior A); job exits non-zero for alerting.
  * DRY_RUN=1: writes JSON + one HTML per person + department HTML + XLSX to ./out/.
  * Otherwise: sends personal monthly email to each active person; sends one department email to each manager (with XLSX attachment).
  * Idempotency is enforced by the route (runJobWithIdempotency); mark sent only after all emails sent.
@@ -48,6 +55,12 @@ export async function runMonthly(opts = {}) {
   const now = opts.now ?? new Date();
   const refresh = opts.refresh === true || opts.refresh === 1;
 
+  // Fail fast before heavy compute if Monday token missing (needed for snapshot build or report fetch).
+  const mondayToken = process.env.MONDAY_API_TOKEN;
+  if (!mondayToken || typeof mondayToken !== 'string' || !mondayToken.trim()) {
+    throw new Error('MONDAY_API_TOKEN must be set for monthly report (fetch or snapshot build)');
+  }
+
   if (refresh && process.env.NODE_ENV !== 'production') {
     console.log('[monthly] refresh=1 -> regenerating all 3 snapshots');
   }
@@ -56,9 +69,11 @@ export async function runMonthly(opts = {}) {
   let result0;
   let result1;
   let result2;
+  let runLabelForManifest = null;
 
   if (process.env.SNAPSHOT_BUCKET) {
     const results = [];
+    const perMonth = {};
     for (const period of periods) {
       let snapshot = !refresh ? await readMonthlySnapshotFromGCS(period.yyyyMm) : null;
       if (!snapshot) {
@@ -69,6 +84,9 @@ export async function runMonthly(opts = {}) {
           refresh,
         });
         await writeMonthlySnapshotToGCS(period.yyyyMm, snapshot);
+        perMonth[period.yyyyMm] = { source: 'computed', wrote: true };
+      } else {
+        perMonth[period.yyyyMm] = { source: 'hit', wrote: false };
       }
       results.push({
         meta: snapshot.derived.meta,
@@ -79,6 +97,13 @@ export async function runMonthly(opts = {}) {
     result0 = results[0];
     result1 = results[1];
     result2 = results[2];
+    runLabelForManifest = results[0]?.meta?.label ?? periods[0].label;
+    await writeMonthlyRunManifestToGCS({
+      jobType: JOB_TYPE,
+      label: runLabelForManifest,
+      months: periods.map((p) => p.yyyyMm),
+      perMonth,
+    });
   } else {
     result0 = await loadOrComputeMonthlyReport({ period: periods[0], refresh });
     result1 = await loadOrComputeMonthlyReport({ period: periods[1], refresh });
@@ -104,7 +129,7 @@ export async function runMonthly(opts = {}) {
   const xlsxBuffer = await buildMonthlyXlsx(reports[0], metas[0]);
   const xlsxFilename = `Raport_lunar_${metas[0].periodStart.slice(0, 7)}.xlsx`;
 
-  requireOpenAI();
+  requireVertex();
   const employeePrompt = loadMonthlyEmployeePrompt();
   const departmentPrompt = loadMonthlyDepartmentPrompt();
 
@@ -168,10 +193,11 @@ export async function runMonthly(opts = {}) {
     return { payload, dryRunPath };
   }
 
-  // Trimitere reală: Nodemailer (la fel ca weekly.js). Idempotency marchează sent DOAR după ce toate emailurile au fost trimise cu succes.
+  // Email send: validate env before sending. Snapshots already persisted; if we throw here, exit 1 but checkpoints remain.
   const gmailUser = process.env.GMAIL_USER;
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
   if (!gmailUser || !gmailAppPassword) {
+    console.error('[job] monthly email skipped missing env (GMAIL_USER or GMAIL_APP_PASSWORD unset)');
     throw new Error('GMAIL_USER and GMAIL_APP_PASSWORD must be set for monthly email send');
   }
 

@@ -1,7 +1,7 @@
 /**
- * Vertex AI (Gemini) client for monthly report analysis. Same public API as before.
+ * Vertex AI (Gemini) client for monthly report analysis.
  * Authenticates via IAM (no API key). Requires GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT.
- * Env: VERTEX_MODEL, VERTEX_LOCATION only (no GEMINI_*).
+ * Env: VERTEX_MODEL, VERTEX_LOCATION only.
  * Retry on transient failures and on JSON parse failure (with stricter prompt).
  */
 
@@ -35,11 +35,12 @@ function getVertexConfig() {
 }
 
 /**
- * Check if Vertex AI is configured (for job to fail fast before sending).
- * Validates that runtime has GCP project ID (e.g. on Cloud Run).
+ * Validate that Vertex AI is configured (for job to fail fast before LLM calls).
+ * Returns the trimmed GCP project ID.
+ * @returns {string}
  */
-export function requireOpenAI() {
-  getProject();
+export function requireVertex() {
+  return getProject();
 }
 
 /** Log Vertex failure without tokens/secrets. */
@@ -69,7 +70,7 @@ function isRetryableError(err) {
 }
 
 /**
- * Convert OpenAI-style messages to Gemini request: systemInstruction + user content.
+ * Convert messages (system/user) to Gemini request: systemInstruction + user content.
  * @param {{ role: string, content: string }[]} messages
  * @returns {{ systemInstruction: string, userContent: string }}
  */
@@ -86,7 +87,6 @@ function messagesToPrompt(messages) {
 
 /**
  * Call Vertex AI Gemini with JSON output. Retries on transient errors and on JSON parse failure.
- * Uses getVertexConfig() for model/location (VERTEX_MODEL, VERTEX_LOCATION only).
  * @param {{ messages: { role: string, content: string }[], operationName?: string }} opts
  * @returns {{ content: string, usage?: object, model: string }}
  */
@@ -221,8 +221,6 @@ Fără alte chei. Conținutul trebuie să facă referire la datele din input.`;
 
 /**
  * Generate monthly employee sections (interpretare, concluzii, acțiuni, plan). Fail fast if output invalid.
- * @param {{ systemPrompt: string, inputJson: object }} opts - systemPrompt from monthlyEmployeePrompt.md; inputJson = data for the employee
- * @returns {{ interpretareHtml: string, concluziiHtml: string, actiuniHtml: string, planHtml: string }}
  */
 export async function generateMonthlySections({ systemPrompt, inputJson }) {
   const { content, usage, model } = await callGeminiJson({
@@ -249,8 +247,6 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
 
 /**
  * Generate monthly department/management sections. Fail fast if output invalid.
- * @param {{ systemPrompt: string, inputJson: object }} opts - systemPrompt from monthlyDepartmentPrompt.md; inputJson = 3 months data
- * @returns {{ rezumatExecutivHtml: string, vanzariHtml: string, operationalHtml: string, comparatiiHtml: string, recomandariHtml: string }}
  */
 export async function generateMonthlyDepartmentSections({ systemPrompt, inputJson }) {
   const { content, usage, model } = await callGeminiJson({

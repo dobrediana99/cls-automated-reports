@@ -56,7 +56,7 @@ function getDepartmentPrompt() {
 /** Re-export for callers that need { subject, html } with data3Months. */
 export { buildMonthlyEmployeeEmail };
 
-/** Builds full HTML for monthly employee (single report). Requires llmSections (from OpenAI); no placeholder. */
+/** Builds full HTML for monthly employee (single report). Requires llmSections (from Vertex LLM); no placeholder. */
 export function buildMonthlyEmployeeEmailHtml({ personName, stats, department, periodStart, showCheckIn = false, llmSections }) {
   return buildEmployeeEmailHtmlFromTemplate({
     person: { name: personName, department },
@@ -81,7 +81,7 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
 
   const required = ['rezumatExecutivHtml', 'vanzariHtml', 'operationalHtml', 'comparatiiHtml', 'recomandariHtml'];
   if (!llmSections || typeof llmSections !== 'object') {
-    throw new Error('Monthly management email requires llmSections from OpenAI. Job fails without valid analysis.');
+    throw new Error('Monthly management email requires llmSections from Vertex LLM. Job fails without valid analysis.');
   }
   for (const key of required) {
     const val = llmSections[key];
@@ -145,7 +145,7 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
 
 /**
  * Builds monthly department/management email. Structure from monthlyDepartmentPrompt.md.
- * Requires llmSections from OpenAI (rezumatExecutivHtml, vanzariHtml, operationalHtml, comparatiiHtml, recomandariHtml); no placeholder.
+ * Requires llmSections from Vertex LLM (rezumatExecutivHtml, vanzariHtml, operationalHtml, comparatiiHtml, recomandariHtml); no placeholder.
  * @param {object} opts - { periodStart, reportSummary?, monthExcelCurrent?, monthExcelPrev?, monthExcelPrev2?, llmSections }
  * @param {object} opts.llmSections - Required; from generateMonthlyDepartmentSections
  * @returns {{ subject: string, html: string, attachments: Array<{ filename: string, content: Buffer }> }}
@@ -173,7 +173,7 @@ export function buildMonthlyDepartmentEmail({ periodStart, reportSummary, monthE
 }
 
 /**
- * Returns HTML for monthly employee email. Requires llmSections (from OpenAI); no placeholder.
+ * Returns HTML for monthly employee email. Requires llmSections (from Vertex LLM); no placeholder.
  * Uses monthlyEmployeePrompt.md; structure: salut, tabel, interpretare, concluzii, acțiuni, plan [+ check-in dacă sub standard].
  */
 export function renderMonthlyEmployeeEmail(report, person, meta, llmSections) {
@@ -188,7 +188,7 @@ export function renderMonthlyEmployeeEmail(report, person, meta, llmSections) {
 }
 
 /**
- * Returns HTML for monthly management email. Requires llmSections (from OpenAI); no placeholder.
+ * Returns HTML for monthly management email. Requires llmSections (from Vertex LLM); no placeholder.
  * Uses monthlyDepartmentPrompt.md; structure: rezumat executiv, analiză vânzări, operațional, comparații, recomandări, tabel.
  */
 export function renderMonthlyManagerEmail(report, meta, reportSummary, llmSections) {

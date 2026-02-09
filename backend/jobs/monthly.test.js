@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runReport } from '../report/runReport.js';
-import { requireOpenAI } from '../llm/openaiClient.js';
+import { requireVertex } from '../llm/vertexClient.js';
 import { runMonthly } from './monthly.js';
 
 vi.mock('../report/runReport.js', () => ({
@@ -16,8 +16,8 @@ vi.mock('../cache/monthlyReportCache.js', () => ({
   loadMonthlyReportFromCache: vi.fn().mockReturnValue(null),
   saveMonthlyReportToCache: vi.fn(),
 }));
-vi.mock('../llm/openaiClient.js', () => ({
-  requireOpenAI: vi.fn(),
+vi.mock('../llm/vertexClient.js', () => ({
+  requireVertex: vi.fn(),
   generateMonthlySections: vi.fn().mockResolvedValue({
     interpretareHtml: '<p>Interpretare</p>',
     concluziiHtml: '<p>Concluzii</p>',
@@ -46,6 +46,7 @@ const mockSummary = { departments: { operational: {}, sales: {}, management: {} 
 describe('runMonthly', () => {
   beforeEach(() => {
     delete process.env.DRY_RUN;
+    process.env.MONDAY_API_TOKEN = 'test-token';
     vi.mocked(runReport).mockResolvedValue({
       meta: mockMeta,
       reportSummary: mockSummary,
@@ -73,13 +74,20 @@ describe('runMonthly', () => {
     );
   });
 
-  it('throws when Vertex AI is not configured (requireOpenAI fails)', async () => {
+  it('throws when Vertex AI is not configured (requireVertex fails)', async () => {
     process.env.DRY_RUN = '1';
-    vi.mocked(requireOpenAI).mockImplementationOnce(() => {
+    vi.mocked(requireVertex).mockImplementationOnce(() => {
       throw new Error('Vertex AI requires a GCP project. Set GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT (Cloud Run sets this automatically).');
     });
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
       'GOOGLE_CLOUD_PROJECT'
+    );
+  });
+
+  it('throws when MONDAY_API_TOKEN is missing', async () => {
+    delete process.env.MONDAY_API_TOKEN;
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
+      'MONDAY_API_TOKEN'
     );
   });
 });

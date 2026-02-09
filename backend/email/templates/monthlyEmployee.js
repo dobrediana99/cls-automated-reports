@@ -40,7 +40,7 @@ export function loadMonthlyEmployeePromptFromRepo() {
  * Builds full HTML for monthly employee email. Structure from monthlyEmployeePrompt.md.
  * Table is deterministic (from code). Interpretare/Concluzii/Acțiuni/Plan come from LLM (llmSections required).
  * @param {object} opts - { person, department, data3Months, deptAverages3Months, periodStart, llmSections }
- * @param {object} opts.llmSections - { interpretareHtml, concluziiHtml, actiuniHtml, planHtml } from OpenAI; required, no placeholder
+ * @param {object} opts.llmSections - { interpretareHtml, concluziiHtml, actiuniHtml, planHtml } from Vertex LLM; required, no placeholder
  * @returns {string} Full HTML document
  */
 export function buildMonthlyEmployeeEmailHtml({ person, department, data3Months, deptAverages3Months, periodStart, llmSections }) {
@@ -48,7 +48,7 @@ export function buildMonthlyEmployeeEmailHtml({ person, department, data3Months,
 
   const required = ['interpretareHtml', 'concluziiHtml', 'actiuniHtml', 'planHtml'];
   if (!llmSections || typeof llmSections !== 'object') {
-    throw new Error('Monthly employee email requires llmSections from OpenAI. Job fails without valid analysis.');
+    throw new Error('Monthly employee email requires llmSections from Vertex LLM. Job fails without valid analysis.');
   }
   for (const key of required) {
     const val = llmSections[key];
@@ -101,7 +101,7 @@ ${checkInSection}
 }
 
 /**
- * Builds monthly employee email. Uses prompt from file. Requires llmSections (from OpenAI); no placeholder fallback.
+ * Builds monthly employee email. Uses prompt from file. Requires llmSections (from Vertex LLM); no placeholder fallback.
  * @param {object} opts - { person, data3Months, deptAverages3Months, periodStart, llmSections }
  * @param {object} opts.llmSections - { interpretareHtml, concluziiHtml, actiuniHtml, planHtml }; required
  * @returns {{ subject: string, html: string }}
