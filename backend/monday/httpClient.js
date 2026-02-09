@@ -71,9 +71,9 @@ function computeDelay(attempt, retryAfterSeconds, config) {
   return delay;
 }
 
-/** True if HTTP status is retryable (429, 502, 503, 504). */
+/** True if HTTP status is retryable (429, 5xx). */
 function isRetryableStatus(status) {
-  return status === 429 || status === 502 || status === 503 || status === 504;
+  return status === 429 || (status >= 500 && status < 600);
 }
 
 /** True if error is network/timeout. */
@@ -189,8 +189,9 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
 
       if (!response.ok) {
         const status = response.status;
-        const details = rawText ? rawText.slice(0, 2000) : "";
-        console.error("[monday][http-error]", { op, status, details });
+        const bodyPreview = rawText ? rawText.slice(0, 2000) : '';
+        console.error('[monday][http-error]', { operationName: op, statusCode: status, bodyPreview });
+        console.error(`[monday][http-error] op=${op} statusCode=${status} bodyPreview=${bodyPreview.slice(0, 500)}`);
         const config = getConfig();
         if (isRetryableStatus(status) && attempt < config.maxAttempts) {
           const retryAfterSecs = parseRetryAfter(response.headers?.get?.('Retry-After'));
@@ -203,6 +204,7 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
         }
         lastError = new Error(json.error_message || json.message || `HTTP ${response.status}`);
         lastError.statusCode = status;
+        lastError.bodyPreview = bodyPreview;
         throw lastError;
       }
 
@@ -219,14 +221,25 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
           continue;
         }
         const msg = json.errors[0]?.message ?? String(json.errors[0]);
+        const errorsTruncated = json.errors.slice(0, 5).map((e) => ({
+          message: e?.message ?? String(e),
+          extensions: e?.extensions,
+        }));
+        const errorsStr = JSON.stringify(errorsTruncated);
+        const statusCode = 200;
         console.error('[monday][graphql-error]', {
-          op,
-          msg,
-          variables: variables ?? null,
-          errors: JSON.parse(JSON.stringify(json.errors)),
+          operationName: op,
+          statusCode,
+          message: msg,
+          errors: errorsTruncated,
         });
+        console.error(
+          `[monday][graphql-error] op=${op} status=${statusCode} message=${msg.slice(0, 200)} errors=${errorsStr.slice(0, 1500)}`
+        );
         lastError = new Error(msg);
         lastError.statusCode = 400;
+        lastError.bodyPreview = rawText ? rawText.slice(0, 2000) : '';
+        lastError.graphqlErrors = errorsTruncated;
         throw lastError;
       }
 
@@ -252,6 +265,8 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
       const finalErr = lastError instanceof Error ? lastError : new Error(String(lastError));
       finalErr.statusCode = finalErr.statusCode ?? (finalErr.name === 'AbortError' ? 408 : 0);
       finalErr.operationName = op;
+      if (lastError?.bodyPreview != null) finalErr.bodyPreview = lastError.bodyPreview;
+      if (lastError?.graphqlErrors != null) finalErr.graphqlErrors = lastError.graphqlErrors;
       throw finalErr;
     }
   }
@@ -259,6 +274,8 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
   const finalErr = lastError instanceof Error ? lastError : new Error('Monday request failed after retries');
   finalErr.statusCode = lastError?.statusCode;
   finalErr.operationName = op;
+  if (lastError?.bodyPreview != null) finalErr.bodyPreview = lastError.bodyPreview;
+  if (lastError?.graphqlErrors != null) finalErr.graphqlErrors = lastError.graphqlErrors;
   throw finalErr;
 }
 

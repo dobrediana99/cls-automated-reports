@@ -150,14 +150,15 @@ function validateChunkResponse(data, chunk) {
 
 /**
  * Fetch one chunk with retries. Throws on non-transient error or incomplete after retries.
- * On 403: if chunk has more than one item, splits in half and recurses; if single item, skips and returns [].
+ * On 403 or 400 (timeline): if chunk has more than one item, splits in half and recurses; if single item, skips and returns [].
  */
 async function fetchActivitiesChunk(chunk, chunkIndex, mondayRequestFn, stats) {
   const query = buildActivitiesQuery(chunk);
   let lastError;
   for (let attempt = 1; attempt <= ACTIVITIES_MIN_ATTEMPTS; attempt++) {
     try {
-      console.log('[timeline][chunk]', { chunkIndex, count: chunk.length, sample: chunk.slice(0, 10) });
+      const sample = chunk.slice(0, 5);
+      console.log('[timeline][chunk] op=timeline chunkIndex=' + chunkIndex + ' count=' + chunk.length + ' sample=' + JSON.stringify(sample));
       const data = await mondayRequestFn(query, undefined, 'timeline');
       const { ok, missing } = validateChunkResponse(data, chunk);
       if (!ok) {
@@ -193,14 +194,20 @@ async function fetchActivitiesChunk(chunk, chunkIndex, mondayRequestFn, stats) {
       return activities;
     } catch (err) {
       lastError = err;
-      if (err?.statusCode === 403) {
+      const is400 = err?.statusCode === 400;
+      if (err?.statusCode === 403 || is400) {
         if (chunk.length > 1) {
           const mid = Math.ceil(chunk.length / 2);
           const left = await fetchActivitiesChunk(chunk.slice(0, mid), chunkIndex, mondayRequestFn, stats);
           const right = await fetchActivitiesChunk(chunk.slice(mid), chunkIndex, mondayRequestFn, stats);
           return [...left, ...right];
         }
-        console.error('[timeline][skip-forbidden]', { chunkIndex, itemId: chunk[0] });
+        const bodyPreview = (err?.bodyPreview ?? err?.message ?? '').slice(0, 300);
+        if (is400) {
+          console.error('[timeline][skip-400] itemId=' + chunk[0] + ' chunkIndex=' + chunkIndex + ' bodyPreview=' + bodyPreview);
+        } else {
+          console.error('[timeline][skip-forbidden]', { chunkIndex, itemId: chunk[0] });
+        }
         return [];
       }
       if (err.chunkIndex !== undefined && err.missingIds) throw err;
@@ -338,8 +345,24 @@ export async function fetchReportData(dateFrom, dateTo) {
 
   const allActivityItemIds = [...(rawLeads.items_page?.items ?? []), ...(rawContacts.items_page?.items ?? [])].map((i) => i.id);
   let activities = [];
+  let activitiesError = null;
   if (allActivityItemIds.length > 0) {
-    activities = await fetchActivitiesForItems(allActivityItemIds, start, end);
+    try {
+      activities = await fetchActivitiesForItems(allActivityItemIds, start, end);
+    } catch (err) {
+      const chunks = Math.ceil(allActivityItemIds.length / ACTIVITIES_CHUNK_SIZE);
+      const message = err?.message ?? String(err);
+      console.error(
+        '[timeline][fallback] continuing without activities message=' +
+          message.slice(0, 200) +
+          ' totalItemIds=' +
+          allActivityItemIds.length +
+          ' chunks=' +
+          chunks
+      );
+      activities = [];
+      activitiesError = { message: message.slice(0, 500), totalItemIds: allActivityItemIds.length, chunks };
+    }
   }
 
   return {
@@ -350,6 +373,7 @@ export async function fetchReportData(dateFrom, dateTo) {
     leadsQualified,
     furnizori,
     activities,
+    activitiesError,
     start,
     end,
     dynamicCols: { furnDateCol, furnPersonCol },
