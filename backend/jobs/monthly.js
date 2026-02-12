@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import nodemailer from 'nodemailer';
 import { writeDryRunFile } from './dryRun.js';
+import { getOutDir, ensureOutDir } from '../utils/outDir.js';
 import { getMonthlyPeriods, loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { buildMonthlySnapshot } from '../report/buildMonthlySnapshot.js';
 import {
@@ -12,8 +13,9 @@ import {
 import { buildMonthlyEmployeeEmail, getPersonRow, buildMonthlyDepartmentEmail } from '../email/monthly.js';
 import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
 import { buildMonthlyXlsx } from '../export/xlsx.js';
-import { requireVertex, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/vertexClient.js';
+import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadMonthlyEmployeePrompt, loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
+import { buildDepartmentAnalytics, validateDepartmentAnalytics } from '../report/departmentAnalytics.js';
 import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
 
 // Behavior A: Snapshots are persisted before email send. If email env is missing or send fails,
@@ -21,7 +23,6 @@ import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
 
 const JOB_TYPE = 'monthly';
 const TIMEZONE = 'Europe/Bucharest';
-const OUT_DIR = path.join(process.cwd(), 'out');
 
 function departmentToSummaryKey(department) {
   if (department === DEPARTMENTS.OPERATIONS) return 'operational';
@@ -33,12 +34,6 @@ function departmentToSummaryKey(department) {
 function sanitizeEmailForFilename(email) {
   if (!email || typeof email !== 'string') return 'unknown';
   return email.replace(/@/g, '_at_').replace(/\./g, '_');
-}
-
-function ensureOutDir() {
-  if (!fs.existsSync(OUT_DIR)) {
-    fs.mkdirSync(OUT_DIR, { recursive: true });
-  }
 }
 
 /**
@@ -129,7 +124,7 @@ export async function runMonthly(opts = {}) {
   const xlsxBuffer = await buildMonthlyXlsx(reports[0], metas[0]);
   const xlsxFilename = `Raport_lunar_${metas[0].periodStart.slice(0, 7)}.xlsx`;
 
-  requireVertex();
+  requireOpenRouter();
   const employeePrompt = loadMonthlyEmployeePrompt();
   const departmentPrompt = loadMonthlyDepartmentPrompt();
 
@@ -157,11 +152,76 @@ export async function runMonthly(opts = {}) {
     employeeLlmSections.push({ person, data3Months, deptAverages3Months, llmSections: sections });
   }
 
-  const departmentInputJson = {
-    current: reportSummaries[0],
-    prev1: reportSummaries[1],
-    prev2: reportSummaries[2],
+  const departmentPeriods = {
+    current: {
+      summary: reportSummaries[0],
+      rows: {
+        operational: reports[0]?.opsStats ?? [],
+        sales: reports[0]?.salesStats ?? [],
+      },
+    },
+    prev1: {
+      summary: reportSummaries[1],
+      rows: {
+        operational: reports[1]?.opsStats ?? [],
+        sales: reports[1]?.salesStats ?? [],
+      },
+    },
+    prev2: {
+      summary: reportSummaries[2],
+      rows: {
+        operational: reports[2]?.opsStats ?? [],
+        sales: reports[2]?.salesStats ?? [],
+      },
+    },
+  };
+
+  const departmentAnalytics = buildDepartmentAnalytics({
+    current: departmentPeriods.current,
+    prev1: departmentPeriods.prev1,
+    prev2: departmentPeriods.prev2,
     periodStart: metas[0].periodStart,
+  });
+
+  const validation = validateDepartmentAnalytics(departmentAnalytics);
+  if (!validation.ok) {
+    console.warn('[monthly] validateDepartmentAnalytics errors', validation.errors);
+  }
+  if (validation.warnings && validation.warnings.length > 0) {
+    console.warn('[monthly] validateDepartmentAnalytics warnings', validation.warnings);
+  }
+
+  // Sanity check pentru burse (companie vs Operațional per angajat).
+  try {
+    const companyCtrBurse = reportSummaries[0]?.company?.ctr?.burseCount ?? 0;
+    const companyLivrBurse = reportSummaries[0]?.company?.livr?.burseCount ?? 0;
+    const deptOpsBurse = reportSummaries[0]?.departments?.operational?.burseCount ?? 0;
+    const opsHeadcount = departmentAnalytics.operational?.headcount?.totalEmployees ?? 0;
+    const opsActive = departmentAnalytics.operational?.headcount?.activeEmployees ?? 0;
+    const opsZeroBurseCount =
+      departmentAnalytics.operational?.employeeIssues?.filter(
+        (e) => e.active && e.kpis && e.kpis.burseCount === 0,
+      ).length ?? 0;
+    console.log('[monthly] burse sanity', {
+      companyCtrBurse,
+      companyLivrBurse,
+      deptOpsBurse,
+      opsHeadcount,
+      opsActive,
+      opsZeroBurseCount,
+    });
+  } catch (e) {
+    console.warn('[monthly] burse sanity logging failed', e);
+  }
+
+  const departmentInputJson = {
+    periodStart: metas[0].periodStart,
+    analytics: departmentAnalytics,
+    rawSummaries: {
+      current: reportSummaries[0],
+      prev1: reportSummaries[1],
+      prev2: reportSummaries[2],
+    },
   };
   const departmentLlmSections = await generateMonthlyDepartmentSections({
     systemPrompt: departmentPrompt,
@@ -170,7 +230,8 @@ export async function runMonthly(opts = {}) {
 
   if (process.env.DRY_RUN === '1') {
     const dryRunPath = writeDryRunFile(JOB_TYPE, label, { ...payload, reports3: reports, metas3: metas });
-    ensureOutDir();
+    const outDir = getOutDir({ dryRun: true });
+    ensureOutDir(outDir);
     for (const { person, data3Months, deptAverages3Months, llmSections } of employeeLlmSections) {
       const { subject, html } = buildMonthlyEmployeeEmail({
         person,
@@ -180,7 +241,7 @@ export async function runMonthly(opts = {}) {
         llmSections,
       });
       const safeEmail = sanitizeEmailForFilename(person.email);
-      fs.writeFileSync(path.join(OUT_DIR, `monthly_employee_${safeEmail}_${label}.html`), html, 'utf8');
+      fs.writeFileSync(path.join(outDir, `monthly_employee_${safeEmail}_${label}.html`), html, 'utf8');
     }
     const { subject: deptSubject, html: deptHtml } = buildMonthlyDepartmentEmail({
       periodStart: metas[0].periodStart,
@@ -188,8 +249,8 @@ export async function runMonthly(opts = {}) {
       monthExcelCurrent: xlsxBuffer,
       llmSections: departmentLlmSections,
     });
-    fs.writeFileSync(path.join(OUT_DIR, `monthly_department_${label}.html`), deptHtml, 'utf8');
-    fs.writeFileSync(path.join(OUT_DIR, xlsxFilename), xlsxBuffer);
+    fs.writeFileSync(path.join(outDir, `monthly_department_${label}.html`), deptHtml, 'utf8');
+    fs.writeFileSync(path.join(outDir, xlsxFilename), xlsxBuffer);
     return { payload, dryRunPath };
   }
 

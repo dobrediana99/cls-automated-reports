@@ -78,6 +78,15 @@ function generateStats(employees) {
     countProfitability: 0,
     websiteCountSec: 0,
     websiteProfitSec: 0,
+    // Curse burse detaliate pe rol și tip comandă.
+    // Notă business: bursele relevante pentru Operațional includ:
+    // - CTR: principal + secundar
+    // - LIVR: principal + secundar
+    // câmpul agregat burseCount = totalul tuturor acestor curse (CTR + LIVR, principal + secundar).
+    burseCountCtrPrincipal: 0,
+    burseCountCtrSecondary: 0,
+    burseCountLivrPrincipal: 0,
+    burseCountLivrSecondary: 0,
     burseCount: 0,
   }));
 }
@@ -175,10 +184,14 @@ export function buildReport(raw) {
 
       const profitToAddP = isRon ? valPrincipal / EXCHANGE_RATE : valPrincipal;
       const profitToAddS = isRon ? valSecundar / EXCHANGE_RATE : valSecundar;
+      // Anti double-count: pentru fiecare item burse, un angajat este numărat o singură dată în burseCount
+      // chiar dacă apare accidental atât ca PRINCIPAL cât și ca SECUNDAR.
+      const countedBurseByEmpId = new Set();
       applyToAllStats((statsList) => {
         statsList.forEach((emp) => {
           const isPrincipal = principalIds.includes(String(emp.mondayId));
           const isSecondary = secondaryIds.includes(String(emp.mondayId));
+          const isInAnyRole = isPrincipal || isSecondary;
           if (isPrincipal) {
             emp.ctr_principalCount++;
             emp.ctr_principalProfitEur += safeVal(profitToAddP);
@@ -196,7 +209,9 @@ export function buildReport(raw) {
               emp.countClientTerms++;
             }
             if (isOverdue) emp.overdueInvoicesCount++;
-            if (isBurse) emp.burseCount++;
+            if (isBurse) {
+              emp.burseCountCtrPrincipal++;
+            }
           }
           if (isSecondary) {
             emp.ctr_secondaryCount++;
@@ -206,6 +221,13 @@ export function buildReport(raw) {
               emp.websiteCountSec++;
               emp.websiteProfitSec += safeVal(profitToAddS);
             }
+            if (isBurse) {
+              emp.burseCountCtrSecondary++;
+            }
+          }
+          if (isBurse && isInAnyRole && !countedBurseByEmpId.has(emp.id)) {
+            emp.burseCount++;
+            countedBurseByEmpId.add(emp.id);
           }
           if (isSecondary || (isPrincipal && !hadSecondary)) {
             if (supplierTerm > 0) {
@@ -255,17 +277,31 @@ export function buildReport(raw) {
 
       const profitToAddP = isRon ? valPrincipal / EXCHANGE_RATE : valPrincipal;
       const profitToAddS = isRon ? valSecundar / EXCHANGE_RATE : valSecundar;
+      // Anti double-count: pentru fiecare item burse, un angajat este numărat o singură dată în burseCount
+      // chiar dacă apare accidental atât ca PRINCIPAL cât și ca SECUNDAR.
+      const countedBurseByEmpId = new Set();
       applyToAllStats((statsList) => {
         statsList.forEach((emp) => {
           const isPrincipal = principalIds.includes(String(emp.mondayId));
           const isSecondary = secondaryIds.includes(String(emp.mondayId));
+          const isInAnyRole = isPrincipal || isSecondary;
           if (isPrincipal) {
             emp.livr_principalCount++;
             emp.livr_principalProfitEur += safeVal(profitToAddP);
+            if (isBurse) {
+              emp.burseCountLivrPrincipal++;
+            }
           }
           if (isSecondary) {
             emp.livr_secondaryCount++;
             emp.livr_secondaryProfitEur += safeVal(profitToAddS);
+            if (isBurse) {
+              emp.burseCountLivrSecondary++;
+            }
+          }
+          if (isBurse && isInAnyRole && !countedBurseByEmpId.has(emp.id)) {
+            emp.burseCount++;
+            countedBurseByEmpId.add(emp.id);
           }
         });
       });

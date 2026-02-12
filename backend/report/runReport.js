@@ -24,6 +24,13 @@ export function computeTotals(rows) {
     websiteProfit: 0,
     websiteCountSec: 0,
     websiteProfitSec: 0,
+    // Curse burse agregate la nivel de departament.
+    // Notă: burseCount numără curse per angajat (max o dată / angajat / item),
+    // nu comenzi unice. Suma pe departament poate fi > burseCount companie.
+    burseCountCtrPrincipal: 0,
+    burseCountCtrSecondary: 0,
+    burseCountLivrPrincipal: 0,
+    burseCountLivrSecondary: 0,
     burseCount: 0,
     solicitariCount: 0,
     sumClientTerms: 0,
@@ -55,6 +62,10 @@ export function computeTotals(rows) {
     acc.websiteProfit += safeVal(row.websiteProfit);
     acc.websiteCountSec += safeVal(row.websiteCountSec);
     acc.websiteProfitSec += safeVal(row.websiteProfitSec);
+    acc.burseCountCtrPrincipal += safeVal(row.burseCountCtrPrincipal);
+    acc.burseCountCtrSecondary += safeVal(row.burseCountCtrSecondary);
+    acc.burseCountLivrPrincipal += safeVal(row.burseCountLivrPrincipal);
+    acc.burseCountLivrSecondary += safeVal(row.burseCountLivrSecondary);
     acc.burseCount += safeVal(row.burseCount);
     acc.solicitariCount += safeVal(row.solicitariCount);
     acc.sumClientTerms += safeVal(row.sumClientTerms);

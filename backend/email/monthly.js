@@ -9,6 +9,7 @@ import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
 import { escapeHtml } from './templates/weeklyEmployeeDetails.js';
 import { buildMonthlyEmployeeEmail, buildMonthlyEmployeeEmailHtml as buildEmployeeEmailHtmlFromTemplate } from './templates/monthlyEmployee.js';
+import { sanitizeReportHtml } from './sanitize.js';
 
 /** Get person row from report by department (used by job to build data3Months). */
 export function getPersonRow(report, person) {
@@ -120,19 +121,19 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
 <head><meta charset="utf-8"><title>Raport performanță departamentală</title></head>
 <body style="${BODY_STYLE}">
   <h2 style="${H2_STYLE}">Rezumat executiv</h2>
-  <div style="${SECTION_STYLE}">${llmSections.rezumatExecutivHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.rezumatExecutivHtml)}</div>
 
   <h2 style="${H2_STYLE}">Analiză Vânzări</h2>
-  <div style="${SECTION_STYLE}">${llmSections.vanzariHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.vanzariHtml)}</div>
 
   <h2 style="${H2_STYLE}">Analiză Operațional</h2>
-  <div style="${SECTION_STYLE}">${llmSections.operationalHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.operationalHtml)}</div>
 
   <h2 style="${H2_STYLE}">Comparații</h2>
-  <div style="${SECTION_STYLE}">${llmSections.comparatiiHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.comparatiiHtml)}</div>
 
   <h2 style="${H2_STYLE}">Recomandări</h2>
-  <div style="${SECTION_STYLE}">${llmSections.recomandariHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.recomandariHtml)}</div>
 
   <h2 style="${H2_STYLE}">Date agregate (tabel)</h2>
   ${tableHtml}

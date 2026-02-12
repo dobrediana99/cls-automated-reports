@@ -35,6 +35,8 @@ function getConfig() {
 let lastRequestStart = 0;
 const queue = [];
 let running = 0;
+/** Single timer for throttle delay; only one delayed runNext can be scheduled at a time. */
+let scheduledTimer = null;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -109,10 +111,12 @@ function pump() {
     const now = Date.now();
     const wait = lastRequestStart + config.minDelayMs - now;
     if (wait > 0) {
-      sleep(wait).then(() => {
+      if (scheduledTimer != null) return;
+      scheduledTimer = setTimeout(() => {
+        scheduledTimer = null;
         lastRequestStart = Date.now();
         runNext();
-      });
+      }, wait);
       return;
     }
     lastRequestStart = Date.now();
@@ -159,7 +163,7 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
 
   for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), timeout);
 
     try {
       const body = {
@@ -175,8 +179,6 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
 
       const rawText = await response.text();
 
@@ -268,6 +270,8 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
       if (lastError?.bodyPreview != null) finalErr.bodyPreview = lastError.bodyPreview;
       if (lastError?.graphqlErrors != null) finalErr.graphqlErrors = lastError.graphqlErrors;
       throw finalErr;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

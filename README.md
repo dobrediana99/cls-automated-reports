@@ -31,7 +31,7 @@ The backend can be deployed to **Google Cloud Run** using the image built from `
 
 - Build context: **backend** (directory)
 - Dockerfile path: **backend/Dockerfile** (or `Dockerfile` when building from backend directory in Cloud Build)
-- Set `PORT=8080` (Cloud Run sets this automatically). Configure `OIDC_AUDIENCE` (Cloud Run URL for OIDC), `MONDAY_API_TOKEN`, Vertex AI (GCP project), and email/sender env vars in the Cloud Run service.
+- Set `PORT=8080` (Cloud Run sets this automatically). Configure `OIDC_AUDIENCE` (Cloud Run URL for OIDC), `MONDAY_API_TOKEN`, OpenRouter (`OPENROUTER_API_KEY` for monthly LLM), and email/sender env vars in the Cloud Run service.
 
 ### Calling `/health`
 
@@ -98,7 +98,7 @@ Instrucțiunile pentru emailurile lunare (angajați + management) sunt **înghe�
 ### Monthly job – cache și testare cu curl
 
 - **Cache pe disc:** Rapoartele pentru cele 3 luni (curent, -1, -2) se salvează în `out/cache/monthly/<YYYY-MM>.json`. La rulări ulterioare, dacă fișierul există și nu se cere refresh, se încarcă din cache (fără fetch Monday). La `?refresh=1` sau `body: { "refresh": true }` se ignoră cache-ul și se refac toate cele 3 luni.
-- **Vertex AI (obligatoriu pentru monthly):** Secțiunile Interpretare / Concluzii / Acțiuni / Plan (angajat) și Rezumat executiv / Vânzări / Operațional / Comparații / Recomandări (management) sunt generate cu Vertex AI Gemini (`VERTEX_MODEL` default `gemini-2.0-flash`, `VERTEX_LOCATION` default `europe-west1`). Dacă analiza LLM eșuează sau output-ul este invalid, job-ul monthly **eșuează** (nu trimite email, nu marchează idempotency). Fără proiect GCP (GOOGLE_CLOUD_PROJECT / GCLOUD_PROJECT) job-ul monthly nu rulează (fail fast).
+- **OpenRouter (obligatoriu pentru monthly):** Secțiunile Interpretare / Concluzii / Acțiuni / Plan (angajat) și Rezumat executiv / Vânzări / Operațional / Comparații / Recomandări (management) sunt generate cu OpenRouter (model default `anthropic/claude-opus-4.6`, override cu `OPENROUTER_MODEL`). Dacă analiza LLM eșuează sau output-ul este invalid, job-ul monthly **eșuează** (nu trimite email, nu marchează idempotency). Fără `OPENROUTER_API_KEY` job-ul monthly nu rulează (fail fast). Obține cheie la https://openrouter.ai
 - **Trimitere reală (NON-DRY_RUN):** Job-ul trimite emailuri cu Nodemailer (GMAIL_USER, GMAIL_APP_PASSWORD). În `SEND_MODE=test` toate emailurile merg la `TEST_EMAILS`. Idempotency marchează sent **doar** după ce toate emailurile au fost trimise cu succes.
 - **DRY_RUN=1:** Nu trimite emailuri; salvează în `out/` HTML-urile generate și XLSX-ul lunii.
 

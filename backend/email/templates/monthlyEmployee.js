@@ -6,6 +6,7 @@
 import { loadMonthlyEmployeePrompt } from '../../prompts/loadPrompts.js';
 import { getMonthlyEmployeeSubject, getMonthlySalutation } from '../content/monthlyTexts.js';
 import { buildEmployeeDetailsTable, escapeHtml } from './weeklyEmployeeDetails.js';
+import { sanitizeReportHtml } from '../sanitize.js';
 
 const safeVal = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
 
@@ -83,16 +84,16 @@ export function buildMonthlyEmployeeEmailHtml({ person, department, data3Months,
   ${tableHtml}
 
   <h3 style="${H3_STYLE}">Interpretare date</h3>
-  <div style="${SECTION_STYLE}">${llmSections.interpretareHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.interpretareHtml)}</div>
 
   <h3 style="${H3_STYLE}">Concluzii</h3>
-  <div style="${SECTION_STYLE}">${llmSections.concluziiHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.concluziiHtml)}</div>
 
   <h3 style="${H3_STYLE}">Acțiuni prioritare</h3>
-  <div style="${SECTION_STYLE}">${llmSections.actiuniHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.actiuniHtml)}</div>
 
   <h3 style="${H3_STYLE}">Plan săptămânal</h3>
-  <div style="${SECTION_STYLE}">${llmSections.planHtml}</div>
+  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.planHtml)}</div>
 ${checkInSection}
   <p style="margin: 1.5em 0 0 0;">Pentru orice nelămuriri legate de datele afișate, vă rugăm să luați legătura cu managerul direct.</p>
   <p style="margin: 0.5em 0 0 0;">Vă mulțumim.</p>

@@ -3,6 +3,7 @@ import path from 'path';
 import nodemailer from 'nodemailer';
 import { getPreviousCalendarWeekRange } from '../lib/dateRanges.js';
 import { writeDryRunFile } from './dryRun.js';
+import { getOutDir, ensureOutDir } from '../utils/outDir.js';
 import { runReport } from '../report/runReport.js';
 import { renderWeeklyEmployeeEmail, renderWeeklyManagerEmail } from '../email/weekly.js';
 import { getWeeklySubject } from '../email/content/weeklyTexts.js';
@@ -13,17 +14,10 @@ import { ORG } from '../config/org.js';
 
 const JOB_TYPE = 'weekly';
 const TIMEZONE = 'Europe/Bucharest';
-const OUT_DIR = path.join(process.cwd(), 'out');
 
 function sanitizeEmailForFilename(email) {
   if (!email || typeof email !== 'string') return 'unknown';
   return email.replace(/@/g, '_at_').replace(/\./g, '_');
-}
-
-function ensureOutDir() {
-  if (!fs.existsSync(OUT_DIR)) {
-    fs.mkdirSync(OUT_DIR, { recursive: true });
-  }
 }
 
 /**
@@ -58,7 +52,8 @@ export async function runWeekly(now = new Date()) {
 
   if (process.env.DRY_RUN === '1') {
     const dryRunPath = writeDryRunFile(JOB_TYPE, label, payload);
-    ensureOutDir();
+    const outDir = getOutDir({ dryRun: true });
+    ensureOutDir(outDir);
 
     const activePeople = ORG.filter((p) => p.isActive);
     for (const person of activePeople) {
@@ -66,13 +61,13 @@ export async function runWeekly(now = new Date()) {
         ? renderWeeklyManagerEmail(report, person, reportMeta)
         : renderWeeklyEmployeeEmail(report, person, reportMeta);
       const safeEmail = sanitizeEmailForFilename(person.email);
-      const htmlPath = path.join(OUT_DIR, `weekly_employee_${safeEmail}_${label}.html`);
+      const htmlPath = path.join(outDir, `weekly_employee_${safeEmail}_${label}.html`);
       fs.writeFileSync(htmlPath, html, 'utf8');
     }
 
     const xlsxBuffer = await buildWeeklyXlsx(report, reportMeta);
     const xlsxFilename = formatRaportFilename(reportMeta.periodStart, reportMeta.periodEnd);
-    const xlsxPath = path.join(OUT_DIR, xlsxFilename);
+    const xlsxPath = path.join(outDir, xlsxFilename);
     fs.writeFileSync(xlsxPath, xlsxBuffer);
 
     return { payload, dryRunPath };

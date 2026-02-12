@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runReport } from '../report/runReport.js';
-import { requireVertex } from '../llm/vertexClient.js';
+import { requireOpenRouter } from '../llm/openrouterClient.js';
 import { runMonthly } from './monthly.js';
 
 vi.mock('../report/runReport.js', () => ({
@@ -16,8 +16,8 @@ vi.mock('../cache/monthlyReportCache.js', () => ({
   loadMonthlyReportFromCache: vi.fn().mockReturnValue(null),
   saveMonthlyReportToCache: vi.fn(),
 }));
-vi.mock('../llm/vertexClient.js', () => ({
-  requireVertex: vi.fn(),
+vi.mock('../llm/openrouterClient.js', () => ({
+  requireOpenRouter: vi.fn(),
   generateMonthlySections: vi.fn().mockResolvedValue({
     interpretareHtml: '<p>Interpretare</p>',
     concluziiHtml: '<p>Concluzii</p>',
@@ -74,13 +74,13 @@ describe('runMonthly', () => {
     );
   });
 
-  it('throws when Vertex AI is not configured (requireVertex fails)', async () => {
+  it('throws when OpenRouter is not configured (requireOpenRouter fails)', async () => {
     process.env.DRY_RUN = '1';
-    vi.mocked(requireVertex).mockImplementationOnce(() => {
-      throw new Error('Vertex AI requires a GCP project. Set GOOGLE_CLOUD_PROJECT or GCLOUD_PROJECT (Cloud Run sets this automatically).');
+    vi.mocked(requireOpenRouter).mockImplementationOnce(() => {
+      throw new Error('OpenRouter requires an API key. Set OPENROUTER_API_KEY (get one at https://openrouter.ai).');
     });
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
-      'GOOGLE_CLOUD_PROJECT'
+      'OPENROUTER_API_KEY'
     );
   });
 
