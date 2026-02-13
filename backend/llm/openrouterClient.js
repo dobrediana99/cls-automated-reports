@@ -165,10 +165,23 @@ async function callOpenRouterJson({ messages, operationName }) {
         });
       }
 
+      console.log('[OPENROUTER] REQUEST', {
+        model: getModel(),
+        hasKey: Boolean(process.env.OPENROUTER_API_KEY),
+        messageCount: Array.isArray(body?.messages) ? body.messages.length : null,
+        timestamp: new Date().toISOString(),
+      });
+
       const res = await fetch(OPENROUTER_URL, {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
+      });
+
+      console.log('[OPENROUTER] RESPONSE', {
+        status: res.status,
+        ok: res.ok,
+        timestamp: new Date().toISOString(),
       });
 
       const status = res.status;
@@ -257,6 +270,11 @@ async function callOpenRouterJson({ messages, operationName }) {
       }
       return { content, usage, model };
     } catch (err) {
+      console.error('[OPENROUTER] ERROR', {
+        message: err?.message ?? String(err),
+        stack: err?.stack ?? undefined,
+        timestamp: new Date().toISOString(),
+      });
       const status = err?.status ?? err?.statusCode;
       const isRetryable =
         isRetryableStatus(status) ||
@@ -370,6 +388,10 @@ Fără alte chei. Conținutul trebuie să facă referire la datele din input.`;
  * Generate monthly employee sections (interpretare, concluzii, acțiuni, plan). Fail fast if output invalid.
  */
 export async function generateMonthlySections({ systemPrompt, inputJson }) {
+  console.log('[LLM] GENERATE EMPLOYEE SECTIONS START', {
+    model: getModel(),
+    timestamp: new Date().toISOString(),
+  });
   const userPayload = EMPLOYEE_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON):\n' + JSON.stringify(inputJson, null, 2);
   const { content, usage, model } = await callOpenRouterJson({
     messages: [
@@ -409,6 +431,10 @@ export async function generateMonthlyDepartmentSections({
   systemPrompt,
   inputJson,
 }) {
+  console.log('[LLM] GENERATE DEPARTMENT SECTIONS START', {
+    model: getModel(),
+    timestamp: new Date().toISOString(),
+  });
   const userPayload = DEPARTMENT_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON, 3 luni):\n' + JSON.stringify(inputJson, null, 2);
   const { content, usage, model } = await callOpenRouterJson({
     messages: [

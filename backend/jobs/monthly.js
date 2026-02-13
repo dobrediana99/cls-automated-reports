@@ -47,6 +47,18 @@ function sanitizeEmailForFilename(email) {
  * @returns {Promise<{ payload: object, dryRunPath?: string }>}
  */
 export async function runMonthly(opts = {}) {
+  console.log('[MONTHLY] START', {
+    service: process.env.K_SERVICE || null,
+    revision: process.env.K_REVISION || null,
+    region: process.env.K_REGION || null,
+    hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
+    openRouterModel: process.env.OPENROUTER_MODEL || 'DEFAULT',
+    hasMondayToken: Boolean(process.env.MONDAY_API_TOKEN),
+    dryRun: process.env.DRY_RUN || null,
+    sendMode: process.env.SEND_MODE || null,
+    timestamp: new Date().toISOString(),
+  });
+
   const now = opts.now ?? new Date();
   const refresh = opts.refresh === true || opts.refresh === 1;
 
