@@ -31,7 +31,7 @@ The backend can be deployed to **Google Cloud Run** using the image built from `
 
 - Build context: **backend** (directory)
 - Dockerfile path: **backend/Dockerfile** (or `Dockerfile` when building from backend directory in Cloud Build)
-- Set `PORT=8080` (Cloud Run sets this automatically). Configure `OIDC_AUDIENCE` (Cloud Run URL for OIDC), `MONDAY_API_TOKEN`, OpenRouter (`OPENROUTER_API_KEY` for monthly LLM), and email/sender env vars in the Cloud Run service.
+- Set `PORT=8080` (Cloud Run sets this automatically). Configure `OIDC_AUDIENCE` (Cloud Run URL for OIDC), `MONDAY_API_TOKEN`, OpenRouter (see **backend/ENV.md** and below), and email/sender env vars in the Cloud Run service.
 
 ### Calling `/health`
 
@@ -98,7 +98,8 @@ Instrucțiunile pentru emailurile lunare (angajați + management) sunt **înghe�
 ### Monthly job – cache și testare cu curl
 
 - **Cache pe disc:** Rapoartele pentru cele 3 luni (curent, -1, -2) se salvează în `out/cache/monthly/<YYYY-MM>.json`. La rulări ulterioare, dacă fișierul există și nu se cere refresh, se încarcă din cache (fără fetch Monday). La `?refresh=1` sau `body: { "refresh": true }` se ignoră cache-ul și se refac toate cele 3 luni.
-- **OpenRouter (obligatoriu pentru monthly):** Secțiunile Interpretare / Concluzii / Acțiuni / Plan (angajat) și Rezumat executiv / Vânzări / Operațional / Comparații / Recomandări (management) sunt generate cu OpenRouter (model default `anthropic/claude-opus-4.6`, override cu `OPENROUTER_MODEL`). Dacă analiza LLM eșuează sau output-ul este invalid, job-ul monthly **eșuează** (nu trimite email, nu marchează idempotency). Fără `OPENROUTER_API_KEY` job-ul monthly nu rulează (fail fast). Obține cheie la https://openrouter.ai
+- **OpenRouter (obligatoriu pentru monthly):** Secțiunile Interpretare / Concluzii / Acțiuni / Plan (angajat) și Rezumat executiv / Vânzări / Operațional / Comparații / Recomandări (management) sunt generate cu OpenRouter (model default `anthropic/claude-opus-4.6`, override cu `OPENROUTER_MODEL`). Dacă analiza LLM eșuează sau output-ul este invalid, job-ul monthly **eșuează** (nu trimite email, nu marchează idempotency). Fără `OPENROUTER_API_KEY` job-ul monthly nu rulează (fail fast). Obține cheie la https://openrouter.ai  
+  **Env checklist:** `OPENROUTER_API_KEY` (required), `OPENROUTER_MODEL=anthropic/claude-opus-4.6` (optional, default), opțional `OPENROUTER_HTTP_REFERER`, `OPENROUTER_X_TITLE`. Detalii: **backend/ENV.md**.
 - **Trimitere reală (NON-DRY_RUN):** Job-ul trimite emailuri cu Nodemailer (GMAIL_USER, GMAIL_APP_PASSWORD). În `SEND_MODE=test` toate emailurile merg la `TEST_EMAILS`. Idempotency marchează sent **doar** după ce toate emailurile au fost trimise cu succes.
 - **DRY_RUN=1:** Nu trimite emailuri; salvează în `out/` HTML-urile generate și XLSX-ul lunii.
 
@@ -120,6 +121,37 @@ curl -s -X POST "http://localhost:8080/run/monthly" \
 ```
 
 După trimitere cu succes, la o nouă rulare pentru aceeași lună răspunsul va fi `{ "skipped": true, "reason": "already_sent", "jobType": "monthly", "label": "..." }`.
+
+### Verificare LLM (OpenRouter) pe Cloud Run
+
+Pentru dovadă că requesturile merg la OpenRouter cu Claude Opus 4.6 și că prompturile încărcate sunt cele din `backend/prompts/`:
+
+1. **Setare env vars pe serviciu**  
+   În Cloud Run → serviciu → Edit & deploy new revision → Variables & secrets:
+   - `OPENROUTER_API_KEY` = cheia ta (Secret sau plain)
+   - `OPENROUTER_MODEL` = `anthropic/claude-opus-4.6` (sau lasă nesetat pentru default)
+   - Opțional: `OPENROUTER_X_TITLE` = `cls-automated-reports`
+
+2. **Test config și prompturi**  
+   ```bash
+   curl https://<CLOUD_RUN_URL>/debug/llm
+   ```  
+   Răspuns JSON: `openrouterConfigured`, `requestedModel`, `employeePromptPath`, `departmentPromptPath`, `employeePromptHash`, `departmentPromptHash`, `employeePromptPreview`, `departmentPromptPreview`. Fără chei sau conținut complet.
+
+3. **Rulare job lunar**  
+   ```bash
+   curl -X POST "https://<CLOUD_RUN_URL>/run/monthly?refresh=1" \
+     -H "Authorization: Bearer <ID_TOKEN>" -H "Content-Type: application/json"
+   ```  
+   (Token OIDC cu audience = URL-ul serviciului.)
+
+4. **Verificare în loguri**  
+   În Cloud Run → Logs, caută:
+   - `[LLM audit] Using OpenRouter model: anthropic/claude-opus-4.6`
+   - `[LLM audit] request` cu `requestedModel`, `endpoint`, `hasKey`, `systemPromptHash`, `systemPromptPreview`, `inputJsonHash`
+   - `[LLM audit] response` cu `requestId`, `status`, `returnedModel`, `prompt_tokens`, `completion_tokens`, `total_tokens` (și `cost` dacă OpenRouter îl trimite)
+
+**Notă:** Health check este pe `/health`, nu `/healthz`.
 
 **Test local cache monthly:**
 1. Prima rulare monthly (DRY_RUN=1): creează 3 fișiere în `out/cache/monthly/` (ex. `2026-01.json`, `2025-12.json`, `2025-11.json`).

@@ -18,8 +18,16 @@ const MONTHLY_DEPARTMENT_PROMPT_FILE = 'monthlyDepartmentPrompt.md';
  * @param {string} filename
  * @returns {string} Absolute path
  */
-function resolvePromptPath(filename) {
+export function resolvePromptPath(filename) {
   return path.join(__dirname, filename);
+}
+
+/** Absolute paths for debug/llm. */
+export function getPromptPaths() {
+  return {
+    employeePromptPath: path.join(__dirname, MONTHLY_EMPLOYEE_PROMPT_FILE),
+    departmentPromptPath: path.join(__dirname, MONTHLY_DEPARTMENT_PROMPT_FILE),
+  };
 }
 
 /**

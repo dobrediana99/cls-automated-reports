@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { getPreviousCalendarWeekRange } from './lib/dateRanges.js';
 import { getPreviousCalendarMonthRange } from './lib/dateRanges.js';
@@ -6,6 +7,12 @@ import { runWeekly } from './jobs/weekly.js';
 import { runMonthly } from './jobs/monthly.js';
 import * as idempotency from './idempotency/localFileStore.js';
 import { logSenderConfig } from './email/sender.js';
+import { getModel } from './llm/openrouterClient.js';
+import {
+  getPromptPaths,
+  loadMonthlyEmployeePrompt,
+  loadMonthlyDepartmentPrompt,
+} from './prompts/loadPrompts.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 8080;
@@ -59,6 +66,53 @@ export async function oidcAuth(req, res, next) {
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+/**
+ * Debug endpoint: proves OpenRouter config and which prompts are loaded (hashes + preview).
+ * Safe: no secrets, no full prompt content. Use for Cloud Run verification.
+ */
+function sha256(str) {
+  return crypto.createHash('sha256').update(String(str), 'utf8').digest('hex');
+}
+function preview(str) {
+  if (str == null || typeof str !== 'string') return '';
+  return str.replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+app.get('/debug/llm', (_req, res) => {
+  try {
+    const paths = getPromptPaths();
+    let employeePromptHash = null;
+    let departmentPromptHash = null;
+    let employeePromptPreview = null;
+    let departmentPromptPreview = null;
+    let loadError = null;
+    try {
+      const employeeContent = loadMonthlyEmployeePrompt();
+      const departmentContent = loadMonthlyDepartmentPrompt();
+      employeePromptHash = sha256(employeeContent);
+      departmentPromptHash = sha256(departmentContent);
+      employeePromptPreview = preview(employeeContent);
+      departmentPromptPreview = preview(departmentContent);
+    } catch (e) {
+      loadError = e?.message ?? String(e);
+    }
+    res.json({
+      openrouterConfigured: !!process.env.OPENROUTER_API_KEY,
+      requestedModel: getModel(),
+      employeePromptPath: paths.employeePromptPath,
+      departmentPromptPath: paths.departmentPromptPath,
+      employeePromptHash,
+      departmentPromptHash,
+      employeePromptPreview,
+      departmentPromptPreview,
+      ...(loadError && { loadError }),
+    });
+  } catch (err) {
+    console.error('[debug/llm]', err);
+    res.status(500).json({ error: err?.message ?? 'Internal server error' });
+  }
 });
 
 /** Used by POST /run/weekly and /run/monthly; exported for unit tests with mocked store. */

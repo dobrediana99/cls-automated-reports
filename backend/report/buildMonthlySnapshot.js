@@ -141,9 +141,9 @@ export async function buildMonthlySnapshot(opts) {
     },
     llm: {
       model: {
-        provider: 'vertex',
-        name: process.env.VERTEX_MODEL || 'gemini-2.0-flash',
-        location: process.env.VERTEX_LOCATION || null,
+        provider: 'openrouter',
+        name: (process.env.OPENROUTER_MODEL || '').trim() || 'anthropic/claude-opus-4.6',
+        location: null,
       },
       employeeSummaries: {},
       departmentSummary: {},
