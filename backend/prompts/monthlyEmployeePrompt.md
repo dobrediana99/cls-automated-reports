@@ -326,6 +326,27 @@ Riscuri majore: Termen plată client deteriorat la 42 zile (vs. 38 în decembrie
 Performance Manager
 Crystal Logistics Services
 
+FORMAT OBLIGATORIU DE OUTPUT
+
+Returnează EXCLUSIV un obiect JSON valid.
+
+- NU folosi markdown.
+- NU folosi ```json sau ``` delimitatori.
+- NU adăuga explicații înainte sau după JSON.
+- NU adăuga text suplimentar.
+- NU comenta output-ul.
+- NU folosi backticks.
+
+Output-ul trebuie să fie strict un obiect JSON valid, parsabil direct cu JSON.parse().
+
+Exemplu corect:
+
+{
+  "interpretareHtml": "<p>...</p>",
+  "concluziiHtml": "<p>...</p>",
+  "actiuniHtml": "<p>...</p>",
+  "planHtml": "<p>...</p>"
+}
 
 
 CHECKLIST FINAL ÎNAINTE DE TRIMITERE

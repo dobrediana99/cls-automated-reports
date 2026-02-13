@@ -1,0 +1,30 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata:
+  name: cls-automated-reports-monthly
+spec:
+  template:
+    template:
+      spec:
+        taskCount: 1
+        maxRetries: 0
+        timeoutSeconds: 3600
+        containers:
+        - image: europe-west1-docker.pkg.dev/elite-partition-486311-e5/cloud-run-source-deploy/cls-automated-reports:975709e
+          command: ["node"]
+          args: ["cli/run_monthly_job.js"]
+          env:
+          - name: SEND_MODE
+            value: "test"
+          - name: TEST_EMAILS
+            value: "diana.dobre99@gmail.com"
+          - name: MONDAY_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: MONDAY_API_TOKEN
+                key: latest
+          - name: GMAIL_APP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: GMAIL_APP_PASSWORD
+                key: latest
