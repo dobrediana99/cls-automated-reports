@@ -54,8 +54,30 @@ describe('buildDepartmentAnalytics', () => {
     const analytics = buildDepartmentAnalytics({
       current: { rows: currentRows, summary: null },
       prev1: { rows: currentRows, summary: null },
-      prev2: { rows: currentRows, summary: null },
       periodStart: '2026-01-01',
+    });
+
+    expect(analytics).toHaveProperty('meta');
+    expect(analytics.meta).toHaveProperty('periodStart', '2026-01-01');
+    expect(analytics).toHaveProperty('sales');
+    expect(analytics).toHaveProperty('operational');
+    expect(analytics.sales).toMatchObject({
+      headcount: expect.any(Object),
+      averages: expect.any(Object),
+      highPerformers: expect.any(Array),
+      lowPerformers: expect.any(Array),
+      volatility: expect.any(Array),
+      employeeIssues: expect.any(Array),
+      systemicIssues: expect.any(Array),
+    });
+    expect(analytics.operational).toMatchObject({
+      headcount: expect.any(Object),
+      averages: expect.any(Object),
+      highPerformers: expect.any(Array),
+      lowPerformers: expect.any(Array),
+      volatility: expect.any(Array),
+      employeeIssues: expect.any(Array),
+      systemicIssues: expect.any(Array),
     });
 
     expect(analytics.operational.highPerformers.length).toBeGreaterThanOrEqual(1);
@@ -64,6 +86,17 @@ describe('buildDepartmentAnalytics', () => {
     const lowNames = analytics.operational.lowPerformers.map((p) => p.name);
     expect(highNames).toContain('A');
     expect(lowNames).toContain('B');
+  });
+
+  it('buildDepartmentAnalytics accepts only current, prev1, periodStart (2 luni, fără prev2)', () => {
+    const analytics = buildDepartmentAnalytics({
+      current: { rows: { operational: [], sales: [] }, summary: null },
+      prev1: { rows: { operational: [], sales: [] }, summary: null },
+      periodStart: '2026-02-01',
+    });
+    expect(analytics.meta.periodStart).toBe('2026-02-01');
+    expect(analytics.sales.headcount.totalEmployees).toBe(0);
+    expect(analytics.operational.headcount.totalEmployees).toBe(0);
   });
 });
 

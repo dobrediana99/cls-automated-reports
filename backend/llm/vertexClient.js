@@ -226,7 +226,7 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
   const { content, usage, model } = await callGeminiJson({
     messages: [
       { role: 'system', content: systemPrompt + '\n\n' + EMPLOYEE_JSON_INSTRUCTION },
-      { role: 'user', content: `Date pentru analiză (JSON):\n${JSON.stringify(inputJson, null, 2)}` },
+      { role: 'user', content: `Date pentru analiză (JSON, ultimele 2 luni; a treia lună poate fi null):\n${JSON.stringify(inputJson)}` },
     ],
     operationName: 'employee',
   });
@@ -252,7 +252,7 @@ export async function generateMonthlyDepartmentSections({ systemPrompt, inputJso
   const { content, usage, model } = await callGeminiJson({
     messages: [
       { role: 'system', content: systemPrompt + '\n\n' + DEPARTMENT_JSON_INSTRUCTION },
-      { role: 'user', content: `Date pentru analiză (JSON, 3 luni):\n${JSON.stringify(inputJson, null, 2)}` },
+      { role: 'user', content: `Date pentru analiză (JSON, ultimele 2 luni; a treia lună poate fi null):\n${JSON.stringify(inputJson)}` },
     ],
     operationName: 'department',
   });

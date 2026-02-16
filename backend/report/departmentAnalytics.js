@@ -417,7 +417,13 @@ function buildDepartmentAnalyticsForKey({ departmentKey, currentRows, prevRows }
   };
 }
 
-export function buildDepartmentAnalytics({ current, prev1, prev2, periodStart }) {
+/**
+ * Build department analytics using ONLY 2 months: current and prev1.
+ * Semnătura acceptă doar { current, prev1, periodStart }. Toate metricile (volatilitate,
+ * high/low performers, employeeIssues, systemicIssues, medii, headcount) se bazează strict pe current vs prev1.
+ * Dacă un apelant trimite prev2, acesta este ignorat (compatibilitate).
+ */
+export function buildDepartmentAnalytics({ current, prev1, periodStart }) {
   const currentRows = current?.rows || {};
   const prev1Rows = prev1?.rows || {};
 

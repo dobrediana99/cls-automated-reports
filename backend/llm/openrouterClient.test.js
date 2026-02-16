@@ -63,12 +63,13 @@ describe('openrouterClient hardening', () => {
       inputJson: {},
     });
 
-    expect(result).toEqual({
+    expect(result.sections).toEqual({
       interpretareHtml: '<p>I</p>',
       concluziiHtml: '<p>C</p>',
       actiuniHtml: '<p>A</p>',
       planHtml: '<p>P</p>',
     });
+    expect(result.usage).toBeDefined();
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const firstBody = JSON.parse(fetchMock.mock.calls[0][1].body);
@@ -107,7 +108,7 @@ describe('openrouterClient hardening', () => {
       inputJson: {},
     });
 
-    expect(result.interpretareHtml).toBe('<p>I</p>');
+    expect(result.sections.interpretareHtml).toBe('<p>I</p>');
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
@@ -153,7 +154,7 @@ describe('openrouterClient hardening', () => {
       inputJson: {},
     });
 
-    expect(result.planHtml).toBe('<p>P</p>');
+    expect(result.sections.planHtml).toBe('<p>P</p>');
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const repairBody = JSON.parse(fetchMock.mock.calls[1][1].body);
@@ -188,7 +189,7 @@ describe('openrouterClient hardening', () => {
       inputJson: {},
     });
 
-    expect(result.interpretareHtml).toBe('<p>I</p>');
+    expect(result.sections.interpretareHtml).toBe('<p>I</p>');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -213,7 +214,7 @@ describe('openrouterClient hardening', () => {
       inputJson: {},
     });
 
-    expect(result).toEqual({
+    expect(result.sections).toEqual({
       interpretareHtml: '<p>I</p>',
       concluziiHtml: '<p>C</p>',
       actiuniHtml: '<p>A</p>',
@@ -243,12 +244,49 @@ describe('openrouterClient hardening', () => {
       inputJson: {},
     });
 
-    expect(result).toEqual({
+    expect(result.sections).toEqual({
       interpretareHtml: '<p>I</p>',
       concluziiHtml: '<p>C</p>',
       actiuniHtml: '<p>A</p>',
       planHtml: '<p>P</p>',
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('response_format fallback exhausts all 3 levels (400 each time) -> throws', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+    process.env.OPENROUTER_USE_JSON_SCHEMA = 'true';
+
+    const badBody = 'response_format json_schema is not supported for this model';
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve(badBody),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve('response_format type json_object not supported'),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve('response_format unsupported'),
+      });
+
+    await expect(
+      generateMonthlySections({ systemPrompt: 'S', inputJson: {} })
+    ).rejects.toThrow();
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    const body0 = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const body1 = JSON.parse(fetchMock.mock.calls[1][1].body);
+    const body2 = JSON.parse(fetchMock.mock.calls[2][1].body);
+
+    expect(body0.response_format?.json_schema).toBeDefined();
+    expect(body1.response_format).toEqual({ type: 'json_object' });
+    expect(body2.response_format).toBeUndefined();
   });
 });

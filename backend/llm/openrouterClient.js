@@ -257,6 +257,7 @@ async function callOpenRouterJson({ messages, operationName }) {
 
       let responseFormatLevel = 0;
       let res;
+      let lastResponseFormatErr = null;
 
       while (responseFormatLevel <= 2) {
       const responseFormat = getResponseFormat(operationName, responseFormatLevel);
@@ -318,14 +319,42 @@ async function callOpenRouterJson({ messages, operationName }) {
       const status = res.status;
       if (!res.ok) {
         const text = await res.text();
-        if (status === 400 && isResponseFormatError(text) && responseFormatLevel < 2) {
-          responseFormatLevel++;
-          if (process.env.NODE_ENV !== 'production') {
-            console.log(
-              '[llm] 400 response_format fallback level=' + responseFormatLevel
-            );
+        if (status === 400 && isResponseFormatError(text)) {
+          const err = new Error(`OpenRouter API error: ${status} ${res.statusText}`);
+          err.status = status;
+          err.statusCode = status;
+          err.body = text;
+          lastResponseFormatErr = err;
+          if (responseFormatLevel < 2) {
+            console.warn('[OpenRouter response_format fallback]', {
+              requestId,
+              operationName: operationName ?? null,
+              attempt,
+              currentLevel: responseFormatLevel,
+              nextLevel: responseFormatLevel + 1,
+              model,
+              status: res.status,
+              message: err.message,
+            });
+            responseFormatLevel++;
+            if (process.env.NODE_ENV !== 'production') {
+              console.log(
+                '[llm] 400 response_format fallback level=' + responseFormatLevel
+              );
+            }
+            continue;
           }
-          continue;
+          console.error('[OpenRouter response_format exhausted]', {
+            requestId,
+            operationName: operationName ?? null,
+            attempt,
+            finalLevel: responseFormatLevel,
+            model,
+            status: res.status,
+            message: err.message,
+          });
+          logOpenRouterError(model, err, operationName);
+          throw err;
         }
         let err = new Error(`OpenRouter API error: ${status} ${res.statusText}`);
         err.status = status;
@@ -437,6 +466,15 @@ async function callOpenRouterJson({ messages, operationName }) {
         console.log('[llm] model=' + model + ' attempts=' + attempt);
       }
       return { content: cleaned, usage, model };
+      }
+      if (lastResponseFormatErr) {
+        console.error('[OpenRouter response_format exited loop without success]', {
+          requestId,
+          operationName: operationName ?? null,
+          model,
+          message: lastResponseFormatErr.message,
+        });
+        throw lastResponseFormatErr;
       }
     } catch (err) {
       if (attempt >= MAX_ATTEMPTS) {
@@ -564,7 +602,7 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
       timestamp: new Date().toISOString(),
     });
   }
-  const userPayload = EMPLOYEE_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON):\n' + JSON.stringify(inputJson, null, 2);
+  const userPayload = EMPLOYEE_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' + JSON.stringify(inputJson);
 
   const tryParseAndValidate = (raw) => {
     let parsed;
@@ -589,7 +627,7 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
     if (process.env.NODE_ENV !== 'production') {
       console.log('[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok');
     }
-    return result;
+    return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
     if (process.env.NODE_ENV === 'production') {
       console.error('[LLM audit] employee schema validation failed', {
@@ -599,7 +637,7 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
     } else {
       console.error('[LLM audit] model did not respect schema; raw body (max ' + RAW_BODY_LOG_MAX + ' chars):', String(content).slice(0, RAW_BODY_LOG_MAX));
     }
-    const { content: repairContent } = await callOpenRouterJson({
+    const { content: repairContent, usage: repairUsage } = await callOpenRouterJson({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPayload + SCHEMA_REPAIR_APPEND },
@@ -611,7 +649,7 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
       if (process.env.NODE_ENV !== 'production') {
         console.log('[llm] model= ok (after schema repair retry)');
       }
-      return result;
+      return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
       if (process.env.NODE_ENV === 'production') {
         console.error('[LLM audit] employee schema validation failed', {
@@ -640,7 +678,7 @@ export async function generateMonthlyDepartmentSections({
       timestamp: new Date().toISOString(),
     });
   }
-  const userPayload = DEPARTMENT_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON, 3 luni):\n' + JSON.stringify(inputJson, null, 2);
+  const userPayload = DEPARTMENT_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' + JSON.stringify(inputJson);
 
   const tryParseAndValidate = (raw) => {
     let parsed;
@@ -667,7 +705,7 @@ export async function generateMonthlyDepartmentSections({
     if (process.env.NODE_ENV !== 'production') {
       console.log('[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok');
     }
-    return result;
+    return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
     if (process.env.NODE_ENV === 'production') {
       console.error('[LLM audit] department schema validation failed', {
@@ -677,7 +715,7 @@ export async function generateMonthlyDepartmentSections({
     } else {
       console.error('[LLM audit] model did not respect department schema; raw body (max ' + RAW_BODY_LOG_MAX + ' chars):', String(content).slice(0, RAW_BODY_LOG_MAX));
     }
-    const { content: repairContent } = await callOpenRouterJson({
+    const { content: repairContent, usage: repairUsage } = await callOpenRouterJson({
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPayload + SCHEMA_REPAIR_APPEND },
@@ -689,7 +727,7 @@ export async function generateMonthlyDepartmentSections({
       if (process.env.NODE_ENV !== 'production') {
         console.log('[llm] model= ok (after schema repair retry)');
       }
-      return result;
+      return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
       if (process.env.NODE_ENV === 'production') {
         console.error('[LLM audit] department schema validation failed', {
