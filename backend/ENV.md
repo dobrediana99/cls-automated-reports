@@ -8,6 +8,9 @@
 | `OPENROUTER_MODEL` | No | `anthropic/claude-opus-4.6` | Model ID. Empty or whitespace falls back to Claude Opus 4.6. |
 | `OPENROUTER_HTTP_REFERER` | No | — | Optional. Sent as `HTTP-Referer` header to OpenRouter. |
 | `OPENROUTER_X_TITLE` | No | — | Optional. Sent as `X-Title` header (e.g. `cls-automated-reports`). |
+| `OPENROUTER_TIMEOUT_MS` | No | `90000` | Request timeout (ms). AbortError is retried. |
+| `OPENROUTER_MAX_TOKENS` | No | `8192` | Max tokens per completion. |
+| `OPENROUTER_USE_JSON_SCHEMA` | No | — | If `true`, use strict `json_schema` response_format when supported; on 400 fallback to `json_object` then omit. |
 
 **Checklist**
 

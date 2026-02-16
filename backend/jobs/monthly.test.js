@@ -1,3 +1,7 @@
+/**
+ * Monthly job tests. OpenRouter hardening (400 fallback, JSON retry, schema repair, timeout)
+ * is covered in backend/llm/openrouterClient.test.js with mocked fetch.
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runReport } from '../report/runReport.js';
 import { requireOpenRouter } from '../llm/openrouterClient.js';
