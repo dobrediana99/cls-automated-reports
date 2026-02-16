@@ -191,4 +191,64 @@ describe('openrouterClient hardening', () => {
     expect(result.interpretareHtml).toBe('<p>I</p>');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('fenced JSON (```json ... ```) is cleaned and parse succeeds', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+    const raw = validEmployeeJson();
+    const fencedContent = '```json\n' + raw + '\n```';
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: fencedContent } }],
+          model: 'test',
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+    });
+
+    const result = await generateMonthlySections({
+      systemPrompt: 'S',
+      inputJson: {},
+    });
+
+    expect(result).toEqual({
+      interpretareHtml: '<p>I</p>',
+      concluziiHtml: '<p>C</p>',
+      actiuniHtml: '<p>A</p>',
+      planHtml: '<p>P</p>',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('prose around JSON is stripped and parse succeeds', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+    const raw = validEmployeeJson();
+    const wrappedContent = 'Here is the JSON:\n' + raw + '\nThanks.';
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: wrappedContent } }],
+          model: 'test',
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+    });
+
+    const result = await generateMonthlySections({
+      systemPrompt: 'S',
+      inputJson: {},
+    });
+
+    expect(result).toEqual({
+      interpretareHtml: '<p>I</p>',
+      concluziiHtml: '<p>C</p>',
+      actiuniHtml: '<p>A</p>',
+      planHtml: '<p>P</p>',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

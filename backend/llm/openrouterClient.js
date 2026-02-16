@@ -87,6 +87,55 @@ function previewText(str) {
 }
 
 /**
+ * Remove outer markdown fence (```...```) only if the whole string is wrapped.
+ * Does not strip backticks inside the content.
+ */
+function stripMarkdownFenceWrapper(text) {
+  if (typeof text !== 'string') return text;
+
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('```')) return trimmed;
+
+  const lines = trimmed.split('\n');
+  if (lines.length < 2) return trimmed;
+
+  const firstLine = lines[0].trim();
+  const lastLine = lines[lines.length - 1].trim();
+
+  const isFenceStart = firstLine.startsWith('```');
+  const isFenceEnd = lastLine === '```';
+
+  if (!isFenceStart || !isFenceEnd) return trimmed;
+
+  return lines.slice(1, -1).join('\n').trim();
+}
+
+/**
+ * Extract substring between first "{" and last "}".
+ * Only if both braces exist, end > start, and result starts/ends with braces.
+ */
+function extractJsonObject(text) {
+  if (typeof text !== 'string') return text;
+
+  const trimmed = text.trim();
+
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+
+  if (start === -1 || end === -1 || end <= start) {
+    return trimmed;
+  }
+
+  const candidate = trimmed.slice(start, end + 1).trim();
+
+  if (!candidate.startsWith('{') || !candidate.endsWith('}')) {
+    return trimmed;
+  }
+
+  return candidate;
+}
+
+/**
  * Validate that OpenRouter is configured (for job to fail fast before LLM calls).
  * Returns the trimmed API key.
  * @returns {string}
@@ -333,8 +382,14 @@ async function callOpenRouterJson({ messages, operationName }) {
         );
       }
 
+      let cleaned = stripMarkdownFenceWrapper(content);
+      const hadFenceWrapper = cleaned !== content.trim();
+      const afterFence = cleaned;
+      cleaned = extractJsonObject(cleaned);
+      const hadExtraction = cleaned !== afterFence;
+
       try {
-        JSON.parse(content);
+        JSON.parse(cleaned);
       } catch (parseErr) {
         lastParseError = parseErr;
         if (attempt < MAX_ATTEMPTS) {
@@ -366,6 +421,12 @@ async function callOpenRouterJson({ messages, operationName }) {
               ' chars):',
             rawPreview
           );
+          console.error('[LLM audit] parse debug', {
+            originalLen: content.length,
+            cleanedLen: cleaned.length,
+            hadFenceWrapper,
+            hadExtraction,
+          });
         }
         throw new Error(
           'LLM response is not valid JSON. Monthly job fails.'
@@ -375,7 +436,7 @@ async function callOpenRouterJson({ messages, operationName }) {
       if (process.env.NODE_ENV !== 'production' && attempt > 1) {
         console.log('[llm] model=' + model + ' attempts=' + attempt);
       }
-      return { content, usage, model };
+      return { content: cleaned, usage, model };
       }
     } catch (err) {
       if (attempt >= MAX_ATTEMPTS) {
