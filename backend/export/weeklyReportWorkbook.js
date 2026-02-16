@@ -114,7 +114,7 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     const totalProfitEurCtr = safeVal(item.ctr_principalProfitEur) + safeVal(item.ctr_secondaryProfitEur);
     const totalCountLivr = safeVal(item.livr_principalCount) + safeVal(item.livr_secondaryCount);
     const totalProfitEurLivr = safeVal(item.livr_principalProfitEur) + safeVal(item.livr_secondaryProfitEur);
-    const bonus = totalProfitEurCtr - target;
+    const bonus = totalProfitEurLivr - target;
 
     const qualified = safeVal(item.calificat);
     const contacted = safeVal(item.contactat);
@@ -321,7 +321,7 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
   const totalCtrProfit = totals.ctr_principalProfitEur + totals.ctr_secondaryProfitEur;
   const totalLivrCount = totals.livr_principalCount + totals.livr_secondaryCount;
   const totalLivrProfit = totals.livr_principalProfitEur + totals.livr_secondaryProfitEur;
-  const bonusTotal = totalCtrProfit - totals.targetTotal;
+  const bonusTotal = totalLivrProfit - totals.targetTotal;
   const avgProfitability = totals.countProfitability > 0 ? (totals.sumProfitability / totals.countProfitability) : 0;
   const avgClientTerm = totals.countClientTerms > 0 ? (totals.sumClientTerms / totals.countClientTerms) : 0;
   const avgSupplierTerm = totals.countSupplierTerms > 0 ? (totals.sumSupplierTerms / totals.countSupplierTerms) : 0;

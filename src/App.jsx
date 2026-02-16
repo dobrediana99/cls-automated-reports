@@ -200,7 +200,7 @@ const OperationalRowCells = ({ row, showSalesMetrics = false }) => {
     const totalProfitEurLivr = safeVal(row.livr_principalProfitEur) + safeVal(row.livr_secondaryProfitEur);
 
     const target = safeVal(row.target);
-    const bonus = totalProfitEurCtr - target;
+    const bonus = totalProfitEurLivr - target;
 
     const qualified = safeVal(row.calificat);
     const contacted = safeVal(row.contactat);
@@ -375,7 +375,7 @@ const TableFooter = ({ data, showSalesMetrics }) => {
   const totalLivrProfit = totals.livr_principalProfitEur + totals.livr_secondaryProfitEur;
 
   const targetTotal = totals.targetTotal;
-  const bonusTotal = totalCtrProfit - targetTotal;
+  const bonusTotal = totalLivrProfit - targetTotal;
 
   // KPI ponderate (corecte business)
   const avgProfitability =

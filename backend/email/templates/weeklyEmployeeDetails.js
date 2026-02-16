@@ -27,7 +27,6 @@ export const EXCLUDED_KEYS_NON_SALES = new Set([
   'contactat',      // Contactat
   'calificat',     // Calificat
   'rata_conv',     // Rata conversie
-  'emailsCount',   // Emails
   'callsCount',    // Apeluri
 ]);
 
@@ -48,12 +47,10 @@ function getOrderedRows(stats) {
   const termenMediuClient = countClientTerms > 0 ? (v('sumClientTerms') / countClientTerms) : null;
   const termenMediuFurnizor = countSupplierTerms > 0 ? (v('sumSupplierTerms') / countSupplierTerms) : null;
   const avgProfitability = countProfitability > 0 ? (v('sumProfitability') / countProfitability) : null;
-  const totalCtrCount = v('ctr_principalCount') + v('ctr_secondaryCount');
-  const totalCtrProfit = v('ctr_principalProfitEur') + v('ctr_secondaryProfitEur');
   const totalLivrCount = v('livr_principalCount') + v('livr_secondaryCount');
   const totalLivrProfit = v('livr_principalProfitEur') + v('livr_secondaryProfitEur');
   const target = v('target');
-  const profitPesteTarget = totalCtrProfit - target;
+  const profitPesteTarget = totalLivrProfit - target;
   const solicitari = v('solicitariCount');
   const websiteCount = v('websiteCount');
   const convWeb = solicitari > 0 ? ((websiteCount / solicitari) * 100) : (websiteCount > 0 ? 100 : null);
@@ -69,15 +66,8 @@ function getOrderedRows(stats) {
     ['contactat', 'Contactați', () => stats.contactat, fmtInt],
     ['calificat', 'Calificați', () => stats.calificat, fmtInt],
     ['rata_conv', 'Rata conversie clienți (%)', getRataConv, (x) => (x != null ? fmtPct(x) : '—')],
-    ['emailsCount', 'Emailuri', () => stats.emailsCount, fmtInt],
     ['callsCount', 'Apeluri', () => stats.callsCount, fmtInt],
     ['suppliersAdded', 'Furnizori adăugați', () => stats.suppliersAdded, fmtInt],
-    ['ctr_principalCount', 'Curse CTR principal', () => stats.ctr_principalCount, fmtInt],
-    ['ctr_principalProfitEur', 'Profit CTR principal (EUR)', () => stats.ctr_principalProfitEur, fmt],
-    ['ctr_secondaryCount', 'Curse CTR secundar', () => stats.ctr_secondaryCount, fmtInt],
-    ['ctr_secondaryProfitEur', 'Profit CTR secundar (EUR)', () => stats.ctr_secondaryProfitEur, fmt],
-    ['totalCtrCount', 'Total curse după contract', () => totalCtrCount, fmtInt],
-    ['totalCtrProfit', 'Total profit după contract (EUR)', () => totalCtrProfit, fmt],
     ['livr_principalCount', 'Curse livrare principal', () => stats.livr_principalCount, fmtInt],
     ['livr_principalProfitEur', 'Profit livrare principal (EUR)', () => stats.livr_principalProfitEur, fmt],
     ['livr_secondaryCount', 'Curse livrare secundar', () => stats.livr_secondaryCount, fmtInt],
@@ -99,12 +89,6 @@ function getOrderedRows(stats) {
     ['overdueInvoicesCount', 'Întârzieri > 15 zile', () => stats.overdueInvoicesCount, fmtInt],
     ['supplierTermsUnder30', 'Furnizori < 30 zile', () => stats.supplierTermsUnder30, fmtInt],
     ['supplierTermsOver30', 'Furnizori >= 30 zile', () => stats.supplierTermsOver30, fmtInt],
-    ['sumClientTerms', 'Sumă termene client', () => stats.sumClientTerms, (x) => (x != null && x !== 0 ? fmt(x) : '—')],
-    ['countClientTerms', 'Număr termene client', () => stats.countClientTerms, fmtInt],
-    ['sumSupplierTerms', 'Sumă termene furnizor', () => stats.sumSupplierTerms, (x) => (x != null && x !== 0 ? fmt(x) : '—')],
-    ['countSupplierTerms', 'Număr termene furnizor', () => stats.countSupplierTerms, fmtInt],
-    ['sumProfitability', 'Sumă profitability', () => stats.sumProfitability, (x) => (x != null && x !== 0 ? fmt(x) : '—')],
-    ['countProfitability', 'Număr profitability', () => stats.countProfitability, fmtInt],
   ];
 
   return rows;

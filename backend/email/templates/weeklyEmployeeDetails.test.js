@@ -48,29 +48,40 @@ describe('buildEmployeeDetailsTable', () => {
     expect(tdCount).toBe(tbodyRows * 2);
   });
 
-  it('Vanzari: includes contactat, calificat, rata conversie, emailuri, apeluri', () => {
+  it('Vanzari: includes contactat, calificat, rata conversie, apeluri; excludes Emailuri and CTR rows', () => {
     const html = buildEmployeeDetailsTable(mockStats, 'Vanzari');
     expect(html).toContain('Contactați');
     expect(html).toContain('Calificați');
     expect(html).toContain('Rata conversie');
-    expect(html).toContain('Emailuri');
     expect(html).toContain('Apeluri');
-    expect(html).toContain('CTR principal');
+    expect(html).not.toContain('Emailuri');
+    expect(html).not.toContain('CTR principal');
+    expect(html).not.toContain('Total curse după contract');
+    expect(html).not.toContain('Total profit după contract');
     expect(html).toContain('Termen mediu client');
+    expect(html).toContain('Profitability');
     expect(html).toContain('Target total');
   });
 
-  it('Operatiuni: excludes contactat, calificat, rata conversie, emailuri, apeluri', () => {
+  it('Operatiuni: excludes contactat, calificat, rata conversie, emailuri, apeluri, CTR rows, sum/count termene', () => {
     const html = buildEmployeeDetailsTable(mockStats, 'Operatiuni');
     expect(html).toContain('Furnizori adăugați');
     expect(html).toContain('Curse livrare principal');
     expect(html).toContain('Termen mediu client');
+    expect(html).toContain('Termen mediu furnizor');
     expect(html).toContain('Profitability');
     expect(html).not.toContain('Contactați');
     expect(html).not.toContain('Calificați');
     expect(html).not.toContain('Rata conversie');
     expect(html).not.toContain('Emailuri');
     expect(html).not.toContain('Apeluri');
+    expect(html).not.toContain('CTR principal');
+    expect(html).not.toContain('Sumă termene client');
+    expect(html).not.toContain('Număr termene client');
+    expect(html).not.toContain('Sumă termene furnizor');
+    expect(html).not.toContain('Număr termene furnizor');
+    expect(html).not.toContain('Sumă profitability');
+    expect(html).not.toContain('Număr profitability');
   });
 
   it('Management: excludes contactat, calificat, rata conversie, emailuri, apeluri', () => {
@@ -80,6 +91,12 @@ describe('buildEmployeeDetailsTable', () => {
     expect(html).not.toContain('Rata conversie');
     expect(html).not.toContain('Emailuri');
     expect(html).not.toContain('Apeluri');
+  });
+
+  it('profit peste target = totalLivrProfit - target (bonus formula)', () => {
+    const html = buildEmployeeDetailsTable(mockStats);
+    expect(html).toContain('Profit peste target (EUR)');
+    expect(html).toContain('80.00');
   });
 
   it('includes header row Metrică | Valoare', () => {
