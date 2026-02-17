@@ -60,6 +60,18 @@ NU folosi ``` (backticks sau markdown).
 NU include chei suplimentare (doar cele din structură).
 Fără markdown. Fără text suplimentar.
 
+1) Tipuri (obligatoriu): TOATE valorile din JSON trebuie să fie de tip STRING, inclusiv procente (ex: "84%"), valori EUR (ex: "12500 EUR"), număr curse (ex: "42"), diferențe (ex: "+12%"). NU returna valori numerice ca number (ex: 84 sau 12500).
+
+2) Structură exactă (obligatoriu): Structura trebuie respectată EXACT: NU adăuga chei suplimentare, NU elimina chei obligatorii, NU redenumi chei, respectă exact nesting-ul și denumirile.
+
+3) Doar JSON la output: NU repeta instrucțiunile. NU explica. Returnează doar obiectul JSON final.
+
+4) Completitudine: Asigură-te că JSON-ul este complet (toate obiectele și array-urile închise corect).
+
+`sectiunea_6_check_in_intermediar`:
+- Se include DOAR dacă performanța este sub 80% din target.
+- Dacă performanța este 80% sau peste, NU include deloc această cheie în JSON (nici ca obiect gol).
+
 STRUCTURA EMAIL
 
 {
