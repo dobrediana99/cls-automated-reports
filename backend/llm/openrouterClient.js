@@ -4,7 +4,8 @@
  * Env: OPENROUTER_API_KEY (required), OPENROUTER_MODEL, OPENROUTER_HTTP_REFERER, OPENROUTER_X_TITLE,
  *      OPENROUTER_TIMEOUT_MS, OPENROUTER_MAX_TOKENS, OPENROUTER_USE_JSON_SCHEMA.
  * Retry on 408, 409, 429, 5xx, timeout (AbortError), and on JSON parse failure (with stricter prompt).
- * Fallback: 400 response_format -> retry with json_object, then without response_format.
+ * response_format is never sent for Anthropic models (anthropic/*) to avoid 400 structured-outputs header error.
+ * Fallback: 400 response_format -> retry with json_object, then without response_format (non-Anthropic only).
  * LLM audit logging: requestedModel, returnedModel, hasKey, prompt hashes (no full prompt in production).
  */
 
@@ -54,11 +55,23 @@ function getJsonSchemaForOperation(operationName) {
 }
 
 /**
+ * Anthropic models via OpenRouter do not support response_format (structured outputs);
+ * sending it causes 400 invalid_request_error (anthropic-beta header).
+ * @param {string} [model] - e.g. "anthropic/claude-opus-4.6"
+ * @returns {boolean}
+ */
+function isAnthropicModel(model) {
+  return typeof model === 'string' && model.trim().toLowerCase().startsWith('anthropic/');
+}
+
+/**
  * @param {string} [operationName] - 'employee' | 'department'
  * @param {number} formatLevel - 0 = json_schema (if env) or json_object, 1 = json_object, 2 = omit
+ * @param {string} [model] - when anthropic/, response_format is always omitted
  * @returns {object|undefined} response_format for body, or undefined to omit
  */
-function getResponseFormat(operationName, formatLevel) {
+function getResponseFormat(operationName, formatLevel, model) {
+  if (isAnthropicModel(model)) return undefined;
   if (formatLevel === 2) return undefined;
   if (formatLevel === 1) return { type: 'json_object' };
   const useSchema =
@@ -205,7 +218,7 @@ async function callOpenRouterJson({ messages, operationName }) {
       let lastResponseFormatErr = null;
 
       while (responseFormatLevel <= 2) {
-      const responseFormat = getResponseFormat(operationName, responseFormatLevel);
+      const responseFormat = getResponseFormat(operationName, responseFormatLevel, model);
       const body = {
         model,
         messages: apiMessages,
