@@ -6,7 +6,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runReport } from '../report/runReport.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
+import { MANAGERS, ORG } from '../config/org.js';
 import { runMonthly } from './monthly.js';
+
+const { sendMailMock } = vi.hoisted(() => ({
+  sendMailMock: vi.fn().mockResolvedValue({}),
+}));
 
 vi.mock('../report/runReport.js', () => ({
   runReport: vi.fn().mockResolvedValue({
@@ -61,16 +66,38 @@ vi.mock('../store/monthlySnapshots.js', () => ({
   writeMonthlySnapshotToGCS: vi.fn().mockResolvedValue(undefined),
   writeMonthlyRunManifestToGCS: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('nodemailer', () => ({ default: { createTransport: () => ({ sendMail: vi.fn().mockResolvedValue({}) }) } }));
+vi.mock('nodemailer', () => ({
+  default: { createTransport: () => ({ sendMail: sendMailMock }) },
+}));
 
 const mockReport = { opsStats: [], salesStats: [], mgmtStats: [], companyStats: {} };
 const mockMeta = { periodStart: '2025-12-01', periodEnd: '2025-12-31', label: '2025-12-01..2025-12-31' };
 const mockSummary = { departments: { operational: {}, sales: {}, management: {} }, company: {} };
 
 describe('runMonthly', () => {
+  const defaultEmployeeSections = {
+    interpretareHtml: '<p>Interpretare</p>',
+    concluziiHtml: '<p>Concluzii</p>',
+    actiuniHtml: '<p>Acțiuni</p>',
+    planHtml: '<p>Plan</p>',
+  };
+  const defaultDepartmentSections = {
+    rezumatExecutivHtml: '<p>Rezumat</p>',
+    vanzariHtml: '<p>Vânzări</p>',
+    operationalHtml: '<p>Operațional</p>',
+    comparatiiHtml: '<p>Comparații</p>',
+    recomandariHtml: '<p>Recomandări</p>',
+  };
+
   beforeEach(() => {
     delete process.env.DRY_RUN;
     process.env.MONDAY_API_TOKEN = 'test-token';
+    sendMailMock.mockClear();
+    sendMailMock.mockResolvedValue({});
+    vi.mocked(generateMonthlySections).mockReset();
+    vi.mocked(generateMonthlySections).mockResolvedValue(defaultEmployeeSections);
+    vi.mocked(generateMonthlyDepartmentSections).mockReset();
+    vi.mocked(generateMonthlyDepartmentSections).mockResolvedValue(defaultDepartmentSections);
     vi.mocked(runReport).mockResolvedValue({
       meta: mockMeta,
       reportSummary: mockSummary,
@@ -115,14 +142,71 @@ describe('runMonthly', () => {
     );
   });
 
-  it('NON-DRY RUN: fails fast on first employee LLM error, does not call department LLM', async () => {
+  it('NON-DRY RUN: department email is sent once to all active managers, before any employee emails', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.SEND_MODE = 'prod';
+
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    const calls = sendMailMock.mock.calls;
+    const activeManagers = MANAGERS.filter((m) => m.isActive);
+    const activeManagerEmails = activeManagers.map((m) => m.email);
+    const activePeopleCount = ORG.filter((p) => p.isActive).length;
+
+    expect(sendMailMock).toHaveBeenCalled();
+    expect(calls.length).toBe(1 + activePeopleCount);
+    const firstCall = calls[0][0];
+    expect(firstCall.attachments).toBeDefined();
+    expect(Array.isArray(firstCall.attachments)).toBe(true);
+    activeManagerEmails.forEach((email) => {
+      expect(firstCall.to).toContain(email);
+    });
+    for (let i = 1; i < calls.length; i++) {
+      expect(calls[i][0].attachments).toBeUndefined();
+    }
+  });
+
+  it('NON-DRY RUN: if department sendMail fails, job throws and no employee emails sent', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
     process.env.TEST_EMAILS = 'test@example.com';
 
+    sendMailMock.mockReset();
+    sendMailMock.mockRejectedValueOnce(new Error('Send failed'));
+
     vi.mocked(generateMonthlySections).mockClear();
     vi.mocked(generateMonthlyDepartmentSections).mockClear();
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('Send failed');
+
+    expect(sendMailMock).toHaveBeenCalledTimes(1);
+    expect(generateMonthlySections).not.toHaveBeenCalled();
+  });
+
+  it('NON-DRY RUN: if an employee send fails, job throws and stops further employee sends', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    sendMailMock
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error('Employee send failed'));
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('Employee send failed');
+
+    expect(sendMailMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('NON-DRY RUN: fails fast on first employee LLM error after department success', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
 
     const validSections = {
       interpretareHtml: '<p>I</p>',
@@ -136,8 +220,9 @@ describe('runMonthly', () => {
 
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('LLM failed');
 
+    expect(generateMonthlyDepartmentSections).toHaveBeenCalledTimes(1);
     expect(generateMonthlySections).toHaveBeenCalledTimes(2);
-    expect(generateMonthlyDepartmentSections).not.toHaveBeenCalled();
+    expect(sendMailMock).toHaveBeenCalledTimes(2);
   });
 
   it('department LLM inputJson has only 2 months (current + prev1), no prev2', async () => {

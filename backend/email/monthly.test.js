@@ -7,6 +7,7 @@ import {
   buildMonthlyEmployeeEmailHtml,
   buildMonthlyDepartmentEmailHtml,
 } from './monthly.js';
+import { normalizeLlmSection } from './templates/monthlyEmployee.js';
 import { getMonthlyEmployeeSubject, getMonthlyDepartmentSubject, getMonthlySalutation } from './content/monthlyTexts.js';
 
 const mockReport = {
@@ -63,24 +64,34 @@ const mockDepartmentLlmSections = {
 };
 
 describe('Monthly employee email', () => {
-  it('output contains required sections from monthlyEmployeePrompt.md (tabel + interpretare + concluzii + acțiuni + plan)', () => {
+  it('output contains required sections from monthlyEmployeePrompt.md (interpretare + concluzii + acțiuni + plan)', () => {
     const html = renderMonthlyEmployeeEmail(mockReport, mockPerson, mockMeta, mockEmployeeLlmSections);
-    expect(html).toContain('Tabel date performanță');
+    expect(html).not.toContain('Tabel date performanță');
+    expect(html).not.toMatch(/Metrică\s*\|?\s*Valoare/);
     expect(html).toContain('Interpretare date');
     expect(html).toContain('Concluzii');
     expect(html).toContain('Acțiuni prioritare');
     expect(html).toContain('Plan săptămânal');
-    expect(html).toContain('<table');
     expect(html).toContain('Bună ziua, Test User,');
   });
 
-  it('Operatiuni employee: table does not contain Contactat, Calificat, Rata conversie, Emailuri, Apeluri', () => {
-    const html = renderMonthlyEmployeeEmail(mockReport, mockPerson, mockMeta, mockEmployeeLlmSections);
-    expect(html).not.toContain('Contactați');
-    expect(html).not.toContain('Calificați');
-    expect(html).not.toContain('Rata conversie');
-    expect(html).not.toContain('Emailuri');
-    expect(html).not.toContain('Apeluri');
+  it('strips duplicate section titles and SUBIECT from LLM content (single Interpretare date heading)', () => {
+    const rawInterpretare =
+      '<p><strong>SUBIECT: Raport lunar</strong></p><p>Bună, Test User,</p><h3>Interpretare Date</h3><p>Conținut real al interpretării bazat pe cifre.</p>';
+    const normalized = normalizeLlmSection(rawInterpretare, { removeLabels: ['interpretare date'] });
+    expect(normalized).not.toContain('SUBIECT:');
+    expect(normalized).not.toMatch(/Interpretare\s+Date/i);
+    expect(normalized).toContain('Conținut real al interpretării');
+
+    const llmWithDuplicates = {
+      ...mockEmployeeLlmSections,
+      interpretareHtml: rawInterpretare,
+    };
+    const html = renderMonthlyEmployeeEmail(mockReport, mockPerson, mockMeta, llmWithDuplicates);
+    expect(html).not.toContain('SUBIECT:');
+    const interpretareCount = (html.match(/Interpretare date/gi) || []).length;
+    expect(interpretareCount).toBe(1);
+    expect(html).toContain('Conținut real al interpretării');
   });
 
   it('buildMonthlyEmployeeEmail returns { subject, html }', () => {
@@ -126,7 +137,7 @@ describe('Monthly employee email', () => {
       llmSections: mockEmployeeLlmSections,
     });
     expect(html).toContain('Bună ziua, Alexandru Pop,');
-    expect(html).toContain('Tabel date performanță');
+    expect(html).not.toContain('Tabel date performanță');
     expect(html).toContain('Interpretare date');
   });
 

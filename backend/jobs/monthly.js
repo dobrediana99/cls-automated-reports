@@ -274,6 +274,51 @@ export async function runMonthly(opts = {}) {
   let totalCompletionTokens = 0;
   let totalCost = null;
 
+  // 1) Department/company email FIRST: one LLM call, one composition, one send to all active managers.
+  let departmentLlmSections;
+  try {
+    const deptRaw = await generateMonthlyDepartmentSections({
+      systemPrompt: departmentPrompt,
+      inputJson: departmentInputJson,
+    });
+    departmentLlmSections = deptRaw?.sections ?? deptRaw;
+    const usage = deptRaw?.usage;
+    if (usage) {
+      const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+      const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
+      totalPromptTokens += pt;
+      totalCompletionTokens += ct;
+      if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
+    }
+  } catch (err) {
+    console.error('[monthly] department_failed', 'stage=llm', err?.message ?? String(err));
+    throw err;
+  }
+
+  const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
+    periodStart: metas[0].periodStart,
+    reportSummary: result0.reportSummary,
+    monthExcelCurrent: xlsxBuffer,
+    llmSections: departmentLlmSections,
+  });
+
+  const managerEmails = MANAGERS.filter((m) => m.isActive).map((m) => m.email);
+  const deptToList = resolveRecipients(managerEmails);
+  logSendRecipients(deptToList.length, deptToList);
+  try {
+    await transporter.sendMail({
+      from: gmailUser,
+      to: deptToList.join(', '),
+      subject: resolveSubject(deptSubject),
+      html: deptHtml,
+      attachments,
+    });
+  } catch (err) {
+    console.error('[monthly] department_failed', 'stage=send', err?.message ?? String(err));
+    throw err;
+  }
+
+  // 2) Then employee emails: one LLM + build + send per active person; fail fast on any error.
   for (const person of activePeople) {
     const data3Months = {
       current: getPersonRow(reports[0], person),
@@ -340,45 +385,6 @@ export async function runMonthly(opts = {}) {
   }
 
   const employeesSent = activePeople.length;
-  let departmentLlmSections;
-  try {
-    const deptRaw = await generateMonthlyDepartmentSections({
-      systemPrompt: departmentPrompt,
-      inputJson: departmentInputJson,
-    });
-    departmentLlmSections = deptRaw?.sections ?? deptRaw;
-    const usage = deptRaw?.usage;
-    if (usage) {
-      const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
-      const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
-      totalPromptTokens += pt;
-      totalCompletionTokens += ct;
-      if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
-    }
-  } catch (err) {
-    console.error('[monthly] department_failed', 'stage=llm', err?.message ?? String(err));
-    throw err;
-  }
-
-  const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
-    periodStart: metas[0].periodStart,
-    reportSummary: result0.reportSummary,
-    monthExcelCurrent: xlsxBuffer,
-    llmSections: departmentLlmSections,
-  });
-  for (const manager of MANAGERS) {
-    if (!manager.isActive) continue;
-    const toList = resolveRecipients([manager.email]);
-    logSendRecipients(1, toList);
-    await transporter.sendMail({
-      from: gmailUser,
-      to: toList.join(', '),
-      subject: resolveSubject(deptSubject),
-      html: deptHtml,
-      attachments,
-    });
-  }
-
   const durationMs = Date.now() - jobStartMs;
   const totalTokens = totalPromptTokens + totalCompletionTokens;
   console.log('[monthly] job_summary', {

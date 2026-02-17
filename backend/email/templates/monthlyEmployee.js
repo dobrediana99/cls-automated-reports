@@ -5,7 +5,7 @@
 
 import { loadMonthlyEmployeePrompt } from '../../prompts/loadPrompts.js';
 import { getMonthlyEmployeeSubject, getMonthlySalutation } from '../content/monthlyTexts.js';
-import { buildEmployeeDetailsTable, escapeHtml } from './weeklyEmployeeDetails.js';
+import { escapeHtml } from './weeklyEmployeeDetails.js';
 import { sanitizeReportHtml } from '../sanitize.js';
 
 const safeVal = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
@@ -27,6 +27,63 @@ function isSubStandard(monthData, department) {
 const BODY_STYLE = 'font-family: Arial, sans-serif; font-size: 14px; max-width: 600px; margin: 0 auto; padding: 16px;';
 const SECTION_STYLE = 'margin: 1em 0 0 0;';
 const H3_STYLE = 'font-size: 15px; font-weight: bold; margin: 1em 0 0.4em 0;';
+
+/** Extract inner text from HTML fragment (strip tags, collapse whitespace). */
+function innerText(html) {
+  if (!html || typeof html !== 'string') return '';
+  return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+}
+
+/** Normalize for label comparison: lowercase, collapse spaces. */
+function normLabel(s) {
+  return String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Normalize LLM section HTML: sanitize and strip redundant leading SUBIECT, greetings, and duplicate section headings.
+ * @param {string} html - Raw HTML from LLM
+ * @param {{ removeLabels: string[] }} opts - Section title labels to strip if they appear as leading headings (e.g. 'interpretare date', 'concluzii')
+ * @returns {string} Cleaned HTML
+ */
+function normalizeLlmSection(html, opts = {}) {
+  if (!html || typeof html !== 'string') return '';
+  const removeLabels = Array.isArray(opts?.removeLabels) ? opts.removeLabels.map(normLabel) : [];
+  // Strip redundant content from raw HTML first (before sanitize may alter structure)
+  let s = String(html);
+
+  // Remove leading SUBIECT: paragraph(s)
+  s = s.replace(/^\s*<p[^>]*>\s*(<strong[^>]*>)?\s*SUBIECT:[\s\S]*?<\/p>\s*/gi, '');
+
+  // Remove leading greeting paragraph (Bună / Buna ...)
+  s = s.replace(/^\s*<p[^>]*>\s*Bun[ăa][^<]*<\/p>\s*/i, '');
+
+  // Remove leading headings or <p><strong>label</strong></p> that match removeLabels (repeat until no match)
+  while (true) {
+    const hMatch = s.match(/^\s*<h[1-4](?:\s[^>]*)?>([\s\S]*?)<\/h[1-4]>\s*/i);
+    if (hMatch) {
+      const text = normLabel(innerText(hMatch[1]));
+      if (text && removeLabels.some((l) => text === l)) {
+        s = s.slice(hMatch[0].length).trim();
+        continue;
+      }
+    }
+    const pStrongMatch = s.match(/^\s*<p[^>]*>\s*<strong[^>]*>([\s\S]*?)<\/strong>\s*<\/p>\s*/i);
+    if (pStrongMatch) {
+      const text = normLabel(innerText(pStrongMatch[1]));
+      if (text && removeLabels.some((l) => text === l)) {
+        s = s.slice(pStrongMatch[0].length).trim();
+        continue;
+      }
+    }
+    break;
+  }
+
+  s = sanitizeReportHtml(s.trim());
+  return s.trim();
+}
+
+/** Exported for tests. */
+export { normalizeLlmSection };
 
 /**
  * Loads monthly employee prompt from repo (single source of truth). Used every time we build employee email.
@@ -60,12 +117,21 @@ export function buildMonthlyEmployeeEmailHtml({ person, department, data3Months,
 
   const current = data3Months?.current ?? null;
   const salutation = getMonthlySalutation(person?.name);
-  const tableHtml = current
-    ? buildEmployeeDetailsTable(current, department)
-    : '<p style="margin: 1em 0 0 0;">Nu există date pentru această perioadă.</p>';
-
   const showCheckIn = isSubStandard(current, department);
   const checkInPlaceholder = 'Se recomandă un check-in intermediar cu managerul direct pentru aliniere și suport (data/periodicitate în funcție de disponibilitate).';
+
+  const interpretareHtml = normalizeLlmSection(llmSections.interpretareHtml, {
+    removeLabels: ['interpretare date'],
+  });
+  const concluziiHtml = normalizeLlmSection(llmSections.concluziiHtml, {
+    removeLabels: ['concluzii'],
+  });
+  const actiuniHtml = normalizeLlmSection(llmSections.actiuniHtml, {
+    removeLabels: ['acțiuni prioritare', 'actiuni prioritare'],
+  });
+  const planHtml = normalizeLlmSection(llmSections.planHtml, {
+    removeLabels: ['plan săptămânal', 'plan saptamanal'],
+  });
 
   const checkInSection = showCheckIn
     ? `
@@ -80,20 +146,17 @@ export function buildMonthlyEmployeeEmailHtml({ person, department, data3Months,
 <body style="${BODY_STYLE}">
   <p style="margin: 0 0 1em 0;">${escapeHtml(salutation)}</p>
 
-  <h3 style="${H3_STYLE}">Tabel date performanță</h3>
-  ${tableHtml}
-
   <h3 style="${H3_STYLE}">Interpretare date</h3>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.interpretareHtml)}</div>
+  <div style="${SECTION_STYLE}">${interpretareHtml}</div>
 
   <h3 style="${H3_STYLE}">Concluzii</h3>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.concluziiHtml)}</div>
+  <div style="${SECTION_STYLE}">${concluziiHtml}</div>
 
   <h3 style="${H3_STYLE}">Acțiuni prioritare</h3>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.actiuniHtml)}</div>
+  <div style="${SECTION_STYLE}">${actiuniHtml}</div>
 
   <h3 style="${H3_STYLE}">Plan săptămânal</h3>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.planHtml)}</div>
+  <div style="${SECTION_STYLE}">${planHtml}</div>
 ${checkInSection}
   <p style="margin: 1.5em 0 0 0;">Pentru orice nelămuriri legate de datele afișate, vă rugăm să luați legătura cu managerul direct.</p>
   <p style="margin: 0.5em 0 0 0;">Vă mulțumim.</p>
