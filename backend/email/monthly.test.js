@@ -49,49 +49,122 @@ const mockPerson = {
 const mockMeta = { periodStart: '2026-01-01', periodEnd: '2026-01-31', label: '2026-01-01..2026-01-31' };
 
 const mockEmployeeLlmSections = {
-  interpretareHtml: '<p>Interpretare bazată pe cifrele din tabel (5 comenzi principal, 4 livrări, profit 480 EUR).</p>',
-  concluziiHtml: '<p>Concluzii: performanță în parametri; focus pe menținerea livrărilor.</p>',
-  actiuniHtml: '<ol><li>Menține target livrări.</li><li>Verifică termene furnizori.</li></ol>',
-  planHtml: '<p>Plan săptămânal: aliniere cu echipa și prioritizare comenzi.</p>',
+  antet: {
+    subiect: 'Raport Performanță Test User – Ianuarie 2026',
+    greeting: 'Bună, Test User,',
+    intro_message: 'Îți trimit raportul de performanță pentru perioada analizată.',
+  },
+  sectiunea_1_tabel_date_performanta: {
+    continut: ['Indicatori relevanți', 'Comparație Luna Curentă vs. Luna Anterioară'],
+  },
+  sectiunea_2_interpretare_date: {
+    stil: 'Obiectiv, bazat pe date',
+    include: ['Performanță absolută', 'Comparație cu luna anterioară', 'Interpretare bazată pe cifre (5 comenzi principal, 4 livrări, profit 480 EUR).'],
+  },
+  sectiunea_3_concluzii: {
+    ce_merge_bine: 'Performanță în parametri.',
+    ce_nu_merge_si_necesita_interventie_urgenta: 'Nicio problemă majoră.',
+    focus_luna_urmatoare: 'Menținerea livrărilor.',
+  },
+  sectiunea_4_actiuni_prioritare: {
+    format_actiune: '1. Menține target livrări.',
+    structura: { ce: 'Livrări', de_ce: 'Target', masurabil: 'Număr', deadline: 'Luna următoare' },
+    actiuni_specifice_per_rol: {
+      freight_forwarder: ['Verifică termene furnizori.'],
+      sales_freight_agent: ['Menține target livrări.'],
+    },
+  },
+  sectiunea_5_plan_saptamanal: {
+    format: { saptamana_1: 'Aliniere cu echipa.', saptamana_2_4: 'Prioritizare comenzi.' },
+  },
+  incheiere: {
+    raport_urmator: 'Perioada Februarie 2026.',
+    mesaj_sub_80: 'ATENȚIE: Performanța sub prag.',
+    mesaj_peste_80: 'Continuă în acest ritm.',
+    semnatura: { nume: 'Rafael Emre Onisoara', functie: 'Performance Manager', companie: 'Crystal Logistics Services' },
+  },
+};
+
+const mockEmployeeLlmSectionsWithCheckIn = {
+  ...mockEmployeeLlmSections,
+  sectiunea_6_check_in_intermediar: {
+    regula: 'Sub 80% target',
+    format: 'Check-in intermediar: Vineri 15.02.2026, 10:00 - Review obligatoriu progres.',
+  },
 };
 
 const mockDepartmentLlmSections = {
-  rezumatExecutivHtml: '<p>Rezumat executiv bazat pe datele agregate.</p>',
-  vanzariHtml: '<p>Analiză Vânzări: contactați 20, calificați 5.</p>',
-  operationalHtml: '<p>Analiză Operațional: livrări 10, profit 1000 EUR.</p>',
-  comparatiiHtml: '<p>Comparații între luni conform datelor.</p>',
-  recomandariHtml: '<p>Recomandări prioritizate pentru management.</p>',
+  antet: { subiect: 'Raport departamental', introducere: 'Rezumat executiv bazat pe datele agregate.' },
+  sectiunea_1_rezumat_executiv: {
+    titlu: 'Rezumat executiv',
+    performanta_generala: { totalProfitCompanie: '1', targetDepartamentalCombinat: '2', realizareTarget: '3', numarTotalCurse: '4' },
+    departamentVanzari: { profit: '1', procentDinTarget: '2', trend: '3', status: '4' },
+    departamentOperational: { profit: '1', procentDinTarget: '2', trend: '3', status: '4' },
+    observatiiCritice: ['Obs 1'],
+  },
+  sectiunea_2_analiza_vanzari: {
+    titlu: 'Analiză Vânzări',
+    performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
+    targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
+    metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', apeluriMediiZi: '3', conversieMedieClienti: '4' },
+    tabelAngajati: 'Tabel',
+    problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
+    highPerformers: [],
+    lowPerformers: [],
+    problemeSistemice: [],
+  },
+  sectiunea_3_analiza_operational: {
+    titlu: 'Analiză Operațional',
+    performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
+    targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
+    metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3', procentProfitPrincipal: '4', procentProfitSecundar: '5' },
+    tabelAngajati: 'Tabel',
+    problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
+    highPerformers: [],
+    lowPerformers: [],
+    problemeSistemice: [],
+  },
+  sectiunea_4_comparatie_departamente: {
+    titlu: 'Comparații',
+    tabelComparativ: {
+      profitTotal: { vanzari: '1', operational: '2', diferenta: '3' },
+      numarCurseTotal: { vanzari: '1', operational: '2', diferenta: '3' },
+      procentTargetDepartamental: { vanzari: '1', operational: '2', diferenta: '3' },
+      profitMediuAngajat: { vanzari: '1', operational: '2', diferenta: '3' },
+      trendVsLunaAnterioara: { vanzari: '1', operational: '2' },
+    },
+    observatii: ['Comparații între luni.'],
+  },
+  sectiunea_5_recomandari_management: {
+    titlu: 'Recomandări',
+    oneToOneLowPerformers: [],
+    trainingNecesare: [],
+    urmarireSaptamanala: [],
+    setareObiectiveSpecifice: [],
+    mutariRolOptional: [],
+    problemeSistemiceProces: [],
+  },
+  incheiere: { urmatorulRaport: 'Next', semnatura: { functie: 'F', companie: 'C' } },
 };
 
 describe('Monthly employee email', () => {
   it('output contains required sections from monthlyEmployeePrompt.md (interpretare + concluzii + acțiuni + plan)', () => {
     const html = renderMonthlyEmployeeEmail(mockReport, mockPerson, mockMeta, mockEmployeeLlmSections);
-    expect(html).not.toContain('Tabel date performanță');
-    expect(html).not.toMatch(/Metrică\s*\|?\s*Valoare/);
+    expect(html).toContain('Tabel date performanță');
     expect(html).toContain('Interpretare date');
     expect(html).toContain('Concluzii');
     expect(html).toContain('Acțiuni prioritare');
     expect(html).toContain('Plan săptămânal');
-    expect(html).toContain('Bună ziua, Test User,');
+    expect(html).toContain('Test User');
   });
 
-  it('strips duplicate section titles and SUBIECT from LLM content (single Interpretare date heading)', () => {
+  it('normalizeLlmSection strips SUBIECT and duplicate section headings from raw HTML', () => {
     const rawInterpretare =
       '<p><strong>SUBIECT: Raport lunar</strong></p><p>Bună, Test User,</p><h3>Interpretare Date</h3><p>Conținut real al interpretării bazat pe cifre.</p>';
     const normalized = normalizeLlmSection(rawInterpretare, { removeLabels: ['interpretare date'] });
     expect(normalized).not.toContain('SUBIECT:');
     expect(normalized).not.toMatch(/Interpretare\s+Date/i);
     expect(normalized).toContain('Conținut real al interpretării');
-
-    const llmWithDuplicates = {
-      ...mockEmployeeLlmSections,
-      interpretareHtml: rawInterpretare,
-    };
-    const html = renderMonthlyEmployeeEmail(mockReport, mockPerson, mockMeta, llmWithDuplicates);
-    expect(html).not.toContain('SUBIECT:');
-    const interpretareCount = (html.match(/Interpretare date/gi) || []).length;
-    expect(interpretareCount).toBe(1);
-    expect(html).toContain('Conținut real al interpretării');
   });
 
   it('buildMonthlyEmployeeEmail returns { subject, html }', () => {
@@ -103,20 +176,19 @@ describe('Monthly employee email', () => {
     });
     expect(result).toHaveProperty('subject');
     expect(result).toHaveProperty('html');
-    expect(result.subject).toContain('Raport performanță');
+    expect(result.subject).toMatch(/raport performanță/i);
     expect(result.subject).toContain('Test User');
-    expect(result.html).toContain('Bună ziua, Test User,');
+    expect(result.html).toContain('Test User');
   });
 
-  it('Check-in intermediar appears only when angajat is sub standard (<80% target)', () => {
-    const subStandardData = { ...mockReport.opsStats[0], target: 1000, ctr_principalProfitEur: 0, livr_principalProfitEur: 300 };
-    const resultSub = buildMonthlyEmployeeEmail({
+  it('Check-in intermediar appears only when sectiunea_6 is present in llmSections', () => {
+    const resultWithCheckIn = buildMonthlyEmployeeEmail({
       person: mockPerson,
-      data3Months: { current: subStandardData },
+      data3Months: { current: mockReport.opsStats[0] },
       periodStart: '2026-01-01',
-      llmSections: mockEmployeeLlmSections,
+      llmSections: mockEmployeeLlmSectionsWithCheckIn,
     });
-    expect(resultSub.html).toContain('Check-in intermediar');
+    expect(resultWithCheckIn.html).toContain('Check-in intermediar');
 
     const okData = { ...mockReport.opsStats[0], target: 400, ctr_principalProfitEur: 200, livr_principalProfitEur: 200 };
     const resultOk = buildMonthlyEmployeeEmail({
@@ -136,9 +208,9 @@ describe('Monthly employee email', () => {
       periodStart: '2026-01-01',
       llmSections: mockEmployeeLlmSections,
     });
-    expect(html).toContain('Bună ziua, Alexandru Pop,');
-    expect(html).not.toContain('Tabel date performanță');
     expect(html).toContain('Interpretare date');
+    expect(html).toContain('Tabel date performanță');
+    expect(html).toContain('Concluzii');
   });
 
   it('buildMonthlyEmployeeEmail throws when llmSections is missing', () => {
@@ -173,7 +245,7 @@ describe('Monthly management email', () => {
     expect(result).toHaveProperty('html');
     expect(result).toHaveProperty('attachments');
     expect(Array.isArray(result.attachments)).toBe(true);
-    expect(result.subject).toContain('Raport performanță departamentală');
+    expect(result.subject).toMatch(/raport.*departamental/i);
     expect(result.html).toContain('Rezumat executiv');
   });
 

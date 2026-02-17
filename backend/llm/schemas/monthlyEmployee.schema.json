@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "antet",
+    "sectiunea_1_tabel_date_performanta",
+    "sectiunea_2_interpretare_date",
+    "sectiunea_3_concluzii",
+    "sectiunea_4_actiuni_prioritare",
+    "sectiunea_5_plan_saptamanal",
+    "incheiere"
+  ],
+  "properties": {
+    "antet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subiect", "greeting", "intro_message"],
+      "properties": {
+        "subiect": { "type": "string", "minLength": 1 },
+        "greeting": { "type": "string", "minLength": 1 },
+        "intro_message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sectiunea_1_tabel_date_performanta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["continut"],
+      "properties": {
+        "continut": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "sectiunea_2_interpretare_date": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stil", "include"],
+      "properties": {
+        "stil": { "type": "string", "minLength": 1 },
+        "include": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "sectiunea_3_concluzii": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ce_merge_bine",
+        "ce_nu_merge_si_necesita_interventie_urgenta",
+        "focus_luna_urmatoare"
+      ],
+      "properties": {
+        "ce_merge_bine": { "type": "string", "minLength": 1 },
+        "ce_nu_merge_si_necesita_interventie_urgenta": { "type": "string", "minLength": 1 },
+        "focus_luna_urmatoare": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sectiunea_4_actiuni_prioritare": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format_actiune", "structura", "actiuni_specifice_per_rol"],
+      "properties": {
+        "format_actiune": { "type": "string", "minLength": 1 },
+        "structura": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ce", "de_ce", "masurabil", "deadline"],
+          "properties": {
+            "ce": { "type": "string", "minLength": 1 },
+            "de_ce": { "type": "string", "minLength": 1 },
+            "masurabil": { "type": "string", "minLength": 1 },
+            "deadline": { "type": "string", "minLength": 1 }
+          }
+        },
+        "actiuni_specifice_per_rol": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["freight_forwarder", "sales_freight_agent"],
+          "properties": {
+            "freight_forwarder": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            },
+            "sales_freight_agent": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1
+            }
+          }
+        }
+      }
+    },
+    "sectiunea_5_plan_saptamanal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format"],
+      "properties": {
+        "format": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["saptamana_1", "saptamana_2_4"],
+          "properties": {
+            "saptamana_1": { "type": "string", "minLength": 1 },
+            "saptamana_2_4": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "sectiunea_6_check_in_intermediar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["regula", "format"],
+      "properties": {
+        "regula": { "type": "string", "minLength": 1 },
+        "format": { "type": "string", "minLength": 1 }
+      }
+    },
+    "incheiere": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["raport_urmator", "mesaj_sub_80", "mesaj_peste_80", "semnatura"],
+      "properties": {
+        "raport_urmator": { "type": "string", "minLength": 1 },
+        "mesaj_sub_80": { "type": "string", "minLength": 1 },
+        "mesaj_peste_80": { "type": "string", "minLength": 1 },
+        "semnatura": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["nume", "functie", "companie"],
+          "properties": {
+            "nume": { "type": "string", "minLength": 1 },
+            "functie": { "type": "string", "minLength": 1 },
+            "companie": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

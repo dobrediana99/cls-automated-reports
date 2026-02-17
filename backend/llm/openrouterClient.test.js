@@ -1,24 +1,42 @@
 /**
  * Unit tests for OpenRouter client hardening: timeout, response_format fallback,
- * JSON invalid retry, schema repair retry.
+ * JSON invalid retry, schema repair retry. Uses new strict employee structure (antet, sectiuni, incheiere).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const validEmployeeJson = () =>
-  '{"interpretareHtml":"<p>I</p>","concluziiHtml":"<p>C</p>","actiuniHtml":"<p>A</p>","planHtml":"<p>P</p>"}';
+/** Minimal valid employee output (no sectiunea_6; for performancePct >= 80). */
+function getValidEmployeePayload() {
+  return {
+    antet: { subiect: 'Raport', greeting: 'Bună,', intro_message: 'Intro' },
+    sectiunea_1_tabel_date_performanta: { continut: ['Row 1'] },
+    sectiunea_2_interpretare_date: { stil: 'Obiectiv', include: ['Item 1'] },
+    sectiunea_3_concluzii: {
+      ce_merge_bine: 'A',
+      ce_nu_merge_si_necesita_interventie_urgenta: 'B',
+      focus_luna_urmatoare: 'C',
+    },
+    sectiunea_4_actiuni_prioritare: {
+      format_actiune: 'Format',
+      structura: { ce: 'x', de_ce: 'y', masurabil: 'z', deadline: 'd' },
+      actiuni_specifice_per_rol: {
+        freight_forwarder: ['F1'],
+        sales_freight_agent: ['S1'],
+      },
+    },
+    sectiunea_5_plan_saptamanal: {
+      format: { saptamana_1: 'S1', saptamana_2_4: 'S2-4' },
+    },
+    incheiere: {
+      raport_urmator: 'Next',
+      mesaj_sub_80: 'Sub 80',
+      mesaj_peste_80: 'Peste 80',
+      semnatura: { nume: 'N', functie: 'F', companie: 'C' },
+    },
+  };
+}
 
-const okEmployeeResponse = () =>
-  Promise.resolve({
-    ok: true,
-    status: 200,
-    json: () =>
-      Promise.resolve({
-        choices: [{ message: { content: validEmployeeJson() } }],
-        model: 'test',
-        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-      }),
-  });
+const validEmployeeJson = () => JSON.stringify(getValidEmployeePayload());
 
 describe('openrouterClient hardening', () => {
   let fetchMock;
@@ -61,14 +79,13 @@ describe('openrouterClient hardening', () => {
     const result = await generateMonthlySections({
       systemPrompt: 'S',
       inputJson: {},
+      performancePct: 85,
     });
 
-    expect(result.sections).toEqual({
-      interpretareHtml: '<p>I</p>',
-      concluziiHtml: '<p>C</p>',
-      actiuniHtml: '<p>A</p>',
-      planHtml: '<p>P</p>',
-    });
+    expect(result.sections).toHaveProperty('antet');
+    expect(result.sections.antet.subiect).toBe('Raport');
+    expect(result.sections).toHaveProperty('sectiunea_2_interpretare_date');
+    expect(result.sections).toHaveProperty('incheiere');
     expect(result.usage).toBeDefined();
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
@@ -106,9 +123,10 @@ describe('openrouterClient hardening', () => {
     const result = await generateMonthlySections({
       systemPrompt: 'S',
       inputJson: {},
+      performancePct: 90,
     });
 
-    expect(result.sections.interpretareHtml).toBe('<p>I</p>');
+    expect(result.sections.antet.subiect).toBe('Raport');
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const secondBody = JSON.parse(fetchMock.mock.calls[1][1].body);
@@ -129,8 +147,7 @@ describe('openrouterClient hardening', () => {
             choices: [
               {
                 message: {
-                  content:
-                    '{"interpretareHtml":"a","concluziiHtml":"b","actiuniHtml":"c"}',
+                  content: '{"antet":{"subiect":"x","greeting":"y","intro_message":"z"},"sectiunea_1_tabel_date_performanta":{"continut":["a"]}}',
                 },
               },
             ],
@@ -152,16 +169,17 @@ describe('openrouterClient hardening', () => {
     const result = await generateMonthlySections({
       systemPrompt: 'S',
       inputJson: {},
+      performancePct: 85,
     });
 
-    expect(result.sections.planHtml).toBe('<p>P</p>');
+    expect(result.sections.sectiunea_5_plan_saptamanal.format.saptamana_1).toBe('S1');
     expect(fetchMock).toHaveBeenCalledTimes(2);
 
     const repairBody = JSON.parse(fetchMock.mock.calls[1][1].body);
     const repairUser = repairBody.messages?.find((m) => m.role === 'user')
       ?.content;
-    expect(repairUser).toContain('Schema validation failed');
-    expect(repairUser).toContain('ALL required keys present');
+    expect(repairUser).toContain('Returnează DOAR JSON valid');
+    expect(repairUser).toContain('additionalProperties');
   });
 
   it('AbortError (timeout) -> retry', async () => {
@@ -187,9 +205,10 @@ describe('openrouterClient hardening', () => {
     const result = await generateMonthlySections({
       systemPrompt: 'S',
       inputJson: {},
+      performancePct: 85,
     });
 
-    expect(result.sections.interpretareHtml).toBe('<p>I</p>');
+    expect(result.sections.antet.subiect).toBe('Raport');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
@@ -212,14 +231,12 @@ describe('openrouterClient hardening', () => {
     const result = await generateMonthlySections({
       systemPrompt: 'S',
       inputJson: {},
+      performancePct: 85,
     });
 
-    expect(result.sections).toEqual({
-      interpretareHtml: '<p>I</p>',
-      concluziiHtml: '<p>C</p>',
-      actiuniHtml: '<p>A</p>',
-      planHtml: '<p>P</p>',
-    });
+    expect(result.sections).toHaveProperty('antet');
+    expect(result.sections.antet.subiect).toBe('Raport');
+    expect(result.sections).toHaveProperty('incheiere');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -242,14 +259,11 @@ describe('openrouterClient hardening', () => {
     const result = await generateMonthlySections({
       systemPrompt: 'S',
       inputJson: {},
+      performancePct: 85,
     });
 
-    expect(result.sections).toEqual({
-      interpretareHtml: '<p>I</p>',
-      concluziiHtml: '<p>C</p>',
-      actiuniHtml: '<p>A</p>',
-      planHtml: '<p>P</p>',
-    });
+    expect(result.sections.antet.subiect).toBe('Raport');
+    expect(result.sections.sectiunea_3_concluzii.focus_luna_urmatoare).toBe('C');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -276,7 +290,7 @@ describe('openrouterClient hardening', () => {
       });
 
     await expect(
-      generateMonthlySections({ systemPrompt: 'S', inputJson: {} })
+      generateMonthlySections({ systemPrompt: 'S', inputJson: {}, performancePct: 85 })
     ).rejects.toThrow();
 
     expect(fetchMock).toHaveBeenCalledTimes(3);

@@ -54,11 +54,11 @@ Ce trebuie folosit:
 
 FORMAT OBLIGATORIU DE OUTPUT
 
-Returnează EXCLUSIV JSON valid
-
-Fără markdown.
-Fără backticks.
-Fără text suplimentar.
+Returnează EXCLUSIV JSON valid, cu exact structura de mai jos.
+NU include text în afara JSON.
+NU folosi ``` (backticks sau markdown).
+NU include chei suplimentare (doar cele din structură).
+Fără markdown. Fără text suplimentar.
 
 STRUCTURA EMAIL
 

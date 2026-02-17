@@ -9,9 +9,88 @@ import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
 import { runMonthly } from './monthly.js';
 
-const { sendMailMock } = vi.hoisted(() => ({
-  sendMailMock: vi.fn().mockResolvedValue({}),
-}));
+const { sendMailMock, mockEmployeeSections, mockDepartmentSections } = vi.hoisted(() => {
+  const mockEmployeeSections = {
+    antet: { subiect: 'Raport', greeting: 'Bună,', intro_message: 'Intro' },
+    sectiunea_1_tabel_date_performanta: { continut: ['Row 1'] },
+    sectiunea_2_interpretare_date: { stil: 'Obiectiv', include: ['Item 1'] },
+    sectiunea_3_concluzii: {
+      ce_merge_bine: 'A',
+      ce_nu_merge_si_necesita_interventie_urgenta: 'B',
+      focus_luna_urmatoare: 'C',
+    },
+    sectiunea_4_actiuni_prioritare: {
+      format_actiune: 'F',
+      structura: { ce: 'x', de_ce: 'y', masurabil: 'z', deadline: 'd' },
+      actiuni_specifice_per_rol: { freight_forwarder: ['F1'], sales_freight_agent: ['S1'] },
+    },
+    sectiunea_5_plan_saptamanal: { format: { saptamana_1: 'S1', saptamana_2_4: 'S2-4' } },
+    incheiere: {
+      raport_urmator: 'Next',
+      mesaj_sub_80: 'Sub 80',
+      mesaj_peste_80: 'Peste 80',
+      semnatura: { nume: 'N', functie: 'F', companie: 'C' },
+    },
+  };
+  const mockDepartmentSections = {
+    antet: { subiect: 'Raport Dept', introducere: 'Intro' },
+    sectiunea_1_rezumat_executiv: {
+      titlu: 'Rezumat',
+      performanta_generala: { totalProfitCompanie: '1', targetDepartamentalCombinat: '2', realizareTarget: '3', numarTotalCurse: '4' },
+      departamentVanzari: { profit: '1', procentDinTarget: '2', trend: '3', status: '4' },
+      departamentOperational: { profit: '1', procentDinTarget: '2', trend: '3', status: '4' },
+      observatiiCritice: ['O1'],
+    },
+    sectiunea_2_analiza_vanzari: {
+      titlu: 'Vânzări',
+      performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
+      targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
+      metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', apeluriMediiZi: '3', conversieMedieClienti: '4' },
+      tabelAngajati: 'Tabel',
+      problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
+      highPerformers: [],
+      lowPerformers: [],
+      problemeSistemice: [],
+    },
+    sectiunea_3_analiza_operational: {
+      titlu: 'Operațional',
+      performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
+      targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
+      metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3', procentProfitPrincipal: '4', procentProfitSecundar: '5' },
+      tabelAngajati: 'Tabel',
+      problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
+      highPerformers: [],
+      lowPerformers: [],
+      problemeSistemice: [],
+    },
+    sectiunea_4_comparatie_departamente: {
+      titlu: 'Comparație',
+      tabelComparativ: {
+        profitTotal: { vanzari: '1', operational: '2', diferenta: '3' },
+        numarCurseTotal: { vanzari: '1', operational: '2', diferenta: '3' },
+        procentTargetDepartamental: { vanzari: '1', operational: '2', diferenta: '3' },
+        profitMediuAngajat: { vanzari: '1', operational: '2', diferenta: '3' },
+        trendVsLunaAnterioara: { vanzari: '1', operational: '2' },
+      },
+      observatii: ['Obs'],
+    },
+    sectiunea_5_recomandari_management: {
+      titlu: 'Recomandări',
+      oneToOneLowPerformers: [],
+      trainingNecesare: [],
+      urmarireSaptamanala: [],
+      setareObiectiveSpecifice: [],
+      mutariRolOptional: [],
+      problemeSistemiceProces: [],
+    },
+    incheiere: { urmatorulRaport: 'Next', semnatura: { functie: 'F', companie: 'C' } },
+  };
+  return {
+    sendMailMock: vi.fn().mockResolvedValue({}),
+    mockEmployeeSections,
+    mockDepartmentSections,
+  };
+});
 
 vi.mock('../report/runReport.js', () => ({
   runReport: vi.fn().mockResolvedValue({
@@ -40,21 +119,11 @@ vi.mock('../cache/monthlyReportCache.js', () => ({
   loadMonthlyReportFromCache: vi.fn().mockReturnValue(null),
   saveMonthlyReportToCache: vi.fn(),
 }));
+
 vi.mock('../llm/openrouterClient.js', () => ({
   requireOpenRouter: vi.fn(),
-  generateMonthlySections: vi.fn().mockResolvedValue({
-    interpretareHtml: '<p>Interpretare</p>',
-    concluziiHtml: '<p>Concluzii</p>',
-    actiuniHtml: '<p>Acțiuni</p>',
-    planHtml: '<p>Plan</p>',
-  }),
-  generateMonthlyDepartmentSections: vi.fn().mockResolvedValue({
-    rezumatExecutivHtml: '<p>Rezumat</p>',
-    vanzariHtml: '<p>Vânzări</p>',
-    operationalHtml: '<p>Operațional</p>',
-    comparatiiHtml: '<p>Comparații</p>',
-    recomandariHtml: '<p>Recomandări</p>',
-  }),
+  generateMonthlySections: vi.fn().mockResolvedValue({ sections: mockEmployeeSections, usage: null }),
+  generateMonthlyDepartmentSections: vi.fn().mockResolvedValue({ sections: mockDepartmentSections, usage: null }),
 }));
 vi.mock('../prompts/loadPrompts.js', () => ({
   loadMonthlyEmployeePrompt: vi.fn().mockReturnValue('Employee prompt'),
@@ -75,29 +144,15 @@ const mockMeta = { periodStart: '2025-12-01', periodEnd: '2025-12-31', label: '2
 const mockSummary = { departments: { operational: {}, sales: {}, management: {} }, company: {} };
 
 describe('runMonthly', () => {
-  const defaultEmployeeSections = {
-    interpretareHtml: '<p>Interpretare</p>',
-    concluziiHtml: '<p>Concluzii</p>',
-    actiuniHtml: '<p>Acțiuni</p>',
-    planHtml: '<p>Plan</p>',
-  };
-  const defaultDepartmentSections = {
-    rezumatExecutivHtml: '<p>Rezumat</p>',
-    vanzariHtml: '<p>Vânzări</p>',
-    operationalHtml: '<p>Operațional</p>',
-    comparatiiHtml: '<p>Comparații</p>',
-    recomandariHtml: '<p>Recomandări</p>',
-  };
-
   beforeEach(() => {
     delete process.env.DRY_RUN;
     process.env.MONDAY_API_TOKEN = 'test-token';
     sendMailMock.mockClear();
     sendMailMock.mockResolvedValue({});
     vi.mocked(generateMonthlySections).mockReset();
-    vi.mocked(generateMonthlySections).mockResolvedValue(defaultEmployeeSections);
+    vi.mocked(generateMonthlySections).mockResolvedValue({ sections: mockEmployeeSections, usage: null });
     vi.mocked(generateMonthlyDepartmentSections).mockReset();
-    vi.mocked(generateMonthlyDepartmentSections).mockResolvedValue(defaultDepartmentSections);
+    vi.mocked(generateMonthlyDepartmentSections).mockResolvedValue({ sections: mockDepartmentSections, usage: null });
     vi.mocked(runReport).mockResolvedValue({
       meta: mockMeta,
       reportSummary: mockSummary,
@@ -208,14 +263,8 @@ describe('runMonthly', () => {
     process.env.GMAIL_APP_PASSWORD = 'secret';
     process.env.TEST_EMAILS = 'test@example.com';
 
-    const validSections = {
-      interpretareHtml: '<p>I</p>',
-      concluziiHtml: '<p>C</p>',
-      actiuniHtml: '<p>A</p>',
-      planHtml: '<p>P</p>',
-    };
     vi.mocked(generateMonthlySections)
-      .mockResolvedValueOnce(validSections)
+      .mockResolvedValueOnce({ sections: mockEmployeeSections, usage: null })
       .mockRejectedValueOnce(new Error('LLM failed'));
 
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('LLM failed');

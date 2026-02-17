@@ -32,13 +32,12 @@ Se folosesc formulări clare și factuale precum „Datele arată că...”, „
 Un exemplu nepotrivit ar fi un text de tip motivațional, cu afirmații generale și limbaj corporatist fără suport numeric. Un exemplu corect este un paragraf factual care prezintă profitul, procentul din target, variația față de luna anterioară, numărul angajaților afectați de o problemă și o recomandare clară, formulată direct și bazată pe date.
 ________________________________________
 FORMAT OBLIGATORIU DE OUTPUT (STRICT)
-Returnează EXCLUSIV un obiect JSON valid.
-• NU folosi markdown.
-• NU folosi json sau delimitatori.
-• NU adăuga explicații înainte sau după JSON.
-• NU adăuga text suplimentar.
+Returnează EXCLUSIV un obiect JSON valid, cu exact structura de mai jos.
+NU include text în afara JSON.
+NU folosi ``` (backticks sau markdown).
+NU include chei suplimentare (doar cele din structură).
+• NU folosi markdown, delimitatori sau explicații înainte/după JSON.
 • NU comenta output-ul.
-• NU folosi backticks.
 Output-ul trebuie să fie strict un obiect JSON valid, parsabil direct cu JSON.parse().
 
 Structura Raport Departamental:

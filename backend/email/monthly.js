@@ -9,7 +9,6 @@ import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
 import { escapeHtml } from './templates/weeklyEmployeeDetails.js';
 import { buildMonthlyEmployeeEmail, buildMonthlyEmployeeEmailHtml as buildEmployeeEmailHtmlFromTemplate } from './templates/monthlyEmployee.js';
-import { sanitizeReportHtml } from './sanitize.js';
 
 /** Get person row from report by department (used by job to build data3Months). */
 export function getPersonRow(report, person) {
@@ -69,32 +68,91 @@ export function buildMonthlyEmployeeEmailHtml({ personName, stats, department, p
   });
 }
 
+const DEPT_REQUIRED_KEYS = [
+  'antet',
+  'sectiunea_1_rezumat_executiv',
+  'sectiunea_2_analiza_vanzari',
+  'sectiunea_3_analiza_operational',
+  'sectiunea_4_comparatie_departamente',
+  'sectiunea_5_recomandari_management',
+  'incheiere',
+];
+
+function esc(s) {
+  return escapeHtml(String(s ?? ''));
+}
+
+/** Render object key-value as paragraphs; skip 'titlu'. */
+function renderObj(obj, sectionStyle) {
+  if (!obj || typeof obj !== 'object') return '';
+  return Object.entries(obj)
+    .filter(([k]) => k !== 'titlu')
+    .map(([k, v]) => {
+      if (v === undefined || v === null) return '';
+      if (typeof v === 'object' && !Array.isArray(v)) return renderObj(v, sectionStyle);
+      if (Array.isArray(v)) {
+        const parts = v.map((i) => {
+          if (typeof i === 'object' && i !== null) {
+            const inner = Object.entries(i)
+              .map(([kk, vv]) => (vv != null ? `${esc(kk)}: ${esc(vv)}` : ''))
+              .filter(Boolean)
+              .join('; ');
+            return inner || esc(JSON.stringify(i));
+          }
+          return esc(String(i));
+        });
+        return parts.length ? `<ul style="${sectionStyle}">${parts.map((p) => `<li>${p}</li>`).join('')}</ul>` : '';
+      }
+      return `<p style="${sectionStyle}"><strong>${esc(k)}:</strong> ${esc(v)}</p>`;
+    })
+    .join('');
+}
+
+/** Build HTML for one department section (titlu + nested content). */
+function renderDeptSection(section, sectionStyle, h2Style) {
+  if (!section || typeof section !== 'object') return '';
+  const titlu = section.titlu != null ? esc(section.titlu) : '';
+  const body = renderObj(section, sectionStyle);
+  return titlu ? `<h2 style="${h2Style}">${titlu}</h2>${body}` : body;
+}
+
 /**
- * Builds full HTML for monthly management email. Structure from monthlyDepartmentPrompt.md.
- * LLM sections required (rezumatExecutivHtml, vanzariHtml, operationalHtml, comparatiiHtml, recomandariHtml); no placeholder.
- * Total Company = doar tabel (generat în cod).
+ * Builds full HTML for monthly management email from full validated LLM structure.
  * @param {object} opts - { periodStart, reportSummary?, report?, llmSections }
- * @param {object} opts.llmSections - { rezumatExecutivHtml, vanzariHtml, operationalHtml, comparatiiHtml, recomandariHtml }; required
+ * @param {object} opts.llmSections - Full validated: antet, sectiunea_1_*, ..., incheiere
  * @returns {string} Full HTML document
  */
 export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, report, llmSections }) {
-  getDepartmentPrompt(); // Use prompt (throw if missing)
-
-  const required = ['rezumatExecutivHtml', 'vanzariHtml', 'operationalHtml', 'comparatiiHtml', 'recomandariHtml'];
+  getDepartmentPrompt();
   if (!llmSections || typeof llmSections !== 'object') {
-    throw new Error('Monthly management email requires llmSections from OpenRouter LLM. Job fails without valid analysis.');
+    throw new Error('Monthly management email requires llmSections (full validated structure). Job fails without valid analysis.');
   }
-  for (const key of required) {
-    const val = llmSections[key];
-    if (val == null || typeof val !== 'string' || !String(val).trim()) {
-      throw new Error(`Monthly management email missing LLM section: ${key}. Job fails without valid analysis.`);
+  for (const key of DEPT_REQUIRED_KEYS) {
+    if (!(key in llmSections) || llmSections[key] == null) {
+      throw new Error(`Monthly management email missing LLM key: ${key}. Job fails without valid analysis.`);
     }
   }
 
+  const intro = llmSections.antet?.introducere != null ? esc(llmSections.antet.introducere) : '';
+  const s1 = renderDeptSection(llmSections.sectiunea_1_rezumat_executiv, SECTION_STYLE, H2_STYLE);
+  const s2 = renderDeptSection(llmSections.sectiunea_2_analiza_vanzari, SECTION_STYLE, H2_STYLE);
+  const s3 = renderDeptSection(llmSections.sectiunea_3_analiza_operational, SECTION_STYLE, H2_STYLE);
+  const s4 = renderDeptSection(llmSections.sectiunea_4_comparatie_departamente, SECTION_STYLE, H2_STYLE);
+  const s5 = renderDeptSection(llmSections.sectiunea_5_recomandari_management, SECTION_STYLE, H2_STYLE);
+  const incheiere = llmSections.incheiere;
+  const urmatorulRaport = incheiere?.urmatorulRaport != null ? esc(incheiere.urmatorulRaport) : '';
+  const semn = incheiere?.semnatura;
+  const semnaturaHtml =
+    semn && typeof semn === 'object'
+      ? `<p style="margin: 1em 0 0 0;">${esc(semn.functie)}<br/>${esc(semn.companie)}</p>`
+      : '';
+
   let tableHtml = '';
   if (reportSummary && reportSummary.departments) {
-    tableHtml = '<table style="border-collapse: collapse; width: 100%; max-width: 560px; font-family: Arial, sans-serif; font-size: 13px;">';
-    tableHtml += '<thead><tr><th style="padding: 8px 10px; border: 1px solid #ccc; background: #f2f2f2;">Departament / Indicator</th><th style="padding: 8px 10px; border: 1px solid #ccc; background: #f2f2f2;">Valoare</th></tr></thead><tbody>';
+    tableHtml =
+      '<table style="border-collapse: collapse; width: 100%; max-width: 560px; font-family: Arial, sans-serif; font-size: 13px;">';
+    tableHtml +=
+      '<thead><tr><th style="padding: 8px 10px; border: 1px solid #ccc; background: #f2f2f2;">Departament / Indicator</th><th style="padding: 8px 10px; border: 1px solid #ccc; background: #f2f2f2;">Valoare</th></tr></thead><tbody>';
     const deps = [
       { key: 'operational', label: 'Operațiuni' },
       { key: 'sales', label: 'Vânzări' },
@@ -103,10 +161,10 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
     for (const { key, label } of deps) {
       const d = reportSummary.departments[key];
       if (d && typeof d === 'object') {
-        tableHtml += `<tr><td style="padding: 8px 10px; border: 1px solid #ccc; font-weight: bold;" colspan="2">${escapeHtml(label)}</td></tr>`;
+        tableHtml += `<tr><td style="padding: 8px 10px; border: 1px solid #ccc; font-weight: bold;" colspan="2">${esc(label)}</td></tr>`;
         for (const [k, v] of Object.entries(d)) {
           if (v !== undefined && v !== null && typeof v === 'number' && !Number.isNaN(v)) {
-            tableHtml += `<tr><td style="padding: 8px 10px; border: 1px solid #ccc;">${escapeHtml(k)}</td><td style="padding: 8px 10px; border: 1px solid #ccc;">${v}</td></tr>`;
+            tableHtml += `<tr><td style="padding: 8px 10px; border: 1px solid #ccc;">${esc(k)}</td><td style="padding: 8px 10px; border: 1px solid #ccc;">${v}</td></tr>`;
           }
         }
       }
@@ -118,26 +176,18 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Raport performanță departamentală</title></head>
+<head><meta charset="utf-8"><title>${esc(llmSections.antet?.subiect ?? 'Raport performanță departamentală')}</title></head>
 <body style="${BODY_STYLE}">
-  <h2 style="${H2_STYLE}">Rezumat executiv</h2>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.rezumatExecutivHtml)}</div>
-
-  <h2 style="${H2_STYLE}">Analiză Vânzări</h2>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.vanzariHtml)}</div>
-
-  <h2 style="${H2_STYLE}">Analiză Operațional</h2>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.operationalHtml)}</div>
-
-  <h2 style="${H2_STYLE}">Comparații</h2>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.comparatiiHtml)}</div>
-
-  <h2 style="${H2_STYLE}">Recomandări</h2>
-  <div style="${SECTION_STYLE}">${sanitizeReportHtml(llmSections.recomandariHtml)}</div>
-
+  ${intro ? `<p style="${SECTION_STYLE}">${intro}</p>` : ''}
+  ${s1}
+  ${s2}
+  ${s3}
+  ${s4}
+  ${s5}
   <h2 style="${H2_STYLE}">Date agregate (tabel)</h2>
   ${tableHtml}
-
+  ${urmatorulRaport ? `<p style="${SECTION_STYLE}"><strong>Următorul raport:</strong> ${urmatorulRaport}</p>` : ''}
+  ${semnaturaHtml}
   <p style="margin: 1.5em 0 0 0;">Pentru orice nelămuriri, contactați echipa de raportare.</p>
   <p style="margin: 0.5em 0 0 0;">Vă mulțumim.</p>
 </body>
@@ -145,15 +195,17 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
 }
 
 /**
- * Builds monthly department/management email. Structure from monthlyDepartmentPrompt.md.
- * Requires llmSections from OpenRouter LLM (rezumatExecutivHtml, vanzariHtml, operationalHtml, comparatiiHtml, recomandariHtml); no placeholder.
+ * Builds monthly department/management email from full validated LLM structure.
  * @param {object} opts - { periodStart, reportSummary?, monthExcelCurrent?, monthExcelPrev?, monthExcelPrev2?, llmSections }
- * @param {object} opts.llmSections - Required; from generateMonthlyDepartmentSections
+ * @param {object} opts.llmSections - Full validated structure (antet, sectiuni, incheiere)
  * @returns {{ subject: string, html: string, attachments: Array<{ filename: string, content: Buffer }> }}
  */
 export function buildMonthlyDepartmentEmail({ periodStart, reportSummary, monthExcelCurrent, monthExcelPrev, monthExcelPrev2, llmSections }) {
-  getDepartmentPrompt(); // Use prompt (throw if missing)
-  const subject = getMonthlyDepartmentSubject(periodStart);
+  getDepartmentPrompt();
+  const subject =
+    llmSections?.antet?.subiect != null && String(llmSections.antet.subiect).trim() !== ''
+      ? String(llmSections.antet.subiect).trim()
+      : getMonthlyDepartmentSubject(periodStart);
   const html = buildMonthlyDepartmentEmailHtml({
     periodStart,
     reportSummary: reportSummary ?? null,

@@ -1,63 +1,28 @@
 /**
- * Monthly employee email template. Single source of truth: prompt from backend/prompts/monthlyEmployeePrompt.md.
- * Loads prompt at runtime (fs.readFileSync); no hardcoded instructions in code.
+ * Monthly employee email template. Builds HTML from full validated LLM output (antet, sectiuni, incheiere).
+ * Single source of truth: prompt from backend/prompts/monthlyEmployeePrompt.md.
  */
 
 import { loadMonthlyEmployeePrompt } from '../../prompts/loadPrompts.js';
 import { getMonthlyEmployeeSubject, getMonthlySalutation } from '../content/monthlyTexts.js';
 import { escapeHtml } from './weeklyEmployeeDetails.js';
 import { sanitizeReportHtml } from '../sanitize.js';
+import { DEPARTMENTS } from '../../config/org.js';
 
-const safeVal = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
-
-/** Sub standard = sub 80% target (conform prompt: check-in doar dacă angajatul e sub standard). */
-function isSubStandard(monthData, department) {
-  if (!monthData || typeof monthData !== 'object') return false;
-  const target = safeVal(monthData.target);
-  if (target <= 0) return false;
-  const totalProfit =
-    safeVal(monthData.ctr_principalProfitEur) +
-    safeVal(monthData.ctr_secondaryProfitEur) +
-    safeVal(monthData.livr_principalProfitEur) +
-    safeVal(monthData.livr_secondaryProfitEur);
-  const ratio = totalProfit / target;
-  return ratio < 0.8;
-}
-
-const BODY_STYLE = 'font-family: Arial, sans-serif; font-size: 14px; max-width: 600px; margin: 0 auto; padding: 16px;';
-const SECTION_STYLE = 'margin: 1em 0 0 0;';
-const H3_STYLE = 'font-size: 15px; font-weight: bold; margin: 1em 0 0.4em 0;';
-
-/** Extract inner text from HTML fragment (strip tags, collapse whitespace). */
+/** Normalize LLM section HTML: sanitize and strip redundant leading headings. Exported for tests. */
 function innerText(html) {
   if (!html || typeof html !== 'string') return '';
   return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
 }
-
-/** Normalize for label comparison: lowercase, collapse spaces. */
 function normLabel(s) {
   return String(s).toLowerCase().replace(/\s+/g, ' ').trim();
 }
-
-/**
- * Normalize LLM section HTML: sanitize and strip redundant leading SUBIECT, greetings, and duplicate section headings.
- * @param {string} html - Raw HTML from LLM
- * @param {{ removeLabels: string[] }} opts - Section title labels to strip if they appear as leading headings (e.g. 'interpretare date', 'concluzii')
- * @returns {string} Cleaned HTML
- */
-function normalizeLlmSection(html, opts = {}) {
+export function normalizeLlmSection(html, opts = {}) {
   if (!html || typeof html !== 'string') return '';
   const removeLabels = Array.isArray(opts?.removeLabels) ? opts.removeLabels.map(normLabel) : [];
-  // Strip redundant content from raw HTML first (before sanitize may alter structure)
   let s = String(html);
-
-  // Remove leading SUBIECT: paragraph(s)
   s = s.replace(/^\s*<p[^>]*>\s*(<strong[^>]*>)?\s*SUBIECT:[\s\S]*?<\/p>\s*/gi, '');
-
-  // Remove leading greeting paragraph (Bună / Buna ...)
   s = s.replace(/^\s*<p[^>]*>\s*Bun[ăa][^<]*<\/p>\s*/i, '');
-
-  // Remove leading headings or <p><strong>label</strong></p> that match removeLabels (repeat until no match)
   while (true) {
     const hMatch = s.match(/^\s*<h[1-4](?:\s[^>]*)?>([\s\S]*?)<\/h[1-4]>\s*/i);
     if (hMatch) {
@@ -77,87 +42,155 @@ function normalizeLlmSection(html, opts = {}) {
     }
     break;
   }
-
-  s = sanitizeReportHtml(s.trim());
-  return s.trim();
+  return sanitizeReportHtml(s.trim()).trim();
 }
 
-/** Exported for tests. */
-export { normalizeLlmSection };
+const BODY_STYLE =
+  'font-family: Arial, sans-serif; font-size: 14px; max-width: 600px; margin: 0 auto; padding: 16px;';
+const SECTION_STYLE = 'margin: 1em 0 0 0;';
+const H3_STYLE = 'font-size: 15px; font-weight: bold; margin: 1em 0 0.4em 0;';
 
-/**
- * Loads monthly employee prompt from repo (single source of truth). Used every time we build employee email.
- * @returns {string} Raw prompt content (for LLM when integrated)
- * @throws {Error} If file is missing
- */
-export function loadMonthlyEmployeePromptFromRepo() {
-  return loadMonthlyEmployeePrompt();
-}
+const REQUIRED_TOP_KEYS = [
+  'antet',
+  'sectiunea_1_tabel_date_performanta',
+  'sectiunea_2_interpretare_date',
+  'sectiunea_3_concluzii',
+  'sectiunea_4_actiuni_prioritare',
+  'sectiunea_5_plan_saptamanal',
+  'incheiere',
+];
 
-/**
- * Builds full HTML for monthly employee email. Structure from monthlyEmployeePrompt.md.
- * Table is deterministic (from code). Interpretare/Concluzii/Acțiuni/Plan come from LLM (llmSections required).
- * @param {object} opts - { person, department, data3Months, deptAverages3Months, periodStart, llmSections }
- * @param {object} opts.llmSections - { interpretareHtml, concluziiHtml, actiuniHtml, planHtml } from OpenRouter LLM; required, no placeholder
- * @returns {string} Full HTML document
- */
-export function buildMonthlyEmployeeEmailHtml({ person, department, data3Months, deptAverages3Months, periodStart, llmSections }) {
-  loadMonthlyEmployeePromptFromRepo(); // Ensure prompt exists (throw if missing)
-
-  const required = ['interpretareHtml', 'concluziiHtml', 'actiuniHtml', 'planHtml'];
+function assertFullStructure(llmSections) {
   if (!llmSections || typeof llmSections !== 'object') {
-    throw new Error('Monthly employee email requires llmSections from OpenRouter LLM. Job fails without valid analysis.');
+    throw new Error(
+      'Monthly employee email requires llmSections (full validated structure from LLM). Job fails without valid analysis.'
+    );
   }
-  for (const key of required) {
-    const val = llmSections[key];
-    if (val == null || typeof val !== 'string' || !String(val).trim()) {
-      throw new Error(`Monthly employee email missing LLM section: ${key}. Job fails without valid analysis.`);
+  for (const key of REQUIRED_TOP_KEYS) {
+    if (!(key in llmSections) || llmSections[key] == null) {
+      throw new Error(
+        `Monthly employee email missing LLM key: ${key}. Job fails without valid analysis.`
+      );
     }
   }
+}
 
-  const current = data3Months?.current ?? null;
-  const salutation = getMonthlySalutation(person?.name);
-  const showCheckIn = isSubStandard(current, department);
-  const checkInPlaceholder = 'Se recomandă un check-in intermediar cu managerul direct pentru aliniere și suport (data/periodicitate în funcție de disponibilitate).';
+/**
+ * Builds full HTML for monthly employee email from the full validated LLM object.
+ * @param {object} opts - { person, data3Months, deptAverages3Months, periodStart, llmSections }
+ * @param {object} opts.llmSections - Full validated output: antet, sectiunea_1_*, ..., incheiere (optional sectiunea_6)
+ * @returns {string} Full HTML document
+ */
+export function buildMonthlyEmployeeEmailHtml({
+  person,
+  department,
+  data3Months,
+  deptAverages3Months,
+  periodStart,
+  llmSections,
+}) {
+  loadMonthlyEmployeePrompt(); // Ensure prompt exists (throw if missing)
+  assertFullStructure(llmSections);
 
-  const interpretareHtml = normalizeLlmSection(llmSections.interpretareHtml, {
-    removeLabels: ['interpretare date'],
-  });
-  const concluziiHtml = normalizeLlmSection(llmSections.concluziiHtml, {
-    removeLabels: ['concluzii'],
-  });
-  const actiuniHtml = normalizeLlmSection(llmSections.actiuniHtml, {
-    removeLabels: ['acțiuni prioritare', 'actiuni prioritare'],
-  });
-  const planHtml = normalizeLlmSection(llmSections.planHtml, {
-    removeLabels: ['plan săptămânal', 'plan saptamanal'],
-  });
+  const antet = llmSections.antet;
+  const s1 = llmSections.sectiunea_1_tabel_date_performanta;
+  const s2 = llmSections.sectiunea_2_interpretare_date;
+  const s3 = llmSections.sectiunea_3_concluzii;
+  const s4 = llmSections.sectiunea_4_actiuni_prioritare;
+  const s5 = llmSections.sectiunea_5_plan_saptamanal;
+  const s6 = llmSections.sectiunea_6_check_in_intermediar;
+  const incheiere = llmSections.incheiere;
 
-  const checkInSection = showCheckIn
-    ? `
-  <h3 style="${H3_STYLE}">Check-in intermediar</h3>
-  <p style="${SECTION_STYLE}">${escapeHtml(checkInPlaceholder)}</p>
-`
-    : '';
+  const greeting =
+    antet?.greeting != null
+      ? escapeHtml(String(antet.greeting).trim())
+      : escapeHtml(getMonthlySalutation(person?.name));
+  const intro =
+    antet?.intro_message != null ? String(antet.intro_message).trim() : '';
+
+  const continutRows =
+    Array.isArray(s1?.continut) && s1.continut.length > 0
+      ? s1.continut.map((line) => `<li>${escapeHtml(String(line))}</li>`).join('')
+      : '';
+  const sect1Html =
+    continutRows !== ''
+      ? `<h3 style="${H3_STYLE}">Tabel date performanță</h3><ul style="${SECTION_STYLE}">${continutRows}</ul>`
+      : '';
+
+  const includeList =
+    Array.isArray(s2?.include) && s2.include.length > 0
+      ? s2.include.map((item) => `<li>${escapeHtml(String(item))}</li>`).join('')
+      : '';
+  const stilText = s2?.stil != null ? escapeHtml(String(s2.stil)) : '';
+  const sect2Html =
+    `<h3 style="${H3_STYLE}">Interpretare date</h3><p style="${SECTION_STYLE}"><strong>Stil:</strong> ${stilText}</p>` +
+    (includeList ? `<ul style="${SECTION_STYLE}">${includeList}</ul>` : '');
+
+  const ceMerge = s3?.ce_merge_bine != null ? escapeHtml(String(s3.ce_merge_bine)) : '';
+  const ceNuMerge = s3?.ce_nu_merge_si_necesita_interventie_urgenta != null ? escapeHtml(String(s3.ce_nu_merge_si_necesita_interventie_urgenta)) : '';
+  const focus = s3?.focus_luna_urmatoare != null ? escapeHtml(String(s3.focus_luna_urmatoare)) : '';
+  const sect3Html =
+    `<h3 style="${H3_STYLE}">Concluzii</h3><p style="${SECTION_STYLE}"><strong>Ce merge bine:</strong> ${ceMerge}</p>` +
+    `<p style="${SECTION_STYLE}"><strong>Ce nu merge și necesită intervenție urgentă:</strong> ${ceNuMerge}</p>` +
+    `<p style="${SECTION_STYLE}"><strong>Focus luna următoare:</strong> ${focus}</p>`;
+
+  const formatActiune = s4?.format_actiune != null ? escapeHtml(String(s4.format_actiune)) : '';
+  const struct = s4?.structura;
+  const structHtml =
+    struct && typeof struct === 'object'
+      ? `<p style="${SECTION_STYLE}"><strong>Ce:</strong> ${escapeHtml(String(struct.ce ?? ''))}</p>` +
+        `<p style="${SECTION_STYLE}"><strong>De ce:</strong> ${escapeHtml(String(struct.de_ce ?? ''))}</p>` +
+        `<p style="${SECTION_STYLE}"><strong>Măsurabil:</strong> ${escapeHtml(String(struct.masurabil ?? ''))}</p>` +
+        `<p style="${SECTION_STYLE}"><strong>Deadline:</strong> ${escapeHtml(String(struct.deadline ?? ''))}</p>`
+      : '';
+  const roleKey =
+    department === DEPARTMENTS.OPERATIONS ? 'freight_forwarder' : 'sales_freight_agent';
+  const actiuniRol = s4?.actiuni_specifice_per_rol?.[roleKey];
+  const actiuniList =
+    Array.isArray(actiuniRol) && actiuniRol.length > 0
+      ? actiuniRol.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('')
+      : '';
+  const sect4Html =
+    `<h3 style="${H3_STYLE}">Acțiuni prioritare</h3><p style="${SECTION_STYLE}">${formatActiune}</p>${structHtml}` +
+    (actiuniList ? `<ul style="${SECTION_STYLE}">${actiuniList}</ul>` : '');
+
+  const fmt = s5?.format;
+  const sapt1 = fmt?.saptamana_1 != null ? escapeHtml(String(fmt.saptamana_1)) : '';
+  const sapt24 = fmt?.saptamana_2_4 != null ? escapeHtml(String(fmt.saptamana_2_4)) : '';
+  const sect5Html =
+    `<h3 style="${H3_STYLE}">Plan săptămânal</h3><p style="${SECTION_STYLE}"><strong>Săptămâna 1:</strong> ${sapt1}</p><p style="${SECTION_STYLE}"><strong>Săptămâna 2–4:</strong> ${sapt24}</p>`;
+
+  const showCheckIn = s6 != null && typeof s6 === 'object';
+  const sect6Html =
+    showCheckIn && s6.format
+      ? `<h3 style="${H3_STYLE}">Check-in intermediar</h3><p style="${SECTION_STYLE}">${escapeHtml(String(s6.format))}</p>`
+      : '';
+
+  const raportUrmator = incheiere?.raport_urmator != null ? escapeHtml(String(incheiere.raport_urmator)) : '';
+  const mesaj = showCheckIn
+    ? (incheiere?.mesaj_sub_80 != null ? escapeHtml(String(incheiere.mesaj_sub_80)) : '')
+    : (incheiere?.mesaj_peste_80 != null ? escapeHtml(String(incheiere.mesaj_peste_80)) : '');
+  const semn = incheiere?.semnatura;
+  const semnaturaHtml =
+    semn && typeof semn === 'object'
+      ? `<p style="margin: 1em 0 0 0;">${escapeHtml(String(semn.nume ?? ''))}<br/>${escapeHtml(String(semn.functie ?? ''))}<br/>${escapeHtml(String(semn.companie ?? ''))}</p>`
+      : '';
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Raport performanță – ${escapeHtml(person?.name || '')}</title></head>
+<head><meta charset="utf-8"><title>${escapeHtml(antet?.subiect ?? 'Raport performanță')}</title></head>
 <body style="${BODY_STYLE}">
-  <p style="margin: 0 0 1em 0;">${escapeHtml(salutation)}</p>
-
-  <h3 style="${H3_STYLE}">Interpretare date</h3>
-  <div style="${SECTION_STYLE}">${interpretareHtml}</div>
-
-  <h3 style="${H3_STYLE}">Concluzii</h3>
-  <div style="${SECTION_STYLE}">${concluziiHtml}</div>
-
-  <h3 style="${H3_STYLE}">Acțiuni prioritare</h3>
-  <div style="${SECTION_STYLE}">${actiuniHtml}</div>
-
-  <h3 style="${H3_STYLE}">Plan săptămânal</h3>
-  <div style="${SECTION_STYLE}">${planHtml}</div>
-${checkInSection}
+  <p style="margin: 0 0 1em 0;">${greeting}</p>
+  ${intro ? `<p style="${SECTION_STYLE}">${escapeHtml(intro)}</p>` : ''}
+  ${sect1Html}
+  ${sect2Html}
+  ${sect3Html}
+  ${sect4Html}
+  ${sect5Html}
+  ${sect6Html}
+  ${raportUrmator ? `<p style="${SECTION_STYLE}"><strong>Raport următor:</strong> ${raportUrmator}</p>` : ''}
+  ${mesaj ? `<p style="${SECTION_STYLE}">${mesaj}</p>` : ''}
+  ${semnaturaHtml}
   <p style="margin: 1.5em 0 0 0;">Pentru orice nelămuriri legate de datele afișate, vă rugăm să luați legătura cu managerul direct.</p>
   <p style="margin: 0.5em 0 0 0;">Vă mulțumim.</p>
 </body>
@@ -165,14 +198,24 @@ ${checkInSection}
 }
 
 /**
- * Builds monthly employee email. Uses prompt from file. Requires llmSections (from OpenRouter LLM); no placeholder fallback.
+ * Builds monthly employee email. Subject from antet.subiect when available, else from getMonthlyEmployeeSubject.
  * @param {object} opts - { person, data3Months, deptAverages3Months, periodStart, llmSections }
- * @param {object} opts.llmSections - { interpretareHtml, concluziiHtml, actiuniHtml, planHtml }; required
+ * @param {object} opts.llmSections - Full validated structure (antet, sectiuni, incheiere)
  * @returns {{ subject: string, html: string }}
  */
-export function buildMonthlyEmployeeEmail({ person, data3Months, deptAverages3Months, periodStart, llmSections }) {
-  loadMonthlyEmployeePromptFromRepo();
-  const subject = getMonthlyEmployeeSubject(person?.name, periodStart);
+export function buildMonthlyEmployeeEmail({
+  person,
+  data3Months,
+  deptAverages3Months,
+  periodStart,
+  llmSections,
+}) {
+  loadMonthlyEmployeePrompt();
+  assertFullStructure(llmSections);
+  const subject =
+    llmSections.antet?.subiect != null && String(llmSections.antet.subiect).trim() !== ''
+      ? String(llmSections.antet.subiect).trim()
+      : getMonthlyEmployeeSubject(person?.name, periodStart);
   const html = buildMonthlyEmployeeEmailHtml({
     person,
     department: person?.department,
@@ -182,4 +225,9 @@ export function buildMonthlyEmployeeEmail({ person, data3Months, deptAverages3Mo
     llmSections,
   });
   return { subject, html };
+}
+
+/** Exported for tests (backward compat). */
+export function loadMonthlyEmployeePromptFromRepo() {
+  return loadMonthlyEmployeePrompt();
 }

@@ -206,6 +206,19 @@ export async function runMonthly(opts = {}) {
     },
   };
 
+  /** performancePct = (totalProfit / target) * 100 for check-in rule; null if unknown. */
+  function getPerformancePct(monthData) {
+    if (!monthData || typeof monthData !== 'object') return null;
+    const target = Number(monthData.target);
+    if (!target || target <= 0) return null;
+    const totalProfit =
+      Number(monthData.ctr_principalProfitEur ?? 0) +
+      Number(monthData.ctr_secondaryProfitEur ?? 0) +
+      Number(monthData.livr_principalProfitEur ?? 0) +
+      Number(monthData.livr_secondaryProfitEur ?? 0);
+    return (totalProfit / target) * 100;
+  }
+
   if (process.env.DRY_RUN === '1') {
     const outDir = getOutDir({ dryRun: true });
     ensureOutDir(outDir);
@@ -225,7 +238,12 @@ export async function runMonthly(opts = {}) {
         deptAverages3Months,
         periodStart: metas[0].periodStart,
       };
-      const raw = await generateMonthlySections({ systemPrompt: employeePrompt, inputJson });
+      const performancePct = getPerformancePct(data3Months.current);
+      const raw = await generateMonthlySections({
+        systemPrompt: employeePrompt,
+        inputJson,
+        performancePct,
+      });
       const llmSections = raw?.sections ?? raw;
       const { html } = buildMonthlyEmployeeEmail({
         person,
@@ -337,9 +355,14 @@ export async function runMonthly(opts = {}) {
     };
 
     console.log('[monthly] employee_start', person.name, person.email);
+    const performancePct = getPerformancePct(data3Months.current);
     let llmSections;
     try {
-      const raw = await generateMonthlySections({ systemPrompt: employeePrompt, inputJson });
+      const raw = await generateMonthlySections({
+        systemPrompt: employeePrompt,
+        inputJson,
+        performancePct,
+      });
       llmSections = raw?.sections ?? raw;
       const usage = raw?.usage;
       if (usage) {

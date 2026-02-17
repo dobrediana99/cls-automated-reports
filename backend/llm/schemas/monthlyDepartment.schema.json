@@ -1,0 +1,417 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "antet",
+    "sectiunea_1_rezumat_executiv",
+    "sectiunea_2_analiza_vanzari",
+    "sectiunea_3_analiza_operational",
+    "sectiunea_4_comparatie_departamente",
+    "sectiunea_5_recomandari_management",
+    "incheiere"
+  ],
+  "properties": {
+    "antet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["subiect", "introducere"],
+      "properties": {
+        "subiect": { "type": "string", "minLength": 1 },
+        "introducere": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sectiunea_1_rezumat_executiv": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["titlu", "performanta_generala", "departamentVanzari", "departamentOperational", "observatiiCritice"],
+      "properties": {
+        "titlu": { "type": "string", "minLength": 1 },
+        "performanta_generala": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["totalProfitCompanie", "targetDepartamentalCombinat", "realizareTarget", "numarTotalCurse"],
+          "properties": {
+            "totalProfitCompanie": { "type": "string", "minLength": 1 },
+            "targetDepartamentalCombinat": { "type": "string", "minLength": 1 },
+            "realizareTarget": { "type": "string", "minLength": 1 },
+            "numarTotalCurse": { "type": "string", "minLength": 1 }
+          }
+        },
+        "departamentVanzari": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profit", "procentDinTarget", "trend", "status"],
+          "properties": {
+            "profit": { "type": "string", "minLength": 1 },
+            "procentDinTarget": { "type": "string", "minLength": 1 },
+            "trend": { "type": "string", "minLength": 1 },
+            "status": { "type": "string", "minLength": 1 }
+          }
+        },
+        "departamentOperational": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profit", "procentDinTarget", "trend", "status"],
+          "properties": {
+            "profit": { "type": "string", "minLength": 1 },
+            "procentDinTarget": { "type": "string", "minLength": 1 },
+            "trend": { "type": "string", "minLength": 1 },
+            "status": { "type": "string", "minLength": 1 }
+          }
+        },
+        "observatiiCritice": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "sectiunea_2_analiza_vanzari": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "titlu",
+        "performantaVsIstoric",
+        "targetDepartamental",
+        "metriciMediiPerAngajat",
+        "tabelAngajati",
+        "problemeIdentificateAngajati",
+        "highPerformers",
+        "lowPerformers",
+        "problemeSistemice"
+      ],
+      "properties": {
+        "titlu": { "type": "string", "minLength": 1 },
+        "performantaVsIstoric": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lunaCurenta", "lunaAnterioara", "trend"],
+          "properties": {
+            "lunaCurenta": { "type": "string", "minLength": 1 },
+            "lunaAnterioara": { "type": "string", "minLength": 1 },
+            "trend": { "type": "string", "minLength": 1 }
+          }
+        },
+        "targetDepartamental": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target", "realizat", "procentAtingere", "status"],
+          "properties": {
+            "target": { "type": "string", "minLength": 1 },
+            "realizat": { "type": "string", "minLength": 1 },
+            "procentAtingere": { "type": "string", "minLength": 1 },
+            "status": { "type": "string", "minLength": 1 }
+          }
+        },
+        "metriciMediiPerAngajat": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profitMediu", "curseMedii", "apeluriMediiZi", "conversieMedieClienti"],
+          "properties": {
+            "profitMediu": { "type": "string", "minLength": 1 },
+            "curseMedii": { "type": "string", "minLength": 1 },
+            "apeluriMediiZi": { "type": "string", "minLength": 1 },
+            "conversieMedieClienti": { "type": "string", "minLength": 1 }
+          }
+        },
+        "tabelAngajati": { "type": "string", "minLength": 1 },
+        "problemeIdentificateAngajati": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "probleme"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "probleme": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        "highPerformers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "profit", "curse", "procentTarget", "justificare"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "profit": { "type": "string", "minLength": 1 },
+              "curse": { "type": "string", "minLength": 1 },
+              "procentTarget": { "type": "string", "minLength": 1 },
+              "justificare": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "lowPerformers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "profit", "curse", "procentTarget", "justificare"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "profit": { "type": "string", "minLength": 1 },
+              "curse": { "type": "string", "minLength": 1 },
+              "procentTarget": { "type": "string", "minLength": 1 },
+              "justificare": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "problemeSistemice": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sectiunea_3_analiza_operational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "titlu",
+        "performantaVsIstoric",
+        "targetDepartamental",
+        "metriciMediiPerAngajat",
+        "tabelAngajati",
+        "problemeIdentificateAngajati",
+        "highPerformers",
+        "lowPerformers",
+        "problemeSistemice"
+      ],
+      "properties": {
+        "titlu": { "type": "string", "minLength": 1 },
+        "performantaVsIstoric": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lunaCurenta", "lunaAnterioara", "trend"],
+          "properties": {
+            "lunaCurenta": { "type": "string", "minLength": 1 },
+            "lunaAnterioara": { "type": "string", "minLength": 1 },
+            "trend": { "type": "string", "minLength": 1 }
+          }
+        },
+        "targetDepartamental": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["target", "realizat", "procentAtingere", "status"],
+          "properties": {
+            "target": { "type": "string", "minLength": 1 },
+            "realizat": { "type": "string", "minLength": 1 },
+            "procentAtingere": { "type": "string", "minLength": 1 },
+            "status": { "type": "string", "minLength": 1 }
+          }
+        },
+        "metriciMediiPerAngajat": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profitMediu", "curseMedii", "curseMediiBurse", "procentProfitPrincipal", "procentProfitSecundar"],
+          "properties": {
+            "profitMediu": { "type": "string", "minLength": 1 },
+            "curseMedii": { "type": "string", "minLength": 1 },
+            "curseMediiBurse": { "type": "string", "minLength": 1 },
+            "procentProfitPrincipal": { "type": "string", "minLength": 1 },
+            "procentProfitSecundar": { "type": "string", "minLength": 1 }
+          }
+        },
+        "tabelAngajati": { "type": "string", "minLength": 1 },
+        "problemeIdentificateAngajati": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "probleme"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "probleme": {
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 },
+                "minItems": 1
+              }
+            }
+          }
+        },
+        "highPerformers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "profit", "curse", "procentTarget", "justificare"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "profit": { "type": "string", "minLength": 1 },
+              "curse": { "type": "string", "minLength": 1 },
+              "procentTarget": { "type": "string", "minLength": 1 },
+              "justificare": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "lowPerformers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "profit", "curse", "procentTarget", "justificare"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "profit": { "type": "string", "minLength": 1 },
+              "curse": { "type": "string", "minLength": 1 },
+              "procentTarget": { "type": "string", "minLength": 1 },
+              "justificare": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "problemeSistemice": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "sectiunea_4_comparatie_departamente": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["titlu", "tabelComparativ", "observatii"],
+      "properties": {
+        "titlu": { "type": "string", "minLength": 1 },
+        "tabelComparativ": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profitTotal", "numarCurseTotal", "procentTargetDepartamental", "profitMediuAngajat", "trendVsLunaAnterioara"],
+          "properties": {
+            "profitTotal": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["vanzari", "operational", "diferenta"],
+              "properties": {
+                "vanzari": { "type": "string", "minLength": 1 },
+                "operational": { "type": "string", "minLength": 1 },
+                "diferenta": { "type": "string", "minLength": 1 }
+              }
+            },
+            "numarCurseTotal": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["vanzari", "operational", "diferenta"],
+              "properties": {
+                "vanzari": { "type": "string", "minLength": 1 },
+                "operational": { "type": "string", "minLength": 1 },
+                "diferenta": { "type": "string", "minLength": 1 }
+              }
+            },
+            "procentTargetDepartamental": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["vanzari", "operational", "diferenta"],
+              "properties": {
+                "vanzari": { "type": "string", "minLength": 1 },
+                "operational": { "type": "string", "minLength": 1 },
+                "diferenta": { "type": "string", "minLength": 1 }
+              }
+            },
+            "profitMediuAngajat": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["vanzari", "operational", "diferenta"],
+              "properties": {
+                "vanzari": { "type": "string", "minLength": 1 },
+                "operational": { "type": "string", "minLength": 1 },
+                "diferenta": { "type": "string", "minLength": 1 }
+              }
+            },
+            "trendVsLunaAnterioara": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["vanzari", "operational"],
+              "properties": {
+                "vanzari": { "type": "string", "minLength": 1 },
+                "operational": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        },
+        "observatii": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "sectiunea_5_recomandari_management": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "titlu",
+        "oneToOneLowPerformers",
+        "trainingNecesare",
+        "urmarireSaptamanala",
+        "setareObiectiveSpecifice",
+        "mutariRolOptional",
+        "problemeSistemiceProces"
+      ],
+      "properties": {
+        "titlu": { "type": "string", "minLength": 1 },
+        "oneToOneLowPerformers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "departament", "problemePrincipale"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "departament": { "type": "string", "minLength": 1 },
+              "problemePrincipale": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "trainingNecesare": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "urmarireSaptamanala": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nume", "metricDeUrmarit"],
+            "properties": {
+              "nume": { "type": "string", "minLength": 1 },
+              "metricDeUrmarit": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "setareObiectiveSpecifice": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "mutariRolOptional": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "problemeSistemiceProces": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "incheiere": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["urmatorulRaport", "semnatura"],
+      "properties": {
+        "urmatorulRaport": { "type": "string", "minLength": 1 },
+        "semnatura": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["functie", "companie"],
+          "properties": {
+            "functie": { "type": "string", "minLength": 1 },
+            "companie": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    }
+  }
+}

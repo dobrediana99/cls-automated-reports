@@ -9,6 +9,12 @@
  */
 
 import crypto from 'crypto';
+import { parseJsonFromText } from './parseJsonFromText.js';
+import {
+  validateEmployeeOutput,
+  validateDepartmentOutput,
+  getMonthlySchema,
+} from './validateMonthlyOutput.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'anthropic/claude-opus-4.6';
@@ -20,7 +26,7 @@ const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90000);
 const STRICT_JSON_APPEND =
   '\n\nReturn ONLY valid JSON object, no markdown, no extra text.';
 const SCHEMA_REPAIR_APPEND =
-  '\n\nSchema validation failed. Return EXACT same JSON object with ALL required keys present and non-empty strings. Do not add extra keys.';
+  '\n\nReturnează DOAR JSON valid, fără markdown/backticks, cu exact structura cerută. Toate cheile obligatorii prezente, string-uri non-goale. NU adăuga chei suplimentare (additionalProperties false).';
 const PREVIEW_LEN = 200;
 const RAW_BODY_LOG_MAX = 2048;
 
@@ -34,31 +40,15 @@ function isResponseFormatError(body) {
 }
 
 function getJsonSchemaForOperation(operationName) {
-  const employeeKeys = ['interpretareHtml', 'concluziiHtml', 'actiuniHtml', 'planHtml'];
-  const departmentKeys = [
-    'rezumatExecutivHtml',
-    'vanzariHtml',
-    'operationalHtml',
-    'comparatiiHtml',
-    'recomandariHtml',
-  ];
-  const keys = operationName === 'department' ? departmentKeys : employeeKeys;
-  const properties = {};
-  const required = [...keys];
-  for (const k of keys) {
-    properties[k] = { type: 'string' };
-  }
+  const schema = getMonthlySchema(operationName);
+  const name =
+    operationName === 'department' ? 'monthly_department' : 'monthly_employee';
   return {
     type: 'json_schema',
     json_schema: {
-      name: 'monthly_output',
+      name,
       strict: true,
-      schema: {
-        type: 'object',
-        additionalProperties: false,
-        required,
-        properties,
-      },
+      schema,
     },
   };
 }
@@ -71,7 +61,11 @@ function getJsonSchemaForOperation(operationName) {
 function getResponseFormat(operationName, formatLevel) {
   if (formatLevel === 2) return undefined;
   if (formatLevel === 1) return { type: 'json_object' };
-  if (process.env.OPENROUTER_USE_JSON_SCHEMA === 'true') {
+  const useSchema =
+    process.env.OPENROUTER_USE_JSON_SCHEMA === 'true' ||
+    (process.env.OPENROUTER_USE_JSON_SCHEMA !== 'false' &&
+      (operationName === 'employee' || operationName === 'department'));
+  if (useSchema) {
     return getJsonSchemaForOperation(operationName);
   }
   return { type: 'json_object' };
@@ -84,55 +78,6 @@ function sha256(str) {
 function previewText(str) {
   if (str == null || typeof str !== 'string') return '';
   return str.replace(/\s+/g, ' ').trim().slice(0, PREVIEW_LEN);
-}
-
-/**
- * Remove outer markdown fence (```...```) only if the whole string is wrapped.
- * Does not strip backticks inside the content.
- */
-function stripMarkdownFenceWrapper(text) {
-  if (typeof text !== 'string') return text;
-
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('```')) return trimmed;
-
-  const lines = trimmed.split('\n');
-  if (lines.length < 2) return trimmed;
-
-  const firstLine = lines[0].trim();
-  const lastLine = lines[lines.length - 1].trim();
-
-  const isFenceStart = firstLine.startsWith('```');
-  const isFenceEnd = lastLine === '```';
-
-  if (!isFenceStart || !isFenceEnd) return trimmed;
-
-  return lines.slice(1, -1).join('\n').trim();
-}
-
-/**
- * Extract substring between first "{" and last "}".
- * Only if both braces exist, end > start, and result starts/ends with braces.
- */
-function extractJsonObject(text) {
-  if (typeof text !== 'string') return text;
-
-  const trimmed = text.trim();
-
-  const start = trimmed.indexOf('{');
-  const end = trimmed.lastIndexOf('}');
-
-  if (start === -1 || end === -1 || end <= start) {
-    return trimmed;
-  }
-
-  const candidate = trimmed.slice(start, end + 1).trim();
-
-  if (!candidate.startsWith('{') || !candidate.endsWith('}')) {
-    return trimmed;
-  }
-
-  return candidate;
 }
 
 /**
@@ -411,14 +356,9 @@ async function callOpenRouterJson({ messages, operationName }) {
         );
       }
 
-      let cleaned = stripMarkdownFenceWrapper(content);
-      const hadFenceWrapper = cleaned !== content.trim();
-      const afterFence = cleaned;
-      cleaned = extractJsonObject(cleaned);
-      const hadExtraction = cleaned !== afterFence;
-
+      let parsed;
       try {
-        JSON.parse(cleaned);
+        parsed = parseJsonFromText(content);
       } catch (parseErr) {
         lastParseError = parseErr;
         if (attempt < MAX_ATTEMPTS) {
@@ -434,38 +374,36 @@ async function callOpenRouterJson({ messages, operationName }) {
           await sleep(INITIAL_BACKOFF_MS * Math.pow(2, attempt - 1));
           break;
         }
-        if (process.env.NODE_ENV === 'production') {
-          console.error('[LLM audit] invalid JSON', {
-            requestId,
-            model,
-            status: res.status,
-            attempt,
-            parseErrorMessage: parseErr?.message ?? String(parseErr),
-          });
-        } else {
+        console.error('[LLM audit] invalid JSON', {
+          requestId,
+          model,
+          status: res.status,
+          attempt,
+          reason: 'parse fail',
+          parseErrorMessage: parseErr?.message ?? String(parseErr),
+        });
+        if (process.env.NODE_ENV !== 'production') {
           const rawPreview = String(content).slice(0, RAW_BODY_LOG_MAX);
           console.error(
-            '[LLM audit] model did not return valid JSON; raw body (max ' +
-              RAW_BODY_LOG_MAX +
-              ' chars):',
+            '[LLM audit] raw body (max ' + RAW_BODY_LOG_MAX + ' chars):',
             rawPreview
           );
-          console.error('[LLM audit] parse debug', {
-            originalLen: content.length,
-            cleanedLen: cleaned.length,
-            hadFenceWrapper,
-            hadExtraction,
-          });
         }
         throw new Error(
-          'LLM response is not valid JSON. Monthly job fails.'
+          'LLM returned non-JSON. Monthly job fails. ' +
+            (parseErr?.message ?? String(parseErr))
         );
       }
 
       if (process.env.NODE_ENV !== 'production' && attempt > 1) {
         console.log('[llm] model=' + model + ' attempts=' + attempt);
       }
-      return { content: cleaned, usage, model };
+      return {
+        content: JSON.stringify(parsed),
+        usage,
+        model,
+        requestId,
+      };
       }
       if (lastResponseFormatErr) {
         console.error('[OpenRouter response_format exited loop without success]', {
@@ -516,105 +454,44 @@ async function callOpenRouterJson({ messages, operationName }) {
   throw new Error('OpenRouter request failed after retries.');
 }
 
-// --- Validation (required keys for employee/department output) ---
-
-const EMPLOYEE_KEYS = [
-  'interpretareHtml',
-  'concluziiHtml',
-  'actiuniHtml',
-  'planHtml',
-];
-
-function validateEmployeeOutput(obj) {
-  if (!obj || typeof obj !== 'object') {
-    throw new Error('LLM output is not a valid object');
-  }
-  for (const key of EMPLOYEE_KEYS) {
-    const val = obj[key];
-    if (val == null || typeof val !== 'string' || !String(val).trim()) {
-      throw new Error(
-        `LLM output missing or empty required key: ${key}. Monthly job fails without valid analysis.`
-      );
-    }
-  }
-  return {
-    interpretareHtml: String(obj.interpretareHtml).trim(),
-    concluziiHtml: String(obj.concluziiHtml).trim(),
-    actiuniHtml: String(obj.actiuniHtml).trim(),
-    planHtml: String(obj.planHtml).trim(),
-  };
-}
-
-const DEPARTMENT_KEYS = [
-  'rezumatExecutivHtml',
-  'vanzariHtml',
-  'operationalHtml',
-  'comparatiiHtml',
-  'recomandariHtml',
-];
-
-function validateDepartmentOutput(obj) {
-  if (!obj || typeof obj !== 'object') {
-    throw new Error('LLM department output is not a valid object');
-  }
-  for (const key of DEPARTMENT_KEYS) {
-    const val = obj[key];
-    if (val == null || typeof val !== 'string' || !String(val).trim()) {
-      throw new Error(
-        `LLM department output missing or empty required key: ${key}. Monthly job fails without valid analysis.`
-      );
-    }
-  }
-  return {
-    rezumatExecutivHtml: String(obj.rezumatExecutivHtml).trim(),
-    vanzariHtml: String(obj.vanzariHtml).trim(),
-    operationalHtml: String(obj.operationalHtml).trim(),
-    comparatiiHtml: String(obj.comparatiiHtml).trim(),
-    recomandariHtml: String(obj.recomandariHtml).trim(),
-  };
-}
-
 const EMPLOYEE_JSON_INSTRUCTION = `
-Răspunde EXCLUSIV în JSON valid, cu exact aceste chei (conținut HTML valid, inline styles permis):
-- interpretareHtml: secțiunea Interpretare date (HTML, paragrafe/lista)
-- concluziiHtml: secțiunea Concluzii (HTML)
-- actiuniHtml: secțiunea Acțiuni prioritare (HTML, listă numerotată)
-- planHtml: secțiunea Plan săptămânal (HTML)
-Fără alte chei. Conținutul trebuie să facă referire la cifrele din input.`;
+Răspunde EXCLUSIV în JSON valid, cu exact structura din prompt (antet, sectiunea_1_tabel_date_performanta, sectiunea_2_interpretare_date, sectiunea_3_concluzii, sectiunea_4_actiuni_prioritare, sectiunea_5_plan_saptamanal, sectiunea_6_check_in_intermediar doar dacă performanța sub 80%, incheiere). NU include text în afara JSON. NU folosi \`\`\`. NU include chei suplimentare.`;
 
 const DEPARTMENT_JSON_INSTRUCTION = `
-Răspunde EXCLUSIV în JSON valid, cu exact aceste chei (conținut HTML valid, inline styles permis):
-- rezumatExecutivHtml: Rezumat executiv (HTML)
-- vanzariHtml: Analiză Vânzări (HTML)
-- operationalHtml: Analiză Operațional (HTML)
-- comparatiiHtml: Comparații (HTML)
-- recomandariHtml: Recomandări (HTML)
-Fără alte chei. Conținutul trebuie să facă referire la datele din input.`;
+Răspunde EXCLUSIV în JSON valid, cu exact structura din prompt (antet, sectiunea_1_rezumat_executiv, sectiunea_2_analiza_vanzari, sectiunea_3_analiza_operational, sectiunea_4_comparatie_departamente, sectiunea_5_recomandari_management, incheiere). NU include text în afara JSON. NU folosi \`\`\`. NU include chei suplimentare.`;
 
 /**
- * Generate monthly employee sections (interpretare, concluzii, acțiuni, plan). Fail fast if output invalid.
- * One repair retry on schema validation failure.
+ * Generate monthly employee sections. Returns full validated JSON (antet, sectiuni, incheiere). Fail fast if invalid.
+ * One repair retry on schema or check-in rule failure.
+ * @param {{ systemPrompt: string, inputJson: object, performancePct?: number | null }} opts - performancePct used for sectiunea_6 rule (<80 => required, >=80 => absent)
  */
-export async function generateMonthlySections({ systemPrompt, inputJson }) {
+export async function generateMonthlySections({
+  systemPrompt,
+  inputJson,
+  performancePct,
+}) {
   if (process.env.NODE_ENV !== 'production') {
     console.log('[LLM] GENERATE EMPLOYEE SECTIONS START', {
       model: getModel(),
       timestamp: new Date().toISOString(),
     });
   }
-  const userPayload = EMPLOYEE_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' + JSON.stringify(inputJson);
+  const userPayload =
+    EMPLOYEE_JSON_INSTRUCTION.trim() +
+    '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' +
+    JSON.stringify(inputJson);
 
-  const tryParseAndValidate = (raw) => {
+  const tryParseAndValidate = (raw, requestId, attempt) => {
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch (_) {
       throw new Error('LLM response is not valid JSON. Monthly job fails.');
     }
-    return validateEmployeeOutput(parsed);
+    return validateEmployeeOutput(parsed, { performancePct });
   };
 
-  const { content, usage, model } = await callOpenRouterJson({
+  const { content, usage, model, requestId } = await callOpenRouterJson({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPayload },
@@ -623,49 +500,64 @@ export async function generateMonthlySections({ systemPrompt, inputJson }) {
   });
 
   try {
-    const result = tryParseAndValidate(content);
+    const result = tryParseAndValidate(content, requestId, 1);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok');
+      console.log(
+        '[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok'
+      );
     }
     return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[LLM audit] employee schema validation failed', {
-        attempt: 1,
-        message: schemaErr?.message ?? String(schemaErr),
-      });
-    } else {
-      console.error('[LLM audit] model did not respect schema; raw body (max ' + RAW_BODY_LOG_MAX + ' chars):', String(content).slice(0, RAW_BODY_LOG_MAX));
-    }
-    const { content: repairContent, usage: repairUsage } = await callOpenRouterJson({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPayload + SCHEMA_REPAIR_APPEND },
-      ],
-      operationName: 'employee',
+    const reason =
+      schemaErr?.message?.includes('sectiunea_6') ? 'check-in rule' : 'schema fail';
+    console.error('[LLM audit] invalid JSON', {
+      requestId: requestId ?? null,
+      model,
+      attempt: 1,
+      reason,
+      motiv: schemaErr?.message ?? String(schemaErr),
     });
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(
+        '[LLM audit] raw body (max ' + RAW_BODY_LOG_MAX + ' chars):',
+        String(content).slice(0, RAW_BODY_LOG_MAX)
+      );
+    }
+    const { content: repairContent, usage: repairUsage } =
+      await callOpenRouterJson({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPayload + SCHEMA_REPAIR_APPEND },
+        ],
+        operationName: 'employee',
+      });
     try {
-      const result = tryParseAndValidate(repairContent);
+      const result = tryParseAndValidate(repairContent, null, 2);
       if (process.env.NODE_ENV !== 'production') {
         console.log('[llm] model= ok (after schema repair retry)');
       }
       return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('[LLM audit] employee schema validation failed', {
-          attempt: 2,
-          message: repairErr?.message ?? String(repairErr),
-        });
-      } else {
-        console.error('[LLM audit] model did not respect schema after repair; raw body (max ' + RAW_BODY_LOG_MAX + ' chars):', String(repairContent).slice(0, RAW_BODY_LOG_MAX));
-      }
-      throw repairErr;
+      const repairReason = repairErr?.message?.includes('sectiunea_6')
+        ? 'check-in rule'
+        : 'schema fail';
+      console.error('[LLM audit] invalid JSON', {
+        requestId: null,
+        model,
+        attempt: 2,
+        reason: repairReason,
+        motiv: repairErr?.message ?? String(repairErr),
+      });
+      throw new Error(
+        'LLM monthly employee output invalid after retries. ' +
+          (repairErr?.message ?? String(repairErr))
+      );
     }
   }
 }
 
 /**
- * Generate monthly department/management sections. Fail fast if output invalid.
+ * Generate monthly department/management sections. Returns full validated JSON. Fail fast if invalid.
  * One repair retry on schema validation failure.
  */
 export async function generateMonthlyDepartmentSections({
@@ -678,7 +570,10 @@ export async function generateMonthlyDepartmentSections({
       timestamp: new Date().toISOString(),
     });
   }
-  const userPayload = DEPARTMENT_JSON_INSTRUCTION.trim() + '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' + JSON.stringify(inputJson);
+  const userPayload =
+    DEPARTMENT_JSON_INSTRUCTION.trim() +
+    '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' +
+    JSON.stringify(inputJson);
 
   const tryParseAndValidate = (raw) => {
     let parsed;
@@ -692,7 +587,7 @@ export async function generateMonthlyDepartmentSections({
     return validateDepartmentOutput(parsed);
   };
 
-  const { content, usage, model } = await callOpenRouterJson({
+  const { content, usage, model, requestId } = await callOpenRouterJson({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPayload },
@@ -703,25 +598,33 @@ export async function generateMonthlyDepartmentSections({
   try {
     const result = tryParseAndValidate(content);
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok');
+      console.log(
+        '[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok'
+      );
     }
     return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error('[LLM audit] department schema validation failed', {
-        attempt: 1,
-        message: schemaErr?.message ?? String(schemaErr),
-      });
-    } else {
-      console.error('[LLM audit] model did not respect department schema; raw body (max ' + RAW_BODY_LOG_MAX + ' chars):', String(content).slice(0, RAW_BODY_LOG_MAX));
-    }
-    const { content: repairContent, usage: repairUsage } = await callOpenRouterJson({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPayload + SCHEMA_REPAIR_APPEND },
-      ],
-      operationName: 'department',
+    console.error('[LLM audit] invalid JSON', {
+      requestId: requestId ?? null,
+      model,
+      attempt: 1,
+      reason: 'schema fail',
+      motiv: schemaErr?.message ?? String(schemaErr),
     });
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(
+        '[LLM audit] raw body (max ' + RAW_BODY_LOG_MAX + ' chars):',
+        String(content).slice(0, RAW_BODY_LOG_MAX)
+      );
+    }
+    const { content: repairContent, usage: repairUsage } =
+      await callOpenRouterJson({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPayload + SCHEMA_REPAIR_APPEND },
+        ],
+        operationName: 'department',
+      });
     try {
       const result = tryParseAndValidate(repairContent);
       if (process.env.NODE_ENV !== 'production') {
@@ -729,15 +632,17 @@ export async function generateMonthlyDepartmentSections({
       }
       return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
-      if (process.env.NODE_ENV === 'production') {
-        console.error('[LLM audit] department schema validation failed', {
-          attempt: 2,
-          message: repairErr?.message ?? String(repairErr),
-        });
-      } else {
-        console.error('[LLM audit] model did not respect department schema after repair; raw body (max ' + RAW_BODY_LOG_MAX + ' chars):', String(repairContent).slice(0, RAW_BODY_LOG_MAX));
-      }
-      throw repairErr;
+      console.error('[LLM audit] invalid JSON', {
+        requestId: null,
+        model,
+        attempt: 2,
+        reason: 'schema fail',
+        motiv: repairErr?.message ?? String(repairErr),
+      });
+      throw new Error(
+        'LLM monthly department output invalid after retries. ' +
+          (repairErr?.message ?? String(repairErr))
+      );
     }
   }
 }
