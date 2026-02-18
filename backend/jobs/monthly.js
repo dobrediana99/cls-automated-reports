@@ -270,7 +270,9 @@ export async function runMonthly(opts = {}) {
   }
 
   const departmentInputJson = {
-    periodStart: metas[0].periodStart,
+    periodStart,
+    periodEnd,
+    workingDaysInPeriod,
     analytics: departmentAnalytics,
     rawSummaries: {
       current: reportSummaries[0],
