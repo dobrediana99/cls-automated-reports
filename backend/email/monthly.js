@@ -5,6 +5,7 @@
  */
 
 import { DEPARTMENTS } from '../config/org.js';
+import { buildReportKpi } from '../utils/kpiCalc.js';
 import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
 import {
@@ -176,11 +177,11 @@ const DEPT_REQUIRED_KEYS = [
 /**
  * Builds full HTML for monthly management email from full validated LLM structure.
  * Corporate simple: 680px container, KPI cards, real HTML tables, bullet lists; all content escaped.
- * @param {object} opts - { periodStart, reportSummary?, report?, llmSections }
+ * @param {object} opts - { periodStart, periodEnd?, workingDaysInPeriod?, reportSummary?, report?, meta?, llmSections }
  * @param {object} opts.llmSections - Full validated: antet, sectiunea_1_*, ..., incheiere
  * @returns {string} Full HTML document
  */
-export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, report, llmSections }) {
+export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workingDaysInPeriod, reportSummary, report, meta, llmSections }) {
   getDepartmentPrompt();
   if (!llmSections || typeof llmSections !== 'object') {
     throw new Error('Monthly management email requires llmSections (full validated structure). Job fails without valid analysis.');
@@ -194,6 +195,34 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
   const antet = llmSections.antet;
   const subiect = antet?.subiect != null ? escapeHtml(String(antet.subiect).trim()) : escapeHtml('Raport performanță departamentală');
   const intro = antet?.introducere != null ? formatTextBlock(antet.introducere) : '';
+
+  const metaForKpi = meta && typeof meta === 'object' ? meta : { periodStart, periodEnd, workingDaysInPeriod };
+  const departments = reportSummary?.departments;
+  let kpi = report?.kpi;
+  if (!kpi && metaForKpi.periodStart && metaForKpi.periodEnd && metaForKpi.workingDaysInPeriod > 0 && departments) {
+    try {
+      kpi = buildReportKpi(metaForKpi, departments);
+    } catch (e) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('[monthly] KPI build failed, using N/A', e?.message ?? e);
+      }
+      kpi = null;
+    }
+  }
+  const realizareStr = kpi?.realizareTargetCombinatPct != null ? `${Number(kpi.realizareTargetCombinatPct).toFixed(2)}%` : 'N/A';
+  const apeluriStr = kpi?.apeluriMediiZi != null ? String(Number(kpi.apeluriMediiZi).toFixed(2)) : 'N/A';
+  const conversieStr = kpi?.conversieProspectarePct != null ? `${Number(kpi.conversieProspectarePct).toFixed(2)}%` : 'N/A';
+  const conversieScopeLabel = kpi?.conversionScope === 'employee' ? '' : kpi?.conversionScope === 'department' ? ' (departament)' : '';
+  if (kpi?.realizareTargetCombinatPct == null && departments?.sales && departments?.operational) {
+    console.warn('[monthly] KPI realizareTargetCombinatPct is null (combined target may be 0)');
+  }
+  const realKpiBlock =
+    renderSectionTitle('KPI-uri deterministe', 2) +
+    `<p style="${SECTION_STYLE}">` +
+    `Realizare target combinat: ${escapeHtml(realizareStr)}<br/>` +
+    `Apeluri medii/zi: ${escapeHtml(apeluriStr)}<br/>` +
+    `Conversie prospectare: ${escapeHtml(conversieStr)}${escapeHtml(conversieScopeLabel)}` +
+    '</p>';
 
   const s1 = llmSections.sectiunea_1_rezumat_executiv;
   const pg = s1?.performanta_generala;
@@ -288,34 +317,10 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
       ? `<p style="margin:1em 0 0 0;">${escapeHtml(String(semn.functie ?? ''))}<br/>${escapeHtml(String(semn.companie ?? ''))}</p>`
       : '';
 
-  let tableHtml = '';
-  if (reportSummary && reportSummary.departments) {
-    const TH = 'padding:8px 10px;border:1px solid #ddd;background:#f7f7f7;text-align:left;font-weight:bold;';
-    const TD = 'padding:8px 10px;border:1px solid #ddd;';
-    tableHtml = '<table style="border-collapse:collapse;width:100%;max-width:560px;font-family:Arial,sans-serif;font-size:13px;"><thead><tr><th style="' + TH + '">Departament / Indicator</th><th style="' + TH + '">Valoare</th></tr></thead><tbody>';
-    const deps = [
-      { key: 'operational', label: 'Operațiuni' },
-      { key: 'sales', label: 'Vânzări' },
-      { key: 'management', label: 'Management' },
-    ];
-    for (const { key, label } of deps) {
-      const d = reportSummary.departments[key];
-      if (d && typeof d === 'object') {
-        tableHtml += '<tr><td style="' + TD + ';font-weight:bold;" colspan="2">' + escapeHtml(label) + '</td></tr>';
-        for (const [k, v] of Object.entries(d)) {
-          if (v !== undefined && v !== null && typeof v === 'number' && !Number.isNaN(v)) {
-            tableHtml += '<tr><td style="' + TD + '">' + escapeHtml(String(k)) + '</td><td style="' + TD + '">' + escapeHtml(String(v)) + '</td></tr>';
-          }
-        }
-      }
-    }
-    tableHtml += '</tbody></table>';
-  } else {
-    tableHtml = '<p style="margin:1em 0 0 0;">Date agregate vor fi afișate aici.</p>';
-  }
-
   const bodyInner =
     (intro ? `<div style="margin:0 0 16px 0;">${intro}</div>` : '') +
+    realKpiBlock +
+    renderHr() +
     renderSectionTitle('Rezumat Executiv', 2) +
     (kpiCards.length > 0 ? renderKpiCards(kpiCards, 2) : '') +
     (vanzariCards.length > 0 ? renderKpiCards(vanzariCards, 2) : '') +
@@ -332,8 +337,6 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, reportSummary, re
     renderHr() +
     recomandariHtml +
     renderHr() +
-    renderSectionTitle('Date agregate (tabel)', 2) +
-    tableHtml +
     (urmatorulRaport ? `<p style="${SECTION_STYLE}"><strong>Următorul raport:</strong> ${urmatorulRaport}</p>` : '') +
     semnaturaHtml;
 
@@ -353,11 +356,11 @@ ${bodyInner}
 
 /**
  * Builds monthly department/management email from full validated LLM structure.
- * @param {object} opts - { periodStart, reportSummary?, monthExcelCurrent?, monthExcelPrev?, monthExcelPrev2?, llmSections }
+ * @param {object} opts - { periodStart, meta?, reportSummary?, report?, monthExcelCurrent?, monthExcelPrev?, monthExcelPrev2?, llmSections }
  * @param {object} opts.llmSections - Full validated structure (antet, sectiuni, incheiere)
  * @returns {{ subject: string, html: string, attachments: Array<{ filename: string, content: Buffer }> }}
  */
-export function buildMonthlyDepartmentEmail({ periodStart, reportSummary, monthExcelCurrent, monthExcelPrev, monthExcelPrev2, llmSections }) {
+export function buildMonthlyDepartmentEmail({ periodStart, meta, reportSummary, report, monthExcelCurrent, monthExcelPrev, monthExcelPrev2, llmSections }) {
   getDepartmentPrompt();
   const subject =
     llmSections?.antet?.subiect != null && String(llmSections.antet.subiect).trim() !== ''
@@ -365,8 +368,11 @@ export function buildMonthlyDepartmentEmail({ periodStart, reportSummary, monthE
       : getMonthlyDepartmentSubject(periodStart);
   const html = buildMonthlyDepartmentEmailHtml({
     periodStart,
+    periodEnd: meta?.periodEnd,
+    workingDaysInPeriod: meta?.workingDaysInPeriod,
     reportSummary: reportSummary ?? null,
-    report: null,
+    report: report ?? null,
+    meta: meta ?? null,
     llmSections,
   });
   const attachments = [];
@@ -404,8 +410,11 @@ export function renderMonthlyEmployeeEmail(report, person, meta, llmSections) {
 export function renderMonthlyManagerEmail(report, meta, reportSummary, llmSections) {
   return buildMonthlyDepartmentEmailHtml({
     periodStart: meta?.periodStart,
+    periodEnd: meta?.periodEnd,
+    workingDaysInPeriod: meta?.workingDaysInPeriod,
     reportSummary: reportSummary ?? null,
     report: report ?? null,
+    meta: meta ?? null,
     llmSections,
   });
 }

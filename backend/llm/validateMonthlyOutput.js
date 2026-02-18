@@ -49,6 +49,46 @@ function applyCheckInRule(obj, opts = {}) {
 }
 
 /**
+ * Closing message rule: incheiere must contain the correct message for the performance band.
+ * - performancePct < 80: incheiere.mesaj_sub_80 required (non-empty string).
+ * - performancePct >= 80: incheiere.mesaj_peste_80 required (non-empty string).
+ * @param {object} obj - Parsed employee output (already schema-valid)
+ * @param {{ performancePct?: number | null }} opts - performancePct from job. If undefined/null, skip (backward compat).
+ * @throws {Error} If the required closing message is missing or empty
+ */
+function applyClosingMessageRule(obj, opts = {}) {
+  const pct = opts.performancePct;
+  if (pct !== undefined && pct !== null && typeof pct !== 'number') return;
+  if (pct === undefined || pct === null) return;
+
+  const incheiere = obj?.incheiere;
+  const mesajSub80 =
+    incheiere?.mesaj_sub_80 != null && typeof incheiere.mesaj_sub_80 === 'string'
+      ? incheiere.mesaj_sub_80.trim()
+      : '';
+  const mesajPeste80 =
+    incheiere?.mesaj_peste_80 != null && typeof incheiere.mesaj_peste_80 === 'string'
+      ? incheiere.mesaj_peste_80.trim()
+      : '';
+
+  if (pct < 80) {
+    if (mesajSub80.length === 0) {
+      throw new Error(
+        'Missing required incheiere.mesaj_sub_80 for performancePct < 80. Template uses this message when check-in (sectiunea_6) is present.'
+      );
+    }
+    return;
+  }
+  if (pct >= 80) {
+    if (mesajPeste80.length === 0) {
+      throw new Error(
+        'Missing required incheiere.mesaj_peste_80 for performancePct >= 80. Template uses this message when check-in (sectiunea_6) is absent.'
+      );
+    }
+  }
+}
+
+/**
  * Validate monthly employee LLM output. Schema + check-in rule.
  * @param {object} obj - Parsed JSON (e.g. from parseJsonFromText)
  * @param {{ performancePct?: number | null }} opts
@@ -65,6 +105,7 @@ export function validateEmployeeOutput(obj, opts = {}) {
     throw new Error(`LLM employee output schema validation failed: ${msg}`);
   }
   applyCheckInRule(obj, opts);
+  applyClosingMessageRule(obj, opts);
   return obj;
 }
 

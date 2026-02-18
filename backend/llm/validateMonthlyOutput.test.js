@@ -122,6 +122,30 @@ describe('validateEmployeeOutput', () => {
     expect(validateEmployeeOutput(withoutS6, {})).toEqual(withoutS6);
     expect(validateEmployeeOutput(withS6, { performancePct: undefined })).toEqual(withS6);
   });
+
+  it('pct 70: requires sectiunea_6 and incheiere.mesaj_sub_80 (non-empty)', () => {
+    const withS6 = validEmployee(true);
+    withS6.incheiere.mesaj_sub_80 = 'Mesaj pentru sub 80%';
+    expect(validateEmployeeOutput(withS6, { performancePct: 70 })).toEqual(withS6);
+
+    const noMesajSub80 = validEmployee(true);
+    delete noMesajSub80.incheiere.mesaj_sub_80;
+    expect(() => validateEmployeeOutput(noMesajSub80, { performancePct: 70 })).toThrow(
+      /Missing required incheiere\.mesaj_sub_80 for performancePct < 80/
+    );
+  });
+
+  it('pct 85: requires no sectiunea_6 and incheiere.mesaj_peste_80 (non-empty)', () => {
+    const withoutS6 = validEmployee(false);
+    withoutS6.incheiere.mesaj_peste_80 = 'Mesaj pentru peste 80%';
+    expect(validateEmployeeOutput(withoutS6, { performancePct: 85 })).toEqual(withoutS6);
+
+    const noMesajPeste80 = validEmployee(false);
+    delete noMesajPeste80.incheiere.mesaj_peste_80;
+    expect(() => validateEmployeeOutput(noMesajPeste80, { performancePct: 85 })).toThrow(
+      /Missing required incheiere\.mesaj_peste_80 for performancePct >= 80/
+    );
+  });
 });
 
 const minimalDeptAntet = { subiect: 'Raport Dept', introducere: 'Intro' };

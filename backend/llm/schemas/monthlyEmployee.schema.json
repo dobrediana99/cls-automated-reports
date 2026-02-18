@@ -125,7 +125,7 @@
     "incheiere": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["raport_urmator", "mesaj_sub_80", "mesaj_peste_80", "semnatura"],
+      "required": ["raport_urmator", "semnatura"],
       "properties": {
         "raport_urmator": { "type": "string", "minLength": 1 },
         "mesaj_sub_80": { "type": "string", "minLength": 1 },

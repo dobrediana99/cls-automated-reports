@@ -7,7 +7,7 @@ import { runReport } from '../report/runReport.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
-import { runMonthly } from './monthly.js';
+import { runMonthly, buildEmployeeInputCalculated } from './monthly.js';
 
 const { sendMailMock, mockEmployeeSections, mockDepartmentSections } = vi.hoisted(() => {
   const mockEmployeeSections = {
@@ -291,5 +291,70 @@ describe('runMonthly', () => {
     expect(inputJson.rawSummaries.prev2).toBeUndefined();
     expect(inputJson.rawSummaries).not.toHaveProperty('prev2');
     expect(JSON.stringify(inputJson)).not.toContain('prev2');
+  });
+
+  it('employee inputJson includes calculated, periodEnd, workingDaysInPeriod (smoke)', async () => {
+    process.env.DRY_RUN = '1';
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(generateMonthlySections).toHaveBeenCalled();
+    const firstEmployeeCall = vi.mocked(generateMonthlySections).mock.calls.find(
+      (c) => c[0]?.inputJson?.person != null
+    );
+    expect(firstEmployeeCall).toBeDefined();
+    const inputJson = firstEmployeeCall[0].inputJson;
+
+    expect(inputJson.workingDaysInPeriod).toBeGreaterThan(0);
+    expect(inputJson.periodEnd).toBeDefined();
+    expect(inputJson.periodStart).toBeDefined();
+    expect(inputJson.calculated).toBeDefined();
+    expect(inputJson.calculated.period).toEqual(
+      expect.objectContaining({
+        periodStart: inputJson.periodStart,
+        periodEnd: inputJson.periodEnd,
+        workingDaysInPeriod: inputJson.workingDaysInPeriod,
+      })
+    );
+    const empCur = inputJson.calculated.employee.current;
+    expect(typeof empCur.apeluriMediiZiLucratoare === 'number' || empCur.apeluriMediiZiLucratoare === null).toBe(true);
+    expect(typeof empCur.conversieProspectarePct === 'number' || empCur.conversieProspectarePct === null).toBe(true);
+    expect(typeof empCur.realizareTargetPct === 'number' || empCur.realizareTargetPct === null).toBe(true);
+    expect(empCur).toHaveProperty('profitTotalEur');
+    expect(inputJson.calculated.employee.prev).toBeDefined();
+    expect(inputJson.calculated.department).toHaveProperty('current');
+    expect(inputJson.calculated.department).toHaveProperty('prev');
+  });
+
+  it('buildEmployeeInputCalculated produces valid shape with mock data', () => {
+    const data3Months = {
+      current: {
+        target: 25000,
+        ctr_principalProfitEur: 10000,
+        livr_principalProfitEur: 10000,
+        callsCount: 605,
+        contactat: 555,
+        calificat: 129,
+      },
+      prev: { target: 20000, ctr_principalProfitEur: 8000, livr_principalProfitEur: 8000, callsCount: 400, contactat: 200, calificat: 50 },
+    };
+    const deptAverages3Months = {
+      current: { profitTotal: 50000, targetTotal: 60000, callsCount: 1200, contactat: 1000, calificat: 200 },
+      prev: { profitTotal: 45000, targetTotal: 55000, callsCount: 1100, contactat: 900, calificat: 180 },
+    };
+    const calculated = buildEmployeeInputCalculated(
+      data3Months,
+      deptAverages3Months,
+      21,
+      '2026-02-01',
+      '2026-02-28',
+    );
+    expect(calculated.period.workingDaysInPeriod).toBe(21);
+    expect(calculated.period.periodStart).toBe('2026-02-01');
+    expect(calculated.period.periodEnd).toBe('2026-02-28');
+    expect(calculated.employee.current.realizareTargetPct).toBe(80);
+    expect(calculated.employee.current.apeluriMediiZiLucratoare).toBe(28.81);
+    expect(calculated.employee.current.conversieProspectarePct).toBe(23.24);
+    expect(calculated.employee.current.profitTotalEur).toBe(20000);
+    expect(calculated.department.current.realizareTargetPct).toBe(83.33);
   });
 });

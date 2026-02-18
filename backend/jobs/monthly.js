@@ -16,7 +16,72 @@ import { buildMonthlyXlsx } from '../export/xlsx.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadMonthlyEmployeePrompt, loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { buildDepartmentAnalytics, validateDepartmentAnalytics } from '../report/departmentAnalytics.js';
+import {
+  buildReportKpi,
+  countWorkingDays,
+  round2,
+  totalProfitEur,
+  calcTargetAchievementPct,
+  calcCallsPerWorkingDay,
+  calcProspectingConversionPct,
+} from '../utils/kpiCalc.js';
 import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
+
+/**
+ * Build the "calculated" KPI object for LLM input (employee + department current/prev).
+ * Department summary uses profitTotal/targetTotal from reportSummary.departments.
+ */
+function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingDaysInPeriod, periodStart, periodEnd) {
+  const cur = data3Months?.current;
+  const prev = data3Months?.prev;
+  const deptCur = deptAverages3Months?.current;
+  const deptPrev = deptAverages3Months?.prev;
+
+  const empCur = {
+    profitTotalEur: round2(totalProfitEur(cur)),
+    realizareTargetPct: calcTargetAchievementPct(cur),
+    apeluriMediiZiLucratoare: calcCallsPerWorkingDay(cur?.callsCount, workingDaysInPeriod),
+    conversieProspectarePct: calcProspectingConversionPct(cur?.contactat, cur?.calificat),
+    callsCount: cur?.callsCount ?? null,
+    contactat: cur?.contactat ?? null,
+    calificat: cur?.calificat ?? null,
+    target: cur?.target ?? null,
+  };
+  const empPrev = {
+    profitTotalEur: round2(totalProfitEur(prev)),
+    realizareTargetPct: calcTargetAchievementPct(prev),
+    apeluriMediiZiLucratoare: calcCallsPerWorkingDay(prev?.callsCount, workingDaysInPeriod),
+    conversieProspectarePct: calcProspectingConversionPct(prev?.contactat, prev?.calificat),
+    callsCount: prev?.callsCount ?? null,
+    contactat: prev?.contactat ?? null,
+    calificat: prev?.calificat ?? null,
+    target: prev?.target ?? null,
+  };
+
+  const deptProfitCur = deptCur?.profitTotal != null ? Number(deptCur.profitTotal) : null;
+  const deptTargetCur = deptCur?.targetTotal != null && Number(deptCur.targetTotal) > 0 ? Number(deptCur.targetTotal) : null;
+  const deptProfitPrev = deptPrev?.profitTotal != null ? Number(deptPrev.profitTotal) : null;
+  const deptTargetPrev = deptPrev?.targetTotal != null && Number(deptPrev.targetTotal) > 0 ? Number(deptPrev.targetTotal) : null;
+
+  return {
+    period: { periodStart, periodEnd, workingDaysInPeriod },
+    employee: { current: empCur, prev: empPrev },
+    department: {
+      current: {
+        profitTotalEur: deptProfitCur != null ? round2(deptProfitCur) : null,
+        realizareTargetPct: deptTargetCur != null && deptProfitCur != null ? round2((deptProfitCur / deptTargetCur) * 100) : null,
+        apeluriMediiZiLucratoare: deptCur?.callsCount != null ? calcCallsPerWorkingDay(deptCur.callsCount, workingDaysInPeriod) : null,
+        conversieProspectarePct: (deptCur?.contactat != null && deptCur?.calificat != null) ? calcProspectingConversionPct(deptCur.contactat, deptCur.calificat) : null,
+      },
+      prev: {
+        profitTotalEur: deptProfitPrev != null ? round2(deptProfitPrev) : null,
+        realizareTargetPct: deptTargetPrev != null && deptProfitPrev != null ? round2((deptProfitPrev / deptTargetPrev) * 100) : null,
+        apeluriMediiZiLucratoare: deptPrev?.callsCount != null ? calcCallsPerWorkingDay(deptPrev.callsCount, workingDaysInPeriod) : null,
+        conversieProspectarePct: (deptPrev?.contactat != null && deptPrev?.calificat != null) ? calcProspectingConversionPct(deptPrev.contactat, deptPrev.calificat) : null,
+      },
+    },
+  };
+}
 
 // Behavior A: Snapshots are persisted before email send. If email env is missing or send fails,
 // the job exits with code 1 but computed checkpoints remain in GCS so reruns skip heavy Monday queries.
@@ -120,6 +185,13 @@ export async function runMonthly(opts = {}) {
   const reports = [result0.report, result1.report, result2.report];
   const metas = [result0.meta, result1.meta, result2.meta];
   const reportSummaries = [result0.reportSummary, result1.reportSummary, result2.reportSummary];
+
+  const periodStart = metas[0].periodStart;
+  const periodEnd = metas[0].periodEnd;
+  const workingDaysInPeriod = countWorkingDays(periodStart, periodEnd);
+  if (workingDaysInPeriod == null || workingDaysInPeriod <= 0) {
+    throw new Error(`[MONTHLY] Invalid workingDaysInPeriod for ${periodStart}..${periodEnd}`);
+  }
 
   const runAt = new Date().toISOString();
   const meta0 = {
@@ -232,11 +304,21 @@ export async function runMonthly(opts = {}) {
         current: reportSummaries[0]?.departments?.[deptKey] ?? null,
         prev: reportSummaries[1]?.departments?.[deptKey] ?? null,
       };
+      const calculated = buildEmployeeInputCalculated(
+        data3Months,
+        deptAverages3Months,
+        workingDaysInPeriod,
+        periodStart,
+        periodEnd,
+      );
       const inputJson = {
         person: { name: person.name, department: person.department },
         data3Months,
         deptAverages3Months,
-        periodStart: metas[0].periodStart,
+        periodStart,
+        periodEnd,
+        workingDaysInPeriod,
+        calculated,
       };
       const performancePct = getPerformancePct(data3Months.current);
       const raw = await generateMonthlySections({
@@ -261,9 +343,17 @@ export async function runMonthly(opts = {}) {
     });
     const departmentLlmSections = deptRaw?.sections ?? deptRaw;
     const dryRunPath = writeDryRunFile(JOB_TYPE, label, { ...payload, reports3: reports, metas3: metas });
+    if (result0.meta && result0.reportSummary?.departments) {
+      result0.report.kpi = buildReportKpi(
+        { ...result0.meta, workingDaysInPeriod },
+        result0.reportSummary.departments,
+      );
+    }
     const { html: deptHtml } = buildMonthlyDepartmentEmail({
       periodStart: metas[0].periodStart,
+      meta: result0.meta,
       reportSummary: result0.reportSummary,
+      report: result0.report,
       monthExcelCurrent: xlsxBuffer,
       llmSections: departmentLlmSections,
     });
@@ -313,9 +403,17 @@ export async function runMonthly(opts = {}) {
     throw err;
   }
 
+  if (result0.meta && result0.reportSummary?.departments) {
+    result0.report.kpi = buildReportKpi(
+      { ...result0.meta, workingDaysInPeriod },
+      result0.reportSummary.departments,
+    );
+  }
   const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
     periodStart: metas[0].periodStart,
+    meta: result0.meta,
     reportSummary: result0.reportSummary,
+    report: result0.report,
     monthExcelCurrent: xlsxBuffer,
     llmSections: departmentLlmSections,
   });
@@ -347,11 +445,21 @@ export async function runMonthly(opts = {}) {
       current: reportSummaries[0]?.departments?.[deptKey] ?? null,
       prev: reportSummaries[1]?.departments?.[deptKey] ?? null,
     };
+    const calculated = buildEmployeeInputCalculated(
+      data3Months,
+      deptAverages3Months,
+      workingDaysInPeriod,
+      periodStart,
+      periodEnd,
+    );
     const inputJson = {
       person: { name: person.name, department: person.department },
       data3Months,
       deptAverages3Months,
-      periodStart: metas[0].periodStart,
+      periodStart,
+      periodEnd,
+      workingDaysInPeriod,
+      calculated,
     };
 
     console.log('[monthly] employee_start', person.name, person.email);
@@ -420,3 +528,5 @@ export async function runMonthly(opts = {}) {
 
   return { payload };
 }
+
+export { buildEmployeeInputCalculated };

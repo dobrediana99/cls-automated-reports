@@ -1,5 +1,6 @@
 import { fetchReportData } from './fetchData.js';
 import { buildReport } from './buildReport.js';
+import { getWorkingDaysInPeriod } from '../lib/dateRanges.js';
 
 function safeVal(v) {
   return typeof v === 'number' && !isNaN(v) ? v : 0;
@@ -24,6 +25,7 @@ export function computeTotals(rows) {
     websiteProfit: 0,
     websiteCountSec: 0,
     websiteProfitSec: 0,
+    profitTotal: 0,
     // Curse burse agregate la nivel de departament.
     // Notă: burseCount numără curse per angajat (max o dată / angajat / item),
     // nu comenzi unice. Suma pe departament poate fi > burseCount companie.
@@ -62,6 +64,13 @@ export function computeTotals(rows) {
     acc.websiteProfit += safeVal(row.websiteProfit);
     acc.websiteCountSec += safeVal(row.websiteCountSec);
     acc.websiteProfitSec += safeVal(row.websiteProfitSec);
+    acc.profitTotal +=
+      safeVal(row.ctr_principalProfitEur) +
+      safeVal(row.ctr_secondaryProfitEur) +
+      safeVal(row.livr_principalProfitEur) +
+      safeVal(row.livr_secondaryProfitEur) +
+      safeVal(row.websiteProfit) +
+      safeVal(row.websiteProfitSec);
     acc.burseCountCtrPrincipal += safeVal(row.burseCountCtrPrincipal);
     acc.burseCountCtrSecondary += safeVal(row.burseCountCtrSecondary);
     acc.burseCountLivrPrincipal += safeVal(row.burseCountLivrPrincipal);
@@ -105,10 +114,15 @@ export async function runReport(options) {
     company: companyStats,
   };
 
+  const workingDaysInPeriod = getWorkingDaysInPeriod(periodStart, periodEnd);
+  if (workingDaysInPeriod <= 0) {
+    throw new Error(`workingDaysInPeriod must be > 0 for ${dateFrom}..${dateTo}, got ${workingDaysInPeriod}`);
+  }
   const meta = {
     jobType: jobType ?? 'report',
     periodStart,
     periodEnd,
+    workingDaysInPeriod,
     label: label ?? `${dateFrom}..${dateTo}`,
     timezone: timezone ?? 'Europe/Bucharest',
     runAt: runAt ?? new Date().toISOString(),

@@ -6,6 +6,7 @@
 import { fetchReportData } from './fetchData.js';
 import { buildReport } from './buildReport.js';
 import { computeTotals } from './runReport.js';
+import { getWorkingDaysInPeriod } from '../lib/dateRanges.js';
 import { ORG, MANAGERS } from '../config/org.js';
 
 const TIMEZONE = 'Europe/Bucharest';
@@ -58,10 +59,15 @@ export async function buildMonthlySnapshot(opts) {
 
   const runAt = new Date().toISOString();
   const label = `${dateFrom}..${dateTo}`;
+  const workingDaysInPeriod = getWorkingDaysInPeriod(dateFrom, dateTo);
+  if (workingDaysInPeriod <= 0) {
+    throw new Error(`workingDaysInPeriod must be > 0 for ${dateFrom}..${dateTo}, got ${workingDaysInPeriod}`);
+  }
   const meta = {
     jobType: 'monthly',
     periodStart: startDate,
     periodEnd: endDate,
+    workingDaysInPeriod,
     label,
     timezone: TIMEZONE,
     runAt,

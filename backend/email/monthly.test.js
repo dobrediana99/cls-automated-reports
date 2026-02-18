@@ -32,8 +32,8 @@ const mockReport = {
 
 const mockReportSummary = {
   departments: {
-    operational: { livr_principalCount: 10, livr_principalProfitEur: 1000 },
-    sales: { contactat: 20, calificat: 5 },
+    operational: { livr_principalCount: 10, livr_principalProfitEur: 1000, profitTotal: 8000, targetTotal: 10000, callsCount: 0 },
+    sales: { contactat: 555, calificat: 129, callsCount: 605, profitTotal: 12000, targetTotal: 15000 },
     management: { target: 5000 },
   },
   company: {},
@@ -46,7 +46,7 @@ const mockPerson = {
   role: 'employee',
   mondayUserId: 123,
 };
-const mockMeta = { periodStart: '2026-01-01', periodEnd: '2026-01-31', label: '2026-01-01..2026-01-31' };
+const mockMeta = { periodStart: '2026-01-01', periodEnd: '2026-01-31', workingDaysInPeriod: 22, label: '2026-01-01..2026-01-31' };
 
 const mockEmployeeLlmSections = {
   antet: {
@@ -253,13 +253,15 @@ describe('Monthly management email', () => {
     expect(html).toContain('Analiză Operațional');
     expect(html).toContain('Comparații');
     expect(html).toContain('Recomandări');
-    expect(html).toContain('Date agregate');
+    expect(html).not.toContain('Date agregate (tabel)');
   });
 
   it('buildMonthlyDepartmentEmail returns { subject, html, attachments }', () => {
     const result = buildMonthlyDepartmentEmail({
       periodStart: '2026-01-01',
+      meta: mockMeta,
       reportSummary: mockReportSummary,
+      report: null,
       llmSections: mockDepartmentLlmSections,
     });
     expect(result).toHaveProperty('subject');
@@ -274,6 +276,8 @@ describe('Monthly management email', () => {
     const html = buildMonthlyDepartmentEmailHtml({
       periodStart: '2026-01-01',
       reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
       llmSections: mockDepartmentLlmSections,
     });
     expect(html).toContain('Rezumat executiv');
@@ -300,6 +304,8 @@ describe('Monthly management email', () => {
     const html = buildMonthlyDepartmentEmailHtml({
       periodStart: '2026-01-01',
       reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
       llmSections: withMarkdownTable,
     });
     expect(html).toContain('<table');
@@ -319,11 +325,22 @@ describe('Monthly management email', () => {
     const html = buildMonthlyDepartmentEmailHtml({
       periodStart: '2026-01-01',
       reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
       llmSections: xssLlm,
     });
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&quot;');
+  });
+
+  it('department email contains deterministic KPI block and does not contain fallback text', () => {
+    const html = renderMonthlyManagerEmail(mockReport, mockMeta, mockReportSummary, mockDepartmentLlmSections);
+    expect(html).toContain('KPI-uri deterministe');
+    expect(html).toContain('Realizare target combinat:');
+    expect(html).toContain('Apeluri medii/zi:');
+    expect(html).toContain('Conversie prospectare:');
+    expect(html).not.toContain('Nu pot determina');
   });
 });
 

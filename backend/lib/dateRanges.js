@@ -50,3 +50,22 @@ export function getMonthRangeOffset(now = new Date(), offset = 0) {
   const label = `${firstOfMonth.toISODate()}..${lastOfMonth.toISODate()}`;
   return { periodStart, periodEnd, label };
 }
+
+/**
+ * Count working days (Monday=1 to Friday=5) in the period. Start/end are inclusive at date level.
+ * @param {string} periodStart - ISO date string (YYYY-MM-DD or full ISO)
+ * @param {string} periodEnd - ISO date string
+ * @returns {number} Working days in [periodStart, periodEnd]
+ */
+export function getWorkingDaysInPeriod(periodStart, periodEnd) {
+  const start = DateTime.fromISO(String(periodStart).slice(0, 10), { zone: TZ }).startOf('day');
+  const end = DateTime.fromISO(String(periodEnd).slice(0, 10), { zone: TZ }).startOf('day');
+  if (end < start) return 0;
+  let count = 0;
+  let cur = start;
+  while (cur <= end) {
+    if (cur.weekday >= 1 && cur.weekday <= 5) count += 1;
+    cur = cur.plus({ days: 1 });
+  }
+  return count;
+}
