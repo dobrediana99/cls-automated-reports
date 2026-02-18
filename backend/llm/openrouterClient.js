@@ -11,6 +11,7 @@
 
 import crypto from 'crypto';
 import { parseJsonFromText } from './parseJsonFromText.js';
+import { normalizeMonthlyEmployeeOutput } from './normalizeMonthlyEmployeeOutput.js';
 import {
   validateEmployeeOutput,
   validateDepartmentOutput,
@@ -501,7 +502,18 @@ export async function generateMonthlySections({
     } catch (_) {
       throw new Error('LLM response is not valid JSON. Monthly job fails.');
     }
-    return validateEmployeeOutput(parsed, { performancePct });
+    parsed = normalizeMonthlyEmployeeOutput(parsed);
+    try {
+      return validateEmployeeOutput(parsed, { performancePct });
+    } catch (schemaErr) {
+      if (schemaErr?.message?.includes('schema validation failed')) {
+        console.error(
+          '[LLM] After normalization still invalid, sample (500 chars):',
+          JSON.stringify(parsed).slice(0, 500)
+        );
+      }
+      throw schemaErr;
+    }
   };
 
   const { content, usage, model, requestId } = await callOpenRouterJson({
