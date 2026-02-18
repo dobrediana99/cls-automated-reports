@@ -150,8 +150,8 @@ const mockDepartmentLlmSections = {
 describe('Monthly employee email', () => {
   it('output contains required sections from monthlyEmployeePrompt.md (interpretare + concluzii + acțiuni + plan)', () => {
     const html = renderMonthlyEmployeeEmail(mockReport, mockPerson, mockMeta, mockEmployeeLlmSections);
-    expect(html).toContain('Tabel date performanță');
-    expect(html).toContain('Interpretare date');
+    expect(html).toContain('Date de performanță');
+    expect(html).toContain('Interpretare');
     expect(html).toContain('Concluzii');
     expect(html).toContain('Acțiuni prioritare');
     expect(html).toContain('Plan săptămânal');
@@ -208,8 +208,8 @@ describe('Monthly employee email', () => {
       periodStart: '2026-01-01',
       llmSections: mockEmployeeLlmSections,
     });
-    expect(html).toContain('Interpretare date');
-    expect(html).toContain('Tabel date performanță');
+    expect(html).toContain('Interpretare');
+    expect(html).toContain('Date de performanță');
     expect(html).toContain('Concluzii');
   });
 
@@ -221,6 +221,27 @@ describe('Monthly employee email', () => {
         periodStart: '2026-01-01',
       })
     ).toThrow(/llmSections|missing LLM section/);
+  });
+
+  it('employee email escapes user content (no HTML injection)', () => {
+    const xssLlm = {
+      ...mockEmployeeLlmSections,
+      antet: {
+        subiect: 'Raport',
+        greeting: 'Bună, <script>alert(1)</script>,',
+        intro_message: 'Intro "quotes"',
+      },
+    };
+    const html = buildMonthlyEmployeeEmailHtml({
+      personName: mockPerson.name,
+      stats: mockReport.opsStats[0],
+      department: mockPerson.department,
+      periodStart: '2026-01-01',
+      llmSections: xssLlm,
+    });
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&quot;');
   });
 });
 
@@ -266,6 +287,43 @@ describe('Monthly management email', () => {
     expect(html).toContain('Analiză Vânzări');
     expect(html).toContain('Analiză Operațional');
     expect(html).toContain('Recomandări');
+  });
+
+  it('department email uses real HTML tables (no raw markdown pipes in output)', () => {
+    const withMarkdownTable = {
+      ...mockDepartmentLlmSections,
+      sectiunea_2_analiza_vanzari: {
+        ...mockDepartmentLlmSections.sectiunea_2_analiza_vanzari,
+        tabelAngajati: '| Nume | Profit |\n|------|-------|\n| A | 100 |\n| B | 200 |',
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      llmSections: withMarkdownTable,
+    });
+    expect(html).toContain('<table');
+    expect(html).toContain('<tbody>');
+    expect(html).not.toMatch(/\|\s*#\s*\|/);
+    expect(html).not.toContain('| Nume | Profit |');
+  });
+
+  it('all user text is escaped (no HTML injection)', () => {
+    const xssLlm = {
+      ...mockDepartmentLlmSections,
+      antet: {
+        subiect: 'Normal subject',
+        introducere: 'Intro with <script>alert(1)</script> and "quotes"',
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      llmSections: xssLlm,
+    });
+    expect(html).not.toContain('<script>');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('&quot;');
   });
 });
 

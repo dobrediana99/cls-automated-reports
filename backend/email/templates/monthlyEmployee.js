@@ -5,7 +5,13 @@
 
 import { loadMonthlyEmployeePrompt } from '../../prompts/loadPrompts.js';
 import { getMonthlyEmployeeSubject, getMonthlySalutation } from '../content/monthlyTexts.js';
-import { escapeHtml } from './weeklyEmployeeDetails.js';
+import {
+  escapeHtml,
+  formatTextBlock,
+  renderSectionTitle,
+  renderHr,
+  renderKeyValueTable,
+} from '../monthlyEmailHelpers.js';
 import { sanitizeReportHtml } from '../sanitize.js';
 import { DEPARTMENTS } from '../../config/org.js';
 
@@ -45,10 +51,11 @@ export function normalizeLlmSection(html, opts = {}) {
   return sanitizeReportHtml(s.trim()).trim();
 }
 
-const BODY_STYLE =
-  'font-family: Arial, sans-serif; font-size: 14px; max-width: 600px; margin: 0 auto; padding: 16px;';
-const SECTION_STYLE = 'margin: 1em 0 0 0;';
-const H3_STYLE = 'font-size: 15px; font-weight: bold; margin: 1em 0 0.4em 0;';
+const CONTAINER_STYLE = 'font-family:Arial,sans-serif;background:#ffffff;padding:0;margin:0;';
+const INNER_TABLE_STYLE = 'width:100%;max-width:680px;margin:0 auto;padding:20px;';
+const SECTION_STYLE = 'margin:1em 0 0 0;';
+const BOX_STYLE = 'border:1px solid #e0e0e0;background:#fafafa;padding:10px 12px;margin:8px 0;';
+const WARNING_BOX_STYLE = 'border:1px solid #e6c200;background:#fffde7;padding:12px;margin:12px 0;';
 
 const REQUIRED_TOP_KEYS = [
   'antet',
@@ -105,17 +112,15 @@ export function buildMonthlyEmployeeEmailHtml({
     antet?.greeting != null
       ? escapeHtml(String(antet.greeting).trim())
       : escapeHtml(getMonthlySalutation(person?.name));
-  const intro =
-    antet?.intro_message != null ? String(antet.intro_message).trim() : '';
+  const intro = antet?.intro_message != null ? formatTextBlock(antet.intro_message) : '';
 
   const continutRows =
     Array.isArray(s1?.continut) && s1.continut.length > 0
       ? s1.continut.map((line) => `<li>${escapeHtml(String(line))}</li>`).join('')
       : '';
   const sect1Html =
-    continutRows !== ''
-      ? `<h3 style="${H3_STYLE}">Tabel date performanță</h3><ul style="${SECTION_STYLE}">${continutRows}</ul>`
-      : '';
+    renderSectionTitle('Date de performanță', 2) +
+    (continutRows !== '' ? `<ul style="${SECTION_STYLE}">${continutRows}</ul>` : '');
 
   const includeList =
     Array.isArray(s2?.include) && s2.include.length > 0
@@ -123,47 +128,57 @@ export function buildMonthlyEmployeeEmailHtml({
       : '';
   const stilText = s2?.stil != null ? escapeHtml(String(s2.stil)) : '';
   const sect2Html =
-    `<h3 style="${H3_STYLE}">Interpretare date</h3><p style="${SECTION_STYLE}"><strong>Stil:</strong> ${stilText}</p>` +
+    renderSectionTitle('Interpretare', 2) +
+    (stilText ? `<p style="margin:0 0 8px 0;font-size:12px;font-style:italic;color:#555;">${stilText}</p>` : '') +
     (includeList ? `<ul style="${SECTION_STYLE}">${includeList}</ul>` : '');
 
   const ceMerge = s3?.ce_merge_bine != null ? escapeHtml(String(s3.ce_merge_bine)) : '';
   const ceNuMerge = s3?.ce_nu_merge_si_necesita_interventie_urgenta != null ? escapeHtml(String(s3.ce_nu_merge_si_necesita_interventie_urgenta)) : '';
   const focus = s3?.focus_luna_urmatoare != null ? escapeHtml(String(s3.focus_luna_urmatoare)) : '';
   const sect3Html =
-    `<h3 style="${H3_STYLE}">Concluzii</h3><p style="${SECTION_STYLE}"><strong>Ce merge bine:</strong> ${ceMerge}</p>` +
-    `<p style="${SECTION_STYLE}"><strong>Ce nu merge și necesită intervenție urgentă:</strong> ${ceNuMerge}</p>` +
-    `<p style="${SECTION_STYLE}"><strong>Focus luna următoare:</strong> ${focus}</p>`;
+    renderSectionTitle('Concluzii', 2) +
+    `<div style="${BOX_STYLE}"><strong>Ce merge bine</strong><p style="margin:6px 0 0 0;">${ceMerge || '–'}</p></div>` +
+    `<div style="${BOX_STYLE}"><strong>Ce nu merge / necesită intervenție</strong><p style="margin:6px 0 0 0;">${ceNuMerge || '–'}</p></div>` +
+    `<div style="${BOX_STYLE}"><strong>Focus luna următoare</strong><p style="margin:6px 0 0 0;">${focus || '–'}</p></div>`;
 
   const formatActiune = s4?.format_actiune != null ? escapeHtml(String(s4.format_actiune)) : '';
   const struct = s4?.structura;
-  const structHtml =
+  const structRows =
     struct && typeof struct === 'object'
-      ? `<p style="${SECTION_STYLE}"><strong>Ce:</strong> ${escapeHtml(String(struct.ce ?? ''))}</p>` +
-        `<p style="${SECTION_STYLE}"><strong>De ce:</strong> ${escapeHtml(String(struct.de_ce ?? ''))}</p>` +
-        `<p style="${SECTION_STYLE}"><strong>Măsurabil:</strong> ${escapeHtml(String(struct.masurabil ?? ''))}</p>` +
-        `<p style="${SECTION_STYLE}"><strong>Deadline:</strong> ${escapeHtml(String(struct.deadline ?? ''))}</p>`
-      : '';
-  const roleKey =
-    department === DEPARTMENTS.OPERATIONS ? 'freight_forwarder' : 'sales_freight_agent';
-  const actiuniRol = s4?.actiuni_specifice_per_rol?.[roleKey];
-  const actiuniList =
-    Array.isArray(actiuniRol) && actiuniRol.length > 0
-      ? actiuniRol.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('')
+      ? [
+          ['Ce', struct.ce ?? ''],
+          ['De ce', struct.de_ce ?? ''],
+          ['Măsurabil', struct.masurabil ?? ''],
+          ['Deadline', struct.deadline ?? ''],
+        ]
+      : [];
+  const structHtml = structRows.length > 0 ? renderKeyValueTable(structRows) : '';
+  const actiuniRol = s4?.actiuni_specifice_per_rol;
+  const ffList = Array.isArray(actiuniRol?.freight_forwarder) ? actiuniRol.freight_forwarder.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('') : '';
+  const salesList = Array.isArray(actiuniRol?.sales_freight_agent) ? actiuniRol.sales_freight_agent.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('') : '';
+  const actiuniCols =
+    (ffList || salesList)
+      ? `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;"><tr><td style="padding:8px 12px 0 0;vertical-align:top;width:50%;"><strong>Freight Forwarder</strong><ul style="margin:4px 0 0 0;">${ffList || '<li>–</li>'}</ul></td><td style="padding:8px 0 0 12px;vertical-align:top;width:50%;"><strong>Sales &amp; Freight Agent</strong><ul style="margin:4px 0 0 0;">${salesList || '<li>–</li>'}</ul></td></tr></table>`
       : '';
   const sect4Html =
-    `<h3 style="${H3_STYLE}">Acțiuni prioritare</h3><p style="${SECTION_STYLE}">${formatActiune}</p>${structHtml}` +
-    (actiuniList ? `<ul style="${SECTION_STYLE}">${actiuniList}</ul>` : '');
+    renderSectionTitle('Acțiuni prioritare', 2) +
+    (formatActiune ? `<p style="margin:0 0 8px 0;font-size:12px;color:#555;">${formatActiune}</p>` : '') +
+    structHtml +
+    (actiuniCols ? actiuniCols : '');
 
   const fmt = s5?.format;
-  const sapt1 = fmt?.saptamana_1 != null ? escapeHtml(String(fmt.saptamana_1)) : '';
-  const sapt24 = fmt?.saptamana_2_4 != null ? escapeHtml(String(fmt.saptamana_2_4)) : '';
-  const sect5Html =
-    `<h3 style="${H3_STYLE}">Plan săptămânal</h3><p style="${SECTION_STYLE}"><strong>Săptămâna 1:</strong> ${sapt1}</p><p style="${SECTION_STYLE}"><strong>Săptămâna 2–4:</strong> ${sapt24}</p>`;
+  const sapt1 = fmt?.saptamana_1 != null ? String(fmt.saptamana_1) : '';
+  const sapt24 = fmt?.saptamana_2_4 != null ? String(fmt.saptamana_2_4) : '';
+  const planRows = [
+    ['Săptămâna 1', sapt1],
+    ['Săptămânile 2–4', sapt24],
+  ];
+  const sect5Html = renderSectionTitle('Plan săptămânal', 2) + renderKeyValueTable(planRows);
 
   const showCheckIn = s6 != null && typeof s6 === 'object';
   const sect6Html =
-    showCheckIn && s6.format
-      ? `<h3 style="${H3_STYLE}">Check-in intermediar</h3><p style="${SECTION_STYLE}">${escapeHtml(String(s6.format))}</p>`
+    showCheckIn && (s6.format != null || s6.regula != null)
+      ? `<div style="${WARNING_BOX_STYLE}">${renderSectionTitle('Check-in intermediar', 3)}${s6.format != null ? formatTextBlock(s6.format) : ''}${s6.regula != null ? `<p style="margin:6px 0 0 0;">${escapeHtml(String(s6.regula))}</p>` : ''}</div>`
       : '';
 
   const raportUrmator = incheiere?.raport_urmator != null ? escapeHtml(String(incheiere.raport_urmator)) : '';
@@ -173,26 +188,36 @@ export function buildMonthlyEmployeeEmailHtml({
   const semn = incheiere?.semnatura;
   const semnaturaHtml =
     semn && typeof semn === 'object'
-      ? `<p style="margin: 1em 0 0 0;">${escapeHtml(String(semn.nume ?? ''))}<br/>${escapeHtml(String(semn.functie ?? ''))}<br/>${escapeHtml(String(semn.companie ?? ''))}</p>`
+      ? `<p style="margin:1em 0 0 0;">${escapeHtml(String(semn.nume ?? ''))}<br/>${escapeHtml(String(semn.functie ?? ''))}<br/>${escapeHtml(String(semn.companie ?? ''))}</p>`
       : '';
+
+  const title = escapeHtml(antet?.subiect ?? 'Raport performanță');
+  const bodyInner =
+    `<p style="margin:0 0 1em 0;"><b>${greeting}</b></p>` +
+    (intro ? `<div style="margin:0 0 16px 0;">${intro}</div>` : '') +
+    sect1Html +
+    renderHr() +
+    sect2Html +
+    renderHr() +
+    sect3Html +
+    renderHr() +
+    sect4Html +
+    renderHr() +
+    sect5Html +
+    (sect6Html ? renderHr() + sect6Html + renderHr() : '') +
+    (raportUrmator ? `<p style="${SECTION_STYLE}"><strong>Raport următor:</strong> ${raportUrmator}</p>` : '') +
+    (mesaj ? `<p style="${SECTION_STYLE}">${mesaj}</p>` : '') +
+    semnaturaHtml;
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>${escapeHtml(antet?.subiect ?? 'Raport performanță')}</title></head>
-<body style="${BODY_STYLE}">
-  <p style="margin: 0 0 1em 0;">${greeting}</p>
-  ${intro ? `<p style="${SECTION_STYLE}">${escapeHtml(intro)}</p>` : ''}
-  ${sect1Html}
-  ${sect2Html}
-  ${sect3Html}
-  ${sect4Html}
-  ${sect5Html}
-  ${sect6Html}
-  ${raportUrmator ? `<p style="${SECTION_STYLE}"><strong>Raport următor:</strong> ${raportUrmator}</p>` : ''}
-  ${mesaj ? `<p style="${SECTION_STYLE}">${mesaj}</p>` : ''}
-  ${semnaturaHtml}
-  <p style="margin: 1.5em 0 0 0;">Pentru orice nelămuriri legate de datele afișate, vă rugăm să luați legătura cu managerul direct.</p>
-  <p style="margin: 0.5em 0 0 0;">Vă mulțumim.</p>
+<head><meta charset="utf-8"><title>${title}</title></head>
+<body style="margin:0;padding:0;">
+<div style="${CONTAINER_STYLE}">
+<table style="${INNER_TABLE_STYLE}" role="presentation"><tr><td style="font-size:14px;">
+${bodyInner}
+</td></tr></table>
+</div>
 </body>
 </html>`;
 }
