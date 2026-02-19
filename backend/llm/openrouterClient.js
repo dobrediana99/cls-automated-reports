@@ -7,6 +7,15 @@
  * response_format is never sent for Anthropic models (anthropic/*) to avoid 400 structured-outputs header error.
  * Fallback: 400 response_format -> retry with json_object, then without response_format (non-Anthropic only).
  * LLM audit logging: requestedModel, returnedModel, hasKey, prompt hashes (no full prompt in production).
+ *
+ * AUDIT OpenRouter 401 (Cloud Run):
+ * - Endpoint: OK — https://openrouter.ai/api/v1/chat/completions
+ * - Authorization: OK — "Bearer ${apiKey}"
+ * - Content-Type: OK — application/json
+ * - HTTP-Referer: FIXED — was optional (env only); now sent with default if env unset
+ * - X-Title: FIXED — was optional (env only); now sent with default if env unset
+ * - Parsing: OK — body read once (res.text() when !ok, res.json() when ok)
+ * - 401: safe log added (keyFp + bodySnippet, no full key)
  */
 
 import crypto from 'crypto';
@@ -119,19 +128,12 @@ export function getModel() {
 }
 
 function getHeaders(apiKey) {
-  const headers = {
+  return {
     Authorization: `Bearer ${apiKey}`,
     'Content-Type': 'application/json',
+    'HTTP-Referer': (process.env.OPENROUTER_HTTP_REFERER || '').trim() || 'https://crystal-logistics-services.com',
+    'X-Title': (process.env.OPENROUTER_X_TITLE || '').trim() || 'CLS Automated Reports',
   };
-  const referer = process.env.OPENROUTER_HTTP_REFERER?.trim();
-  if (referer) {
-    headers['HTTP-Referer'] = referer;
-  }
-  const title = process.env.OPENROUTER_X_TITLE?.trim();
-  if (title) {
-    headers['X-Title'] = title;
-  }
-  return headers;
 }
 
 function logOpenRouterError(model, err, operationName) {
@@ -278,6 +280,14 @@ async function callOpenRouterJson({ messages, operationName }) {
       const status = res.status;
       if (!res.ok) {
         const text = await res.text();
+        if (status === 401) {
+          console.error('[OPENROUTER 401]', {
+            model,
+            endpoint: OPENROUTER_URL,
+            keyFp: { len: apiKey?.length ?? 0, prefix6: apiKey ? String(apiKey).slice(0, 6) : '' },
+            bodySnippet: text.slice(0, 300),
+          });
+        }
         if (status === 400 && isResponseFormatError(text)) {
           const err = new Error(`OpenRouter API error: ${status} ${res.statusText}`);
           err.status = status;
