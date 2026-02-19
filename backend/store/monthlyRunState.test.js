@@ -1,6 +1,9 @@
 /**
  * Unit tests for monthly run-state store (checkpointing).
  */
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   createInitialState,
@@ -15,7 +18,16 @@ import {
   markEmployeeSend,
   markCompleted,
   RUN_STATE_VERSION,
+  RUN_STATE_CORRUPT,
+  RUN_STATE_UNAVAILABLE,
 } from './monthlyRunState.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const STATE_DIR = path.join(__dirname, '..', 'state', 'monthly_runs');
+function stateFilePath(label) {
+  const safe = String(label ?? '').replace(/[/\\?*:]/g, '_');
+  return path.join(STATE_DIR, `monthly-${safe}.json`);
+}
 
 describe('monthlyRunState', () => {
   const label = '2025-12-01..2025-12-31';
@@ -70,6 +82,57 @@ describe('monthlyRunState', () => {
       expect(loaded).not.toBeNull();
       expect(loaded?.label).toBe(uniqueLabel);
       expect(loaded?.stages.collect.status).toBe('pending');
+    });
+  });
+
+  describe('loadMonthlyRunState fail-closed semantics', () => {
+    it('returns null on MISS (local ENOENT)', async () => {
+      const label = 'nonexistent-label-' + Date.now();
+      const loaded = await loadMonthlyRunState(label);
+      expect(loaded).toBeNull();
+    });
+
+    it('throws RUN_STATE_CORRUPT on invalid JSON (local)', async () => {
+      const label = 'test-corrupt-json-' + Date.now();
+      if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
+      fs.writeFileSync(stateFilePath(label), 'not json', 'utf8');
+      try {
+        await expect(loadMonthlyRunState(label)).rejects.toMatchObject({
+          code: RUN_STATE_CORRUPT,
+          message: expect.stringContaining('invalid JSON'),
+        });
+      } finally {
+        try { fs.unlinkSync(stateFilePath(label)); } catch (_) {}
+      }
+    });
+
+    it('throws RUN_STATE_CORRUPT on invalid schema (local)', async () => {
+      const label = 'test-corrupt-schema-' + Date.now();
+      if (!fs.existsSync(STATE_DIR)) fs.mkdirSync(STATE_DIR, { recursive: true });
+      const invalidState = { version: 1, jobType: 'monthly', label, stages: {} };
+      fs.writeFileSync(stateFilePath(label), JSON.stringify(invalidState), 'utf8');
+      try {
+        await expect(loadMonthlyRunState(label)).rejects.toMatchObject({
+          code: RUN_STATE_CORRUPT,
+          message: expect.stringContaining('invalid schema'),
+        });
+      } finally {
+        try { fs.unlinkSync(stateFilePath(label)); } catch (_) {}
+      }
+    });
+
+    it('throws RUN_STATE_UNAVAILABLE on non-miss read error (local)', async () => {
+      vi.spyOn(fs, 'readFileSync').mockImplementationOnce(() => {
+        throw Object.assign(new Error('Permission denied'), { code: 'EACCES' });
+      });
+      try {
+        await expect(loadMonthlyRunState('any-label')).rejects.toMatchObject({
+          code: RUN_STATE_UNAVAILABLE,
+          message: expect.stringContaining('read failed'),
+        });
+      } finally {
+        vi.restoreAllMocks();
+      }
     });
   });
 

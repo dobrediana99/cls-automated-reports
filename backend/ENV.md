@@ -32,6 +32,8 @@ Logs (including production) include **LLM audit** lines: `requestedModel`, `retu
 
 **GCS read fallback:** On snapshot or cache read failure (404, network error, or invalid payload), the job logs and treats as miss → recomputes and writes. No crash; look for `[snapshot] read month=... miss` or `[monthly][cache] invalid envelope` in logs.
 
+**Run-state (monthly resume) fail-closed:** When `SNAPSHOT_BUCKET` is set or state is on disk, the monthly job loads run-state before sending. Only a true *miss* (GCS 404 / local file ENOENT) is treated as “no state” and allows creating a new run. Any other load failure (network, permission, invalid JSON, invalid schema) causes the job to **abort immediately** with a clear error and no emails or LLM calls, to avoid duplicate sends. Logs: `[monthly][run-state] load failed, aborting to avoid duplicate sends` with `label`, `code`, `message` (no secrets).
+
 ## Monday fetch (items_page pagination)
 
 | Variable | Required | Default | Description |

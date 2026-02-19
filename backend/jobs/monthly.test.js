@@ -8,7 +8,7 @@ import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSe
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
 import { runMonthly, buildEmployeeInputCalculated } from './monthly.js';
-import { createInitialState } from '../store/monthlyRunState.js';
+import { createInitialState, RUN_STATE_UNAVAILABLE } from '../store/monthlyRunState.js';
 
 const {
   sendMailMock,
@@ -390,6 +390,29 @@ describe('runMonthly', () => {
     await runMonthly({ now: new Date('2026-01-15T09:30:00') });
 
     expect(loadMonthlyRunStateMock).not.toHaveBeenCalled();
+    expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
+  });
+
+  it('NON-DRY RUN: when loadMonthlyRunState throws (read error), runMonthly fails immediately without send/LLM/checkpoint save', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.SEND_MODE = 'prod';
+
+    const loadErr = Object.assign(new Error('Run-state read failed'), { code: RUN_STATE_UNAVAILABLE });
+    loadMonthlyRunStateMock.mockRejectedValueOnce(loadErr);
+    sendMailMock.mockClear();
+    saveMonthlyRunStateMock.mockClear();
+    vi.mocked(generateMonthlySections).mockClear();
+    vi.mocked(generateMonthlyDepartmentSections).mockClear();
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
+      'Monthly run-state unavailable/corrupt for'
+    );
+
+    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(generateMonthlyDepartmentSections).not.toHaveBeenCalled();
+    expect(generateMonthlySections).not.toHaveBeenCalled();
     expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
   });
 

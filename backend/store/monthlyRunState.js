@@ -33,6 +33,24 @@ const WRITE_INITIAL_BACKOFF_MS = 1000;
 
 export const RUN_STATE_VERSION = 1;
 
+/** Error codes for run-state load failures (fail-closed semantics). */
+export const RUN_STATE_CORRUPT = 'RUN_STATE_CORRUPT';
+export const RUN_STATE_UNAVAILABLE = 'RUN_STATE_UNAVAILABLE';
+
+/**
+ * Thrown when run-state load fails for a non-miss reason (parse/schema or IO).
+ * @param {string} code - RUN_STATE_CORRUPT or RUN_STATE_UNAVAILABLE
+ * @param {string} message
+ * @param {Error} [cause]
+ */
+export function RunStateLoadError(code, message, cause) {
+  const err = new Error(message);
+  err.name = 'RunStateLoadError';
+  err.code = code;
+  if (cause) err.cause = cause;
+  return err;
+}
+
 function getBucket() {
   return (process.env.SNAPSHOT_BUCKET || '').trim();
 }
@@ -127,31 +145,51 @@ function errorSnippet(err, maxLen = 200) {
 }
 
 /**
- * Load run state from GCS or local file. Returns null if not found or invalid.
+ * Load run state from GCS or local file.
+ * Returns null only on true MISS (GCS 404 / local ENOENT).
+ * Throws RunStateLoadError with RUN_STATE_CORRUPT (parse/schema) or RUN_STATE_UNAVAILABLE (other read failure).
  * @param {string} label - Period label (e.g. metas[0].label)
  * @returns {Promise<MonthlyRunState | null>}
  */
 export async function loadMonthlyRunState(label) {
+  const safeLabelForLog = safeLabel(label);
+
   if (useGcs()) {
     try {
       const bucketName = getBucket();
       const storage = new Storage();
       const file = storage.bucket(bucketName).file(stateObjectName(label));
       const [contents] = await file.download();
-      const doc = JSON.parse(contents.toString('utf8'));
-      if (!isValidRunState(doc, label)) {
-        console.log('[monthly][run-state] load label=' + label + ' invalid schema');
-        return null;
+      let doc;
+      try {
+        doc = JSON.parse(contents.toString('utf8'));
+      } catch (parseErr) {
+        console.error('[monthly][run-state] load label=' + safeLabelForLog + ' classification=corrupt (invalid JSON)');
+        throw RunStateLoadError(
+          RUN_STATE_CORRUPT,
+          'Run-state invalid JSON for label ' + safeLabelForLog,
+          parseErr
+        );
       }
-      console.log('[monthly][resume] state loaded from GCS', { label });
+      if (!isValidRunState(doc, label)) {
+        console.error('[monthly][run-state] load label=' + safeLabelForLog + ' classification=corrupt (invalid schema)');
+        throw RunStateLoadError(RUN_STATE_CORRUPT, 'Run-state invalid schema for label ' + safeLabelForLog);
+      }
+      console.log('[monthly][resume] state loaded from GCS', { label: safeLabelForLog });
       return /** @type {MonthlyRunState} */ (doc);
     } catch (err) {
-      if (err?.code === 404) {
-        console.log('[monthly][run-state] load label=' + label + ' miss');
+      if (err?.code === RUN_STATE_CORRUPT || err?.code === RUN_STATE_UNAVAILABLE) throw err;
+      const isMiss = err?.code === 404 || err?.status === 404;
+      if (isMiss) {
+        console.log('[monthly][run-state] load label=' + safeLabelForLog + ' miss');
         return null;
       }
-      console.warn('[monthly][run-state] load label=' + label + ' error', err?.message ?? err);
-      return null;
+      console.error('[monthly][run-state] load label=' + safeLabelForLog + ' classification=unavailable', err?.message ?? err);
+      throw RunStateLoadError(
+        RUN_STATE_UNAVAILABLE,
+        'Run-state read failed for label ' + safeLabelForLog + ': ' + (err?.message ?? String(err)),
+        err
+      );
     }
   }
 
@@ -159,20 +197,35 @@ export async function loadMonthlyRunState(label) {
   const filePath = localStatePath(label);
   try {
     const raw = fs.readFileSync(filePath, 'utf8');
-    const doc = JSON.parse(raw);
-    if (!isValidRunState(doc, label)) {
-      console.log('[monthly][run-state] load label=' + label + ' invalid schema (local)');
-      return null;
+    let doc;
+    try {
+      doc = JSON.parse(raw);
+    } catch (parseErr) {
+      console.error('[monthly][run-state] load label=' + safeLabelForLog + ' classification=corrupt (invalid JSON, local)');
+      throw RunStateLoadError(
+        RUN_STATE_CORRUPT,
+        'Run-state invalid JSON for label ' + safeLabelForLog,
+        parseErr
+      );
     }
-    console.log('[monthly][resume] state loaded from local', { label });
+    if (!isValidRunState(doc, label)) {
+      console.error('[monthly][run-state] load label=' + safeLabelForLog + ' classification=corrupt (invalid schema, local)');
+      throw RunStateLoadError(RUN_STATE_CORRUPT, 'Run-state invalid schema for label ' + safeLabelForLog);
+    }
+    console.log('[monthly][resume] state loaded from local', { label: safeLabelForLog });
     return /** @type {MonthlyRunState} */ (doc);
   } catch (err) {
+    if (err?.code === RUN_STATE_CORRUPT || err?.code === RUN_STATE_UNAVAILABLE) throw err;
     if (err?.code === 'ENOENT') {
-      console.log('[monthly][run-state] load label=' + label + ' miss (local)');
+      console.log('[monthly][run-state] load label=' + safeLabelForLog + ' miss (local)');
       return null;
     }
-    console.warn('[monthly][run-state] load label=' + label + ' error (local)', err?.message ?? err);
-    return null;
+    console.error('[monthly][run-state] load label=' + safeLabelForLog + ' classification=unavailable (local)', err?.message ?? err);
+    throw RunStateLoadError(
+      RUN_STATE_UNAVAILABLE,
+      'Run-state read failed for label ' + safeLabelForLog + ': ' + (err?.message ?? String(err)),
+      err
+    );
   }
 }
 

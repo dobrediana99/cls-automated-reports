@@ -379,7 +379,17 @@ export async function runMonthly(opts = {}) {
   const gmailUser = process.env.GMAIL_USER;
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
 
-  let runState = await loadMonthlyRunState(label);
+  let runState;
+  try {
+    runState = await loadMonthlyRunState(label);
+  } catch (loadErr) {
+    const code = loadErr?.code ?? 'RUN_STATE_UNAVAILABLE';
+    const message = loadErr?.message ?? String(loadErr);
+    console.error('[monthly][run-state] load failed, aborting to avoid duplicate sends', { label, code, message });
+    throw new Error(
+      'Monthly run-state unavailable/corrupt for ' + label + '; aborting to avoid duplicate sends.'
+    );
+  }
   if (!runState) {
     runState = createInitialState({ label, periodStart, periodEnd });
     await saveMonthlyRunState(label, runState);
