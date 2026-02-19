@@ -14,6 +14,15 @@ The backend is a minimal HTTP server for deployment on Google Cloud Run. It expo
    - **Development (with auto-reload):** `npm run dev:server`
 3. The server listens on `http://localhost:8080` by default (override with the `PORT` environment variable).
 
+### Cloud Run: Service vs Job (entrypoints)
+
+| Mode | Entrypoint | How it runs | Auth |
+|------|------------|-------------|------|
+| **Cloud Run Service** | HTTP server (`node backend/index.js`). Exposes `/health`, `/run/weekly`, `/run/monthly`, `/debug/llm`. | Long-lived; invoked by HTTP (e.g. Cloud Scheduler hitting `/run/monthly`). | OIDC Bearer token (set `OIDC_AUDIENCE` to service URL). |
+| **Cloud Run Job** | One-shot CLI (`node backend/cli/run_monthly_job.js`). | Runs once and exits (exit 0 = success, 1 = failure). Triggered by Cloud Scheduler or manually. | No OIDC; set env vars (e.g. `MONDAY_API_TOKEN`, `OPENROUTER_API_KEY`, `GMAIL_*`, `SNAPSHOT_BUCKET`) on the Job. |
+
+Use **Service** when you want one container serving HTTP and callbacks from Scheduler. Use **Job** when you want a dedicated run-to-completion container per execution. See **backend/cli/README.md** for Job env and commands.
+
 ### Docker & Cloud Run (backend only)
 
 The backend can be deployed to **Google Cloud Run** using the image built from `backend/Dockerfile`. Do not copy `.env` into the image; configure secrets via Cloud Run environment variables or Secret Manager.
@@ -95,10 +104,13 @@ Instrucțiunile pentru emailurile lunare (angajați + management) sunt **înghe�
   - `backend/prompts/monthlyDepartmentPrompt.md` – pentru email lunar management/departamental.
 - Nu edita fragmente de prompt în cod; nu duplica instrucțiunile în mai multe fișiere. După editare, rulează testele (`npm test`) pentru a verifica că loader-ul citește fișierele și că emailurile lunare conțin secțiunile cerute.
 
-### Monthly job – cache și testare cu curl
+### Monthly job – cache, snapshot, și testare cu curl
 
-- **Cache pe disc:** Rapoartele pentru cele 3 luni (curent, -1, -2) se salvează în `out/cache/monthly/<YYYY-MM>.json`. La rulări ulterioare, dacă fișierul există și nu se cere refresh, se încarcă din cache (fără fetch Monday). La `?refresh=1` sau `body: { "refresh": true }` se ignoră cache-ul și se refac toate cele 3 luni.
-- **OpenRouter (obligatoriu pentru monthly):** Secțiunile Interpretare / Concluzii / Acțiuni / Plan (angajat) și Rezumat executiv / Vânzări / Operațional / Comparații / Recomandări (management) sunt generate cu OpenRouter (model default `anthropic/claude-opus-4.6`, override cu `OPENROUTER_MODEL`). Dacă analiza LLM eșuează sau output-ul este invalid, job-ul monthly **eșuează** (nu trimite email, nu marchează idempotency). Fără `OPENROUTER_API_KEY` job-ul monthly nu rulează (fail fast). Obține cheie la https://openrouter.ai  
+- **Snapshot vs cache (ce se folosește):**
+  - **Când `SNAPSHOT_BUCKET` este setat:** Job-ul citește/scrie snapshot-uri GCS (`gs://<bucket>/monthly_snapshots/YYYY-MM.json`). La citire eșuată (404, eroare rețea sau payload invalid) → log + tratat ca miss → se recalculează luna și se scrie snapshot. Nu se folosește cache-ul de report (discul sau `REPORTS_BUCKET`).
+  - **Când `SNAPSHOT_BUCKET` nu e setat:** Job-ul folosește `loadOrComputeMonthlyReport` per lună: dacă `REPORTS_BUCKET` e setat → cache GCS; altfel → cache pe disc `out/cache/monthly/<YYYY-MM>.json`. La citire eșuată din GCS → log + fallback la recompute.
+- **Refresh:** `?refresh=1` sau `body: { "refresh": true }` ignoră cache/snapshot și reface toate cele 3 luni.
+- **OpenRouter (obligatoriu pentru monthly):** Secțiunile Interpretare / Concluzii / Acțiuni / Plan (angajat) și Rezumat executiv / Vânzări / Operațional / Comparații / Recomandări (management) sunt generate cu OpenRouter (model default `anthropic/claude-opus-4.6`, max tokens default `8192`, timeout default `90000` ms). Dacă analiza LLM eșuează sau output-ul este invalid, job-ul monthly **eșuează** (nu trimite email, nu marchează idempotency). Fără `OPENROUTER_API_KEY` job-ul monthly nu rulează (fail fast). Obține cheie la https://openrouter.ai  
   **Env checklist:** `OPENROUTER_API_KEY` (required), `OPENROUTER_MODEL=anthropic/claude-opus-4.6` (optional, default), opțional `OPENROUTER_HTTP_REFERER`, `OPENROUTER_X_TITLE`. Detalii: **backend/ENV.md**.
 - **Trimitere reală (NON-DRY_RUN):** Job-ul trimite emailuri cu Nodemailer (GMAIL_USER, GMAIL_APP_PASSWORD). În `SEND_MODE=test` toate emailurile merg la `TEST_EMAILS`. Idempotency marchează sent **doar** după ce toate emailurile au fost trimise cu succes.
 - **DRY_RUN=1:** Nu trimite emailuri; salvează în `out/` HTML-urile generate și XLSX-ul lunii.

@@ -1,5 +1,5 @@
 // backend/config/org.js – copy of src/config/org.js for Docker (backend-only context).
-// Single source of truth for employees + managers. Keep in sync with src/config/org.js.
+// Synced with src/config/org.js. Sync enforced by backend/config/org.sync.test.js (fails if TIMEZONE, DEPARTMENTS, or ORG diverge).
 
 export const TIMEZONE = "Europe/Bucharest";
 

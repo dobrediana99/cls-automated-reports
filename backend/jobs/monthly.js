@@ -42,6 +42,7 @@ import {
 } from '../utils/kpiCalc.js';
 import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
 import { validateMonthlyRuntimeConfig } from '../config/validateRuntimeConfig.js';
+import { sanitizeEmailForFilename } from '../utils/sanitizeEmailForFilename.js';
 
 /**
  * Build the "calculated" KPI object for LLM input (employee + department current/prev).
@@ -110,11 +111,6 @@ function departmentToSummaryKey(department) {
   if (department === DEPARTMENTS.SALES) return 'sales';
   if (department === DEPARTMENTS.MANAGEMENT) return 'management';
   return 'operational';
-}
-
-function sanitizeEmailForFilename(email) {
-  if (!email || typeof email !== 'string') return 'unknown';
-  return email.replace(/@/g, '_at_').replace(/\./g, '_');
 }
 
 /**

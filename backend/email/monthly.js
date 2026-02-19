@@ -7,6 +7,7 @@
 import { DEPARTMENTS } from '../config/org.js';
 import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
+import { getPersonRow } from './getPersonRow.js';
 import {
   escapeHtml,
   formatTextBlock,
@@ -18,40 +19,7 @@ import {
 } from './monthlyEmailHelpers.js';
 import { buildMonthlyEmployeeEmail, buildMonthlyEmployeeEmailHtml as buildEmployeeEmailHtmlFromTemplate } from './templates/monthlyEmployee.js';
 
-/** Get person row from report by department (used by job to build data3Months). */
-export function getPersonRow(report, person) {
-  const { opsStats, salesStats, mgmtStats } = report;
-  const list =
-    person.department === DEPARTMENTS.MANAGEMENT
-      ? mgmtStats
-      : person.department === DEPARTMENTS.SALES
-        ? salesStats
-        : person.department === DEPARTMENTS.OPERATIONS
-          ? opsStats
-          : [];
-
-  if (!list || list.length === 0) {
-    console.warn('[getPersonRow] empty list for department', { person: person.name, department: person.department });
-    return null;
-  }
-
-  const hasMondayId = person.mondayUserId != null && String(person.mondayUserId).trim() !== '';
-  if (hasMondayId) {
-    const byMondayId = list.find((r) => String(r.mondayId) === String(person.mondayUserId));
-    if (byMondayId) return byMondayId;
-    console.warn('[getPersonRow] no row for mondayUserId', { name: person.name, mondayUserId: person.mondayUserId, department: person.department });
-  }
-
-  const byName = list.filter((r) => r.name === person.name);
-  if (byName.length === 1) return byName[0];
-  if (byName.length > 1) {
-    console.warn('[getPersonRow] ambiguous match by name', { name: person.name, department: person.department });
-    return null;
-  }
-
-  console.warn('[getPersonRow] no match', { name: person.name, department: person.department });
-  return null;
-}
+export { getPersonRow };
 
 const CONTAINER_STYLE = 'font-family:Arial,sans-serif;background:#ffffff;padding:0;margin:0;';
 const INNER_TABLE_STYLE = 'width:100%;max-width:680px;margin:0 auto;padding:20px;';

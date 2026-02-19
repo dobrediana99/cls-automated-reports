@@ -142,4 +142,10 @@ export function validateMonthlyRuntimeConfig(opts = {}) {
     description: 'must be an integer >= 1',
     predicate: (n) => n >= 1,
   });
+  validateIntEnv({
+    env,
+    key: 'MONDAY_ITEMS_MAX_PAGES',
+    description: 'must be an integer >= 1 (max items_page requests per board)',
+    predicate: (n) => n >= 1,
+  });
 }

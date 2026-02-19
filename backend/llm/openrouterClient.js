@@ -31,9 +31,12 @@ const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_MODEL = 'anthropic/claude-opus-4.6';
 const MAX_ATTEMPTS = 3;
 const INITIAL_BACKOFF_MS = 2000;
-const DEFAULT_MAX_TOKENS = 8192;
+/** Defaults exported for docs-consistency test (backend/config/docsConsistency.test.js). */
+export const OPENROUTER_DEFAULT_MAX_TOKENS = 8192;
+export const OPENROUTER_DEFAULT_TIMEOUT_MS = 90000;
+const DEFAULT_MAX_TOKENS = OPENROUTER_DEFAULT_MAX_TOKENS;
 const MAX_TOKENS = Number(process.env.OPENROUTER_MAX_TOKENS || DEFAULT_MAX_TOKENS);
-const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90000);
+const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || OPENROUTER_DEFAULT_TIMEOUT_MS);
 const STRICT_JSON_APPEND =
   '\n\nReturn ONLY valid JSON object, no markdown, no extra text.';
 const SCHEMA_REPAIR_APPEND =

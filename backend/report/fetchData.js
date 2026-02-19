@@ -1,6 +1,40 @@
 import { mondayRequest } from '../monday/client.js';
 import { BOARD_IDS, COLS } from './constants.js';
 
+const DEFAULT_MAX_PAGES = 50;
+
+function getMaxPagesLimit() {
+  const raw = process.env.MONDAY_ITEMS_MAX_PAGES;
+  if (raw === undefined || raw === '') return DEFAULT_MAX_PAGES;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_PAGES;
+  return n;
+}
+
+/**
+ * Validate that a required column is resolved and (optionally) present on the board.
+ * @param {number|string} boardId - Board id (for error message).
+ * @param {string} logicalName - Logical column name (e.g. 'DATA_CTR', 'OWNER').
+ * @param {string|null|undefined} colId - Resolved column id.
+ * @param {{ id: string }[]} [boardColumns] - Optional board columns from fetchColumns; if provided, colId must exist.
+ * @throws {Error} With boardId and logicalName when colId is missing or not on board.
+ */
+export function ensureRequiredColumn(boardId, logicalName, colId, boardColumns = null) {
+  if (colId == null || String(colId).trim() === '') {
+    throw new Error(
+      `[fetchData] Required column missing: boardId=${boardId} logicalColumn=${logicalName}. Resolve column mapping before querying.`
+    );
+  }
+  if (Array.isArray(boardColumns) && boardColumns.length > 0) {
+    const exists = boardColumns.some((c) => c && c.id === colId);
+    if (!exists) {
+      throw new Error(
+        `[fetchData] Required column not found on board: boardId=${boardId} logicalColumn=${logicalName} columnId=${colId}. Board schema may have changed.`
+      );
+    }
+  }
+}
+
 /**
  * Fetch column metadata for a board.
  */
@@ -16,14 +50,25 @@ export async function fetchColumns(boardId) {
 
 /**
  * Fetch items page with optional cursor and query_params (rules).
+ * Pagination guards: repeated cursor (loop) and max pages limit.
  */
 export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
   const allItems = [];
   let cursor = null;
   let hasMore = true;
   const colsString = colIdsArray.map((c) => `"${c}"`).join(', ');
+  const maxPages = getMaxPagesLimit();
+  const seenCursors = new Set();
+  let pageCount = 0;
 
   while (hasMore) {
+    pageCount++;
+    if (pageCount > maxPages) {
+      throw new Error(
+        `[fetchData] items_page max pages exceeded: boardId=${boardId} limit=${maxPages}. Check MONDAY_ITEMS_MAX_PAGES or board size.`
+      );
+    }
+
     let args = cursor ? `limit: 250, cursor: "${cursor}"` : 'limit: 250';
     if (!cursor && rulesString) args += `, query_params: { rules: ${rulesString} }`;
 
@@ -52,6 +97,14 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
 
     allItems.push(...(page.items ?? []));
     cursor = page.cursor;
+    if (cursor != null && cursor !== '') {
+      if (seenCursors.has(cursor)) {
+        throw new Error(
+          `[fetchData] items_page repeated cursor (loop) detected: boardId=${boardId}. API returned same cursor twice.`
+        );
+      }
+      seenCursors.add(cursor);
+    }
     if (!cursor) hasMore = false;
   }
 
@@ -60,13 +113,24 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
 
 /**
  * Lightweight directory fetch (single owner column).
+ * Pagination guards: repeated cursor (loop) and max pages limit.
  */
 export async function fetchItemsDirectory(boardId, ownerColId, rulesString = null) {
   const allItems = [];
   let cursor = null;
   let hasMore = true;
+  const maxPages = getMaxPagesLimit();
+  const seenCursors = new Set();
+  let pageCount = 0;
 
   while (hasMore) {
+    pageCount++;
+    if (pageCount > maxPages) {
+      throw new Error(
+        `[fetchData] items_page (directory) max pages exceeded: boardId=${boardId} limit=${maxPages}. Check MONDAY_ITEMS_MAX_PAGES or board size.`
+      );
+    }
+
     let args = cursor ? `limit: 500, cursor: "${cursor}"` : 'limit: 500';
     if (!cursor && rulesString) args += `, query_params: { rules: ${rulesString} }`;
 
@@ -89,6 +153,14 @@ export async function fetchItemsDirectory(boardId, ownerColId, rulesString = nul
     const page = data.boards?.[0]?.items_page;
     if (page?.items) allItems.push(...page.items);
     cursor = page?.cursor;
+    if (cursor != null && cursor !== '') {
+      if (seenCursors.has(cursor)) {
+        throw new Error(
+          `[fetchData] items_page (directory) repeated cursor (loop) detected: boardId=${boardId}. API returned same cursor twice.`
+        );
+      }
+      seenCursors.add(cursor);
+    }
     if (!cursor) hasMore = false;
   }
 
@@ -322,6 +394,18 @@ export async function fetchReportData(dateFrom, dateTo) {
   COLS_COMENZI.MOD_TRANSPORT = findColId(comenziCols, 'Mod Transport', 'mod_transport');
   COLS_COMENZI.TIP_MARFA = findColId(comenziCols, 'Tip Marfa', 'tip_marfa');
   COLS_COMENZI.OCUPARE = findColId(comenziCols, 'Ocupare', 'ocupare');
+
+  // Validate required columns before querying (no silent fallback for critical fields).
+  ensureRequiredColumn(BOARD_IDS.COMENZI, 'DATA_CTR', COLS_COMENZI.DATA_CTR, comenziCols);
+  ensureRequiredColumn(BOARD_IDS.COMENZI, 'DATA_LIVRARE', COLS_COMENZI.DATA_LIVRARE, comenziCols);
+  ensureRequiredColumn(BOARD_IDS.SOLICITARI, 'DATA', COLS.SOLICITARI.DATA);
+  ensureRequiredColumn(BOARD_IDS.LEADS, 'DATA', COLS.LEADS.DATA);
+  ensureRequiredColumn(BOARD_IDS.LEADS, 'STATUS', COLS.LEADS.STATUS);
+  ensureRequiredColumn(BOARD_IDS.LEADS, 'OWNER', COLS.LEADS.OWNER);
+  ensureRequiredColumn(BOARD_IDS.CONTACTE, 'DATA', COLS.CONTACTE.DATA, contacteCols);
+  ensureRequiredColumn(BOARD_IDS.CONTACTE, 'OWNER', COLS.CONTACTE.OWNER, contacteCols);
+  ensureRequiredColumn(BOARD_IDS.FURNIZORI, 'DATA', furnDateCol, furnizoriCols);
+  ensureRequiredColumn(BOARD_IDS.FURNIZORI, 'PERSON', furnPersonCol, furnizoriCols);
 
   const rulesCtr = `[{ column_id: "${COLS_COMENZI.DATA_CTR}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLivr = `[{ column_id: "${COLS_COMENZI.DATA_LIVRARE}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;

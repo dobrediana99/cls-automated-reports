@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mondayRequest } from '../monday/client.js';
-import { fetchActivitiesForItems } from './fetchData.js';
+import {
+  fetchActivitiesForItems,
+  fetchAllItems,
+  fetchItemsDirectory,
+  ensureRequiredColumn,
+} from './fetchData.js';
 
 vi.mock('../monday/client.js', () => ({ mondayRequest: vi.fn() }));
 
@@ -139,5 +144,173 @@ describe('fetchActivitiesForItems', () => {
     const result = await fetchActivitiesForItems(itemIds, start, end);
     expect(result).toHaveLength(1);
     expect(result[0].created_at).toBe('2026-01-28T12:00:00Z');
+  });
+});
+
+describe('ensureRequiredColumn', () => {
+  it('throws when colId is null/undefined with boardId and logical name', () => {
+    expect(() => ensureRequiredColumn(123, 'DATA_CTR', null)).toThrow(
+      /Required column missing.*boardId=123.*logicalColumn=DATA_CTR/
+    );
+    expect(() => ensureRequiredColumn(456, 'OWNER', undefined)).toThrow(
+      /Required column missing.*boardId=456.*logicalColumn=OWNER/
+    );
+  });
+
+  it('throws when colId is empty string', () => {
+    expect(() => ensureRequiredColumn(123, 'DATA', '')).toThrow(
+      /Required column missing.*boardId=123.*logicalColumn=DATA/
+    );
+    expect(() => ensureRequiredColumn(123, 'STATUS', '   ')).toThrow(
+      /Required column missing/
+    );
+  });
+
+  it('throws when boardColumns provided and colId not on board', () => {
+    const boardColumns = [{ id: 'col_a' }, { id: 'col_b' }];
+    expect(() => ensureRequiredColumn(123, 'DATA', 'col_c', boardColumns)).toThrow(
+      /Required column not found on board.*boardId=123.*logicalColumn=DATA.*columnId=col_c/
+    );
+  });
+
+  it('does not throw when colId is non-empty and no boardColumns', () => {
+    expect(() => ensureRequiredColumn(123, 'DATA', 'date__1')).not.toThrow();
+  });
+
+  it('does not throw when colId exists in boardColumns', () => {
+    const boardColumns = [{ id: 'col_a' }, { id: 'col_b' }];
+    expect(() => ensureRequiredColumn(123, 'DATA', 'col_a', boardColumns)).not.toThrow();
+  });
+});
+
+describe('fetchAllItems', () => {
+  const boardId = 999;
+  const colIds = ['col1', 'col2'];
+
+  beforeEach(() => {
+    mondayRequest.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.MONDAY_ITEMS_MAX_PAGES;
+  });
+
+  it('returns all items when single page (no cursor)', async () => {
+    const page = {
+      boards: [
+        {
+          items_page: {
+            items: [{ id: 1, name: 'A', column_values: [] }],
+            cursor: null,
+          },
+        },
+      ],
+    };
+    mondayRequest.mockResolvedValueOnce(page);
+
+    const result = await fetchAllItems(boardId, colIds);
+    expect(result).toEqual({ items_page: { items: [{ id: 1, name: 'A', column_values: [] }] } });
+    expect(mondayRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeated cursor (loop) throws with clear message', async () => {
+    const sameCursor = 'repeated-cursor-id';
+    const pageWithCursor = {
+      boards: [
+        {
+          items_page: { items: [{ id: 1 }], cursor: sameCursor },
+        },
+      ],
+    };
+    mondayRequest
+      .mockResolvedValueOnce(pageWithCursor)
+      .mockResolvedValueOnce(pageWithCursor);
+
+    await expect(fetchAllItems(boardId, colIds)).rejects.toThrow(
+      /repeated cursor \(loop\) detected.*boardId=999/
+    );
+    expect(mondayRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('max pages exceeded throws with clear message', async () => {
+    process.env.MONDAY_ITEMS_MAX_PAGES = '2';
+    const pageWithCursor = (cursor) => ({
+      boards: [{ items_page: { items: [], cursor } }],
+    });
+    mondayRequest
+      .mockResolvedValueOnce(pageWithCursor('c1'))
+      .mockResolvedValueOnce(pageWithCursor('c2'));
+
+    await expect(fetchAllItems(boardId, colIds)).rejects.toThrow(
+      /max pages exceeded.*boardId=999.*limit=2/
+    );
+    expect(mondayRequest).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('fetchItemsDirectory', () => {
+  const boardId = 888;
+  const ownerColId = 'owner_col';
+
+  beforeEach(() => {
+    mondayRequest.mockReset();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.MONDAY_ITEMS_MAX_PAGES;
+  });
+
+  it('returns items when single page (no cursor)', async () => {
+    const page = {
+      boards: [
+        {
+          items_page: {
+            items: [{ id: 10, column_values: [] }],
+            cursor: null,
+          },
+        },
+      ],
+    };
+    mondayRequest.mockResolvedValueOnce(page);
+
+    const result = await fetchItemsDirectory(boardId, ownerColId);
+    expect(result).toEqual({ items_page: { items: [{ id: 10, column_values: [] }] } });
+    expect(mondayRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('repeated cursor (loop) throws with clear message', async () => {
+    const sameCursor = 'dir-repeated-cursor';
+    const pageWithCursor = {
+      boards: [
+        {
+          items_page: { items: [], cursor: sameCursor },
+        },
+      ],
+    };
+    mondayRequest
+      .mockResolvedValueOnce(pageWithCursor)
+      .mockResolvedValueOnce(pageWithCursor);
+
+    await expect(fetchItemsDirectory(boardId, ownerColId)).rejects.toThrow(
+      /repeated cursor \(loop\) detected.*boardId=888/
+    );
+    expect(mondayRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('max pages exceeded throws with clear message', async () => {
+    process.env.MONDAY_ITEMS_MAX_PAGES = '2';
+    const pageWithCursor = (cursor) => ({
+      boards: [{ items_page: { items: [], cursor } }],
+    });
+    mondayRequest
+      .mockResolvedValueOnce(pageWithCursor('d1'))
+      .mockResolvedValueOnce(pageWithCursor('d2'));
+
+    await expect(fetchItemsDirectory(boardId, ownerColId)).rejects.toThrow(
+      /max pages exceeded.*boardId=888.*limit=2/
+    );
+    expect(mondayRequest).toHaveBeenCalledTimes(2);
   });
 });

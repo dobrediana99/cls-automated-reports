@@ -3,43 +3,9 @@
  * Uses standardized texts from content/weeklyTexts.js and template weeklyEmployeeDetails.
  */
 
-import { DEPARTMENTS } from '../config/org.js';
 import { getWeeklyIntroHtml } from './content/weeklyTexts.js';
+import { getPersonRow } from './getPersonRow.js';
 import { buildWeeklyEmployeeEmailHtml } from './templates/weeklyEmployeeDetails.js';
-
-function getPersonRow(report, person) {
-  const { opsStats, salesStats, mgmtStats } = report;
-  const list =
-    person.department === DEPARTMENTS.MANAGEMENT
-      ? mgmtStats
-      : person.department === DEPARTMENTS.SALES
-        ? salesStats
-        : person.department === DEPARTMENTS.OPERATIONS
-          ? opsStats
-          : [];
-
-  if (!list || list.length === 0) {
-    console.warn('[getPersonRow] empty list for department', { person: person.name, department: person.department });
-    return null;
-  }
-
-  const hasMondayId = person.mondayUserId != null && String(person.mondayUserId).trim() !== '';
-  if (hasMondayId) {
-    const byMondayId = list.find((r) => String(r.mondayId) === String(person.mondayUserId));
-    if (byMondayId) return byMondayId;
-    console.warn('[getPersonRow] no row for mondayUserId', { name: person.name, mondayUserId: person.mondayUserId, department: person.department });
-  }
-
-  const byName = list.filter((r) => r.name === person.name);
-  if (byName.length === 1) return byName[0];
-  if (byName.length > 1) {
-    console.warn('[getPersonRow] ambiguous match by name', { name: person.name, department: person.department });
-    return null;
-  }
-
-  console.warn('[getPersonRow] no match', { name: person.name, department: person.department });
-  return null;
-}
 
 function roleForIntro(person) {
   return person.role === 'manager' ? 'manager' : 'employee';

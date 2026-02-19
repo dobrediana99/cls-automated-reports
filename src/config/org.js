@@ -1,5 +1,6 @@
 // config/org.js
 // Single source of truth for employees + managers (hardcoded, small org).
+// Synced with backend/config/org.js. Sync enforced by backend/config/org.sync.test.js (fails if TIMEZONE, DEPARTMENTS, or ORG diverge).
 // NOTE: Keep Monday IDs numeric. Targets are numbers (RON / EUR / whatever unit you use in reports).
 
 export const TIMEZONE = "Europe/Bucharest";

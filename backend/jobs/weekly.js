@@ -11,14 +11,10 @@ import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/s
 import { buildWeeklyXlsx } from '../export/xlsx.js';
 import { formatRaportFilename } from '../export/weeklyReportWorkbook.js';
 import { ORG } from '../config/org.js';
+import { sanitizeEmailForFilename } from '../utils/sanitizeEmailForFilename.js';
 
 const JOB_TYPE = 'weekly';
 const TIMEZONE = 'Europe/Bucharest';
-
-function sanitizeEmailForFilename(email) {
-  if (!email || typeof email !== 'string') return 'unknown';
-  return email.replace(/@/g, '_at_').replace(/\./g, '_');
-}
 
 /**
  * Runs the weekly job.
