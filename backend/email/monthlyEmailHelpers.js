@@ -146,3 +146,161 @@ export function parseMarkdownTableToHtml(markdownString) {
   const tbody = '<tbody>' + tbodyRows + '</tbody>';
   return `<table style="${TABLE_STYLE}">${thead}${tbody}</table>`;
 }
+
+/** Patterns for numeric-like cells (right-align in performance tables). */
+const NUM_LIKE = /^[-+]?\d+(?:[.,]\d+)?\s*$/;
+const MONEY_LIKE = /EUR\s*$/i;
+const PCT_LIKE = /%\s*$/;
+const DAYS_LIKE = /\bzile\b/i;
+
+function looksNumericOrUnit(text) {
+  if (text == null || typeof text !== 'string') return false;
+  const t = text.trim();
+  return NUM_LIKE.test(t) || MONEY_LIKE.test(t) || PCT_LIKE.test(t) || DAYS_LIKE.test(t);
+}
+
+/**
+ * Check if a line is a table row: contains "|" and at least 2 pipes (3+ cells).
+ * @param {string} line
+ * @returns {boolean}
+ */
+function isTableLine(line) {
+  if (line == null || typeof line !== 'string') return false;
+  const pipes = (line.match(/\|/g) || []).length;
+  return pipes >= 2;
+}
+
+/**
+ * Parse lines into blocks: consecutive table lines → one table block; other lines → text block.
+ * @param {string[]} lines
+ * @returns {Array<{ type: 'table' | 'text', lines: string[] }>}
+ */
+function groupPerformanceBlocks(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return [];
+  const blocks = [];
+  let current = { type: null, lines: [] };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = typeof raw === 'string' ? raw.trim() : String(raw).trim();
+    const isTable = isTableLine(raw);
+
+    if (trimmed === '') {
+      if (current.lines.length > 0) {
+        blocks.push({ type: current.type, lines: current.lines });
+        current = { type: null, lines: [] };
+      }
+      continue;
+    }
+
+    if (isTable) {
+      if (current.type !== 'table') {
+        if (current.lines.length > 0) {
+          blocks.push({ type: current.type, lines: current.lines });
+          current = { type: null, lines: [] };
+        }
+        current.type = 'table';
+      }
+      current.lines.push(raw);
+    } else {
+      if (current.type !== 'text') {
+        if (current.lines.length > 0) {
+          blocks.push({ type: current.type, lines: current.lines });
+          current = { type: null, lines: [] };
+        }
+        current.type = 'text';
+      }
+      current.lines.push(raw);
+    }
+  }
+  if (current.lines.length > 0) {
+    blocks.push({ type: current.type, lines: current.lines });
+  }
+  return blocks;
+}
+
+const PERF_TABLE_STYLE = 'border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:12px;';
+const PERF_TH_STYLE = 'background:#f3f4f6;border:1px solid #e5e7eb;padding:8px;text-align:left;font-weight:700;white-space:nowrap;';
+const PERF_TD_BASE = 'border:1px solid #e5e7eb;padding:8px;vertical-align:top;';
+
+/**
+ * Render one table block as HTML <table> with header, zebra rows, numeric right-align.
+ * @param {string[]} blockLines
+ * @returns {string}
+ */
+function renderPerformanceTableBlock(blockLines) {
+  if (!blockLines || blockLines.length === 0) return '';
+  const rows = blockLines.map((line) => {
+    const cells = line.split('|').map((c) => c.trim()).filter((c) => c !== '');
+    return cells;
+  });
+  if (rows.length === 0) return '';
+  const maxCols = Math.max(...rows.map((r) => r.length));
+  const normalize = (cells) => {
+    const pad = [...cells];
+    while (pad.length < maxCols) pad.push('');
+    return pad.slice(0, maxCols);
+  };
+
+  const headerCells = normalize(rows[0]);
+  const thead = '<thead><tr>' + headerCells.map((c) => `<th style="${PERF_TH_STYLE}">${escapeHtml(c)}</th>`).join('') + '</tr></thead>';
+
+  const bodyRows = rows.slice(1).map((cells, rowIndex) => {
+    const padded = normalize(cells);
+    const zebra = rowIndex % 2 === 0 ? '#ffffff' : '#fafafa';
+    const trStyle = `background:${zebra};`;
+    const tds = padded.map((cell, colIndex) => {
+      const isFirstCol = colIndex === 0;
+      let cellStyle = PERF_TD_BASE;
+      if (isFirstCol) {
+        cellStyle += ';text-align:left;font-weight:600;';
+      } else if (looksNumericOrUnit(cell)) {
+        cellStyle += ';text-align:right;white-space:nowrap;';
+      }
+      return `<td style="${cellStyle}">${escapeHtml(cell)}</td>`;
+    });
+    return `<tr style="${trStyle}">${tds.join('')}</tr>`;
+  });
+  const tbody = '<tbody>' + bodyRows.join('') + '</tbody>';
+  const table = `<table style="${PERF_TABLE_STYLE}">${thead}${tbody}</table>`;
+  return `<div style="margin:12px 0;overflow-x:auto;">${table}</div>`;
+}
+
+/**
+ * Render one text block: titlu-like (ALL CAPS / INDICATORI) as bold p, rest as list or p.
+ * @param {string[]} blockLines
+ * @returns {string}
+ */
+function renderPerformanceTextBlock(blockLines) {
+  if (!blockLines || blockLines.length === 0) return '';
+  const SECTION_STYLE = 'margin:1em 0 0 0;';
+  const parts = [];
+  for (const line of blockLines) {
+    const t = typeof line === 'string' ? line.trim() : String(line).trim();
+    if (!t) continue;
+    const escaped = escapeHtml(t);
+    const isTitle = /^[A-Z\s\-–—:]+$/.test(t) || /\bINDICATORI\b/i.test(t) || /\bCOMENZI\b/i.test(t);
+    if (isTitle) {
+      parts.push(`<p style="margin:12px 0 6px 0;font-weight:700;">${escaped}</p>`);
+    } else {
+      parts.push(`<p style="margin:4px 0;">${escaped}</p>`);
+    }
+  }
+  if (parts.length === 0) return '';
+  return `<div style="${SECTION_STYLE}">${parts.join('')}</div>`;
+}
+
+/**
+ * Render section 1 "Date de performanță" content: pipe-separated blocks → real <table>; rest → text/paragraphs.
+ * @param {string[]} lines - s1.continut
+ * @returns {string} HTML fragment (no section title)
+ */
+export function renderEmployeePerformanceContent(lines) {
+  if (!Array.isArray(lines) || lines.length === 0) return '';
+  const blocks = groupPerformanceBlocks(lines);
+  const html = blocks.map((block) => {
+    if (block.type === 'table') return renderPerformanceTableBlock(block.lines);
+    return renderPerformanceTextBlock(block.lines);
+  }).join('');
+  return html || '';
+}

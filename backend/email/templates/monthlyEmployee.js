@@ -11,6 +11,7 @@ import {
   renderSectionTitle,
   renderHr,
   renderKeyValueTable,
+  renderEmployeePerformanceContent,
 } from '../monthlyEmailHelpers.js';
 import { sanitizeReportHtml } from '../sanitize.js';
 import { DEPARTMENTS } from '../../config/org.js';
@@ -114,13 +115,8 @@ export function buildMonthlyEmployeeEmailHtml({
       : escapeHtml(getMonthlySalutation(person?.name));
   const intro = antet?.intro_message != null ? formatTextBlock(antet.intro_message) : '';
 
-  const continutRows =
-    Array.isArray(s1?.continut) && s1.continut.length > 0
-      ? s1.continut.map((line) => `<li>${escapeHtml(String(line))}</li>`).join('')
-      : '';
-  const sect1Html =
-    renderSectionTitle('Date de performanță', 2) +
-    (continutRows !== '' ? `<ul style="${SECTION_STYLE}">${continutRows}</ul>` : '');
+  const sect1Body = renderEmployeePerformanceContent(Array.isArray(s1?.continut) ? s1.continut : []);
+  const sect1Html = renderSectionTitle('Date de performanță', 2) + (sect1Body || '');
 
   const includeList =
     Array.isArray(s2?.include) && s2.include.length > 0

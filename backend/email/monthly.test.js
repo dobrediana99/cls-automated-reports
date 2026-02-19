@@ -243,6 +243,33 @@ describe('Monthly employee email', () => {
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&quot;');
   });
+
+  it('section 1 pipe-separated lines are rendered as HTML table with header and cells', () => {
+    const pipeContinut = [
+      'COMENZI DUPĂ DATA LIVRĂRII | Luna Curentă | Luna Anterioară | Δ% | Media Dept.',
+      'Curse Principal | 10 | 8 | +25% | 24',
+      'Curse Secundar | 2 | 3 | -33% | 5',
+      'Profit Principal | 1200 EUR | 900 EUR | +33% | 1000 EUR',
+    ];
+    const llmWithTable = {
+      ...mockEmployeeLlmSections,
+      sectiunea_1_tabel_date_performanta: { continut: pipeContinut },
+    };
+    const html = buildMonthlyEmployeeEmailHtml({
+      person: mockPerson,
+      department: mockPerson.department,
+      data3Months: {},
+      deptAverages3Months: {},
+      periodStart: '2026-01-01',
+      llmSections: llmWithTable,
+    });
+    expect(html).toContain('<table');
+    expect(html).toContain('<th');
+    expect(html).toContain('COMENZI DUPĂ DATA LIVRĂRII');
+    expect(html).toContain('Curse Principal');
+    expect(html).toContain('1200 EUR');
+    expect(html).not.toMatch(/\|\s*Luna Curentă\s*\|/);
+  });
 });
 
 describe('Monthly management email', () => {
@@ -334,13 +361,10 @@ describe('Monthly management email', () => {
     expect(html).toContain('&quot;');
   });
 
-  it('department email contains deterministic KPI block and does not contain fallback text', () => {
+  it('department email does not contain KPI-uri deterministe block and contains Rezumat Executiv', () => {
     const html = renderMonthlyManagerEmail(mockReport, mockMeta, mockReportSummary, mockDepartmentLlmSections);
-    expect(html).toContain('KPI-uri deterministe');
-    expect(html).toContain('Realizare target combinat:');
-    expect(html).toContain('Apeluri medii/zi:');
-    expect(html).toContain('Conversie prospectare:');
-    expect(html).not.toContain('Nu pot determina');
+    expect(html).not.toContain('KPI-uri deterministe');
+    expect(html).toContain('Rezumat Executiv');
   });
 });
 

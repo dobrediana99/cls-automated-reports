@@ -5,7 +5,6 @@
  */
 
 import { DEPARTMENTS } from '../config/org.js';
-import { buildReportKpi } from '../utils/kpiCalc.js';
 import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
 import {
@@ -196,34 +195,6 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
   const subiect = antet?.subiect != null ? escapeHtml(String(antet.subiect).trim()) : escapeHtml('Raport performanță departamentală');
   const intro = antet?.introducere != null ? formatTextBlock(antet.introducere) : '';
 
-  const metaForKpi = meta && typeof meta === 'object' ? meta : { periodStart, periodEnd, workingDaysInPeriod };
-  const departments = reportSummary?.departments;
-  let kpi = report?.kpi;
-  if (!kpi && metaForKpi.periodStart && metaForKpi.periodEnd && metaForKpi.workingDaysInPeriod > 0 && departments) {
-    try {
-      kpi = buildReportKpi(metaForKpi, departments);
-    } catch (e) {
-      if (process.env.NODE_ENV !== 'production') {
-        console.warn('[monthly] KPI build failed, using N/A', e?.message ?? e);
-      }
-      kpi = null;
-    }
-  }
-  const realizareStr = kpi?.realizareTargetCombinatPct != null ? `${Number(kpi.realizareTargetCombinatPct).toFixed(2)}%` : 'N/A';
-  const apeluriStr = kpi?.apeluriMediiZi != null ? String(Number(kpi.apeluriMediiZi).toFixed(2)) : 'N/A';
-  const conversieStr = kpi?.conversieProspectarePct != null ? `${Number(kpi.conversieProspectarePct).toFixed(2)}%` : 'N/A';
-  const conversieScopeLabel = kpi?.conversionScope === 'employee' ? '' : kpi?.conversionScope === 'department' ? ' (departament)' : '';
-  if (kpi?.realizareTargetCombinatPct == null && departments?.sales && departments?.operational) {
-    console.warn('[monthly] KPI realizareTargetCombinatPct is null (combined target may be 0)');
-  }
-  const realKpiBlock =
-    renderSectionTitle('KPI-uri deterministe', 2) +
-    `<p style="${SECTION_STYLE}">` +
-    `Realizare target combinat: ${escapeHtml(realizareStr)}<br/>` +
-    `Apeluri medii/zi: ${escapeHtml(apeluriStr)}<br/>` +
-    `Conversie prospectare: ${escapeHtml(conversieStr)}${escapeHtml(conversieScopeLabel)}` +
-    '</p>';
-
   const s1 = llmSections.sectiunea_1_rezumat_executiv;
   const pg = s1?.performanta_generala;
   const kpiCards = pg && typeof pg === 'object'
@@ -319,7 +290,6 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
 
   const bodyInner =
     (intro ? `<div style="margin:0 0 16px 0;">${intro}</div>` : '') +
-    realKpiBlock +
     renderHr() +
     renderSectionTitle('Rezumat Executiv', 2) +
     (kpiCards.length > 0 ? renderKpiCards(kpiCards, 2) : '') +
