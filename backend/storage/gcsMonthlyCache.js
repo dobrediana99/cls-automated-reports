@@ -6,6 +6,7 @@
 
 import { randomUUID } from 'crypto';
 import { Storage } from '@google-cloud/storage';
+import { validateMonthlyCacheEnvelope } from './schemas/monthlyCacheEnvelopeSchema.js';
 
 const SCHEMA_VERSION = 1;
 const WRITE_MAX_ATTEMPTS = 4;
@@ -52,15 +53,13 @@ export async function readMonthlyCache({ bucket, prefix = '', monthKey }) {
     const raw = contents.toString('utf8');
     const doc = JSON.parse(raw);
 
-    if (!doc || doc.schemaVersion !== SCHEMA_VERSION || !doc.data) {
-      console.warn('[monthly][cache] invalid schema or missing data, key=', monthKey);
+    const { valid, errors } = validateMonthlyCacheEnvelope(doc);
+    if (!valid) {
+      const reason = (errors && errors.length) ? errors.join('; ') : 'invalid envelope shape';
+      console.warn('[monthly][cache] invalid envelope, key=', monthKey, 'reason:', reason);
       return null;
     }
     const { meta, reportSummary, report } = doc.data;
-    if (!meta || !reportSummary || !report) {
-      console.warn('[monthly][cache] cached data missing meta/reportSummary/report, key=', monthKey);
-      return null;
-    }
     return { meta, reportSummary, report };
   } catch (err) {
     if (err?.code === 404) return null;

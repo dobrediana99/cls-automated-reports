@@ -43,6 +43,15 @@ const SCHEMA_REPAIR_APPEND =
 const PREVIEW_LEN = 200;
 const RAW_BODY_LOG_MAX = 2048;
 
+// Standardized LLM error reason taxonomy
+export const LLM_ERROR_REASONS = {
+  PARSE_FAIL: 'parse_fail',
+  SCHEMA_FAIL: 'schema_fail',
+  CHECKIN_RULE_FAIL: 'checkin_rule_fail',
+  CLOSING_MESSAGE_RULE_FAIL: 'closing_message_rule_fail',
+  TRANSPORT_FAIL: 'transport_fail',
+};
+
 function isResponseFormatError(body) {
   if (body == null || typeof body !== 'string') return false;
   const lower = body.toLowerCase();
@@ -324,6 +333,8 @@ async function callOpenRouterJson({ messages, operationName }) {
             status: res.status,
             message: err.message,
           });
+          err.reason = LLM_ERROR_REASONS.TRANSPORT_FAIL;
+          err.requestId = requestId;
           logOpenRouterError(model, err, operationName);
           throw err;
         }
@@ -349,6 +360,8 @@ async function callOpenRouterJson({ messages, operationName }) {
           await sleep(delay);
           break; // exit while, next for attempt
         }
+        err.reason = LLM_ERROR_REASONS.TRANSPORT_FAIL;
+        err.requestId = requestId;
         logOpenRouterError(model, err, operationName);
         throw err;
       }
@@ -377,9 +390,12 @@ async function callOpenRouterJson({ messages, operationName }) {
 
       const content = data?.choices?.[0]?.message?.content;
       if (content == null || typeof content !== 'string') {
-        throw new Error(
+        const err = new Error(
           'OpenRouter response missing choices[0].message.content'
         );
+        err.reason = LLM_ERROR_REASONS.TRANSPORT_FAIL;
+        err.requestId = requestId;
+        throw err;
       }
 
       let parsed;
@@ -438,10 +454,18 @@ async function callOpenRouterJson({ messages, operationName }) {
           model,
           message: lastResponseFormatErr.message,
         });
+        lastResponseFormatErr.reason = LLM_ERROR_REASONS.TRANSPORT_FAIL;
+        lastResponseFormatErr.requestId = requestId;
         throw lastResponseFormatErr;
       }
     } catch (err) {
       if (attempt >= MAX_ATTEMPTS) {
+        if (!err.reason) {
+          err.reason = LLM_ERROR_REASONS.TRANSPORT_FAIL;
+        }
+        if (!err.requestId) {
+          err.requestId = requestId;
+        }
         logOpenRouterError(model, err, operationName);
         throw err;
       }
@@ -508,7 +532,25 @@ export async function generateMonthlySections({
     JSON.stringify(inputJson);
 
   const PARSE_FAIL_MESSAGE = 'LLM response is not valid JSON. Monthly job fails.';
-  const tryParseAndValidate = (raw, requestId, attempt) => {
+
+  function classifyEmployeeReason(message) {
+    if (!message) return LLM_ERROR_REASONS.SCHEMA_FAIL;
+    if (message === PARSE_FAIL_MESSAGE || message.startsWith('LLM response is not valid JSON')) {
+      return LLM_ERROR_REASONS.PARSE_FAIL;
+    }
+    if (message.includes('sectiunea_6')) {
+      return LLM_ERROR_REASONS.CHECKIN_RULE_FAIL;
+    }
+    if (
+      message.includes('incheiere.mesaj_sub_80') ||
+      message.includes('incheiere.mesaj_peste_80')
+    ) {
+      return LLM_ERROR_REASONS.CLOSING_MESSAGE_RULE_FAIL;
+    }
+    return LLM_ERROR_REASONS.SCHEMA_FAIL;
+  }
+
+  const tryParseAndValidate = (raw) => {
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -538,7 +580,7 @@ export async function generateMonthlySections({
   });
 
   try {
-    const result = tryParseAndValidate(content, requestId, 1);
+    const result = tryParseAndValidate(content);
     if (process.env.NODE_ENV !== 'production') {
       console.log(
         '[llm] model=' + model + ', usage=' + (usage ? JSON.stringify(usage) : '') + ', ok'
@@ -546,12 +588,9 @@ export async function generateMonthlySections({
     }
     return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
-    const reason =
-      schemaErr?.message === PARSE_FAIL_MESSAGE
-        ? 'parse fail'
-        : schemaErr?.message?.includes('sectiunea_6')
-          ? 'check-in rule'
-          : 'schema fail';
+    const reason = classifyEmployeeReason(schemaErr?.message ?? String(schemaErr));
+    schemaErr.reason = reason;
+    schemaErr.requestId = requestId ?? null;
     console.error('[LLM audit] invalid response', {
       requestId: requestId ?? null,
       model,
@@ -565,7 +604,11 @@ export async function generateMonthlySections({
         String(content).slice(0, RAW_BODY_LOG_MAX)
       );
     }
-    const { content: repairContent, usage: repairUsage } =
+    const {
+      content: repairContent,
+      usage: repairUsage,
+      requestId: repairRequestId,
+    } =
       await callOpenRouterJson({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -574,29 +617,37 @@ export async function generateMonthlySections({
         operationName: 'employee',
       });
     try {
-      const result = tryParseAndValidate(repairContent, null, 2);
+      const result = tryParseAndValidate(repairContent);
       if (process.env.NODE_ENV !== 'production') {
         console.log('[llm] model= ok (after schema repair retry)');
       }
       return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
-      const repairReason =
-        repairErr?.message === PARSE_FAIL_MESSAGE
-          ? 'parse fail'
-          : repairErr?.message?.includes('sectiunea_6')
-            ? 'check-in rule'
-            : 'schema fail';
+      const repairReason = classifyEmployeeReason(
+        repairErr?.message ?? String(repairErr)
+      );
+      repairErr.reason = repairReason;
+      repairErr.requestId = requestId ?? null;
+      repairErr.repairRequestId = repairRequestId ?? null;
       console.error('[LLM audit] invalid response', {
-        requestId: null,
+        requestId: requestId ?? null,
+        repairRequestId: repairRequestId ?? null,
         model,
         attempt: 2,
         reason: repairReason,
         motiv: repairErr?.message ?? String(repairErr),
       });
-      throw new Error(
+      const finalErr = new Error(
         'LLM monthly employee output invalid after retries. ' +
-          (repairErr?.message ?? String(repairErr))
+          (repairErr?.message ?? String(repairErr)) +
+          (requestId || repairRequestId
+            ? ` (requestId=${requestId ?? 'n/a'}, repairRequestId=${repairRequestId ?? 'n/a'})`
+            : '')
       );
+      finalErr.reason = repairReason;
+      finalErr.requestId = requestId ?? null;
+      finalErr.repairRequestId = repairRequestId ?? null;
+      throw finalErr;
     }
   }
 }
@@ -649,11 +700,13 @@ export async function generateMonthlyDepartmentSections({
     }
     return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
+    schemaErr.reason = LLM_ERROR_REASONS.SCHEMA_FAIL;
+    schemaErr.requestId = requestId ?? null;
     console.error('[LLM audit] invalid JSON', {
       requestId: requestId ?? null,
       model,
       attempt: 1,
-      reason: 'schema fail',
+      reason: LLM_ERROR_REASONS.SCHEMA_FAIL,
       motiv: schemaErr?.message ?? String(schemaErr),
     });
     if (process.env.NODE_ENV !== 'production') {
@@ -662,7 +715,11 @@ export async function generateMonthlyDepartmentSections({
         String(content).slice(0, RAW_BODY_LOG_MAX)
       );
     }
-    const { content: repairContent, usage: repairUsage } =
+    const {
+      content: repairContent,
+      usage: repairUsage,
+      requestId: repairRequestId,
+    } =
       await callOpenRouterJson({
         messages: [
           { role: 'system', content: systemPrompt },
@@ -677,17 +734,28 @@ export async function generateMonthlyDepartmentSections({
       }
       return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
+      repairErr.reason = LLM_ERROR_REASONS.SCHEMA_FAIL;
+      repairErr.requestId = requestId ?? null;
+      repairErr.repairRequestId = repairRequestId ?? null;
       console.error('[LLM audit] invalid JSON', {
-        requestId: null,
+        requestId: requestId ?? null,
+        repairRequestId: repairRequestId ?? null,
         model,
         attempt: 2,
-        reason: 'schema fail',
+        reason: LLM_ERROR_REASONS.SCHEMA_FAIL,
         motiv: repairErr?.message ?? String(repairErr),
       });
-      throw new Error(
+      const finalErr = new Error(
         'LLM monthly department output invalid after retries. ' +
-          (repairErr?.message ?? String(repairErr))
+          (repairErr?.message ?? String(repairErr)) +
+          (requestId || repairRequestId
+            ? ` (requestId=${requestId ?? 'n/a'}, repairRequestId=${repairRequestId ?? 'n/a'})`
+            : '')
       );
+      finalErr.reason = LLM_ERROR_REASONS.SCHEMA_FAIL;
+      finalErr.requestId = requestId ?? null;
+      finalErr.repairRequestId = repairRequestId ?? null;
+      throw finalErr;
     }
   }
 }

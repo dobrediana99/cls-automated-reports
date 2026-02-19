@@ -11,6 +11,7 @@
     "start": "node backend/index.js",
     "dev:server": "node --watch backend/index.js",
     "test": "vitest run",
+    "test:gate": "vitest run --run backend/jobs/monthly.test.js backend/store/monthlyRunState.test.js backend/store/monthlySnapshots.test.js backend/storage/gcsMonthlyCache.test.js backend/config/validateRuntimeConfig.test.js backend/llm/normalizeMonthlyEmployeeOutput.test.js backend/llm/openrouterClient.test.js backend/llm/validateMonthlyOutput.test.js backend/idempotency.test.js backend/email/weekly.test.js backend/email/content/weeklyTexts.test.js backend/email/templates/weeklyEmployeeDetails.test.js",
     "test:determinism": "node scripts/test-determinism.js"
   },
   "dependencies": {

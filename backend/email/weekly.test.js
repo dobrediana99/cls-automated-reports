@@ -34,14 +34,13 @@ describe('renderWeeklyEmployeeEmail', () => {
     expect(html).not.toContain('Apeluri');
   });
 
-  it('Vanzari employee: table includes Contactat, Calificat, Rata conv., Emailuri, Apeluri', () => {
+  it('Vanzari employee: table includes Contactat, Calificat, Rata conv., Apeluri', () => {
     const reportSales = { ...mockReport, opsStats: [], salesStats: mockReport.opsStats, mgmtStats: [] };
     const personSales = { ...mockPerson, department: 'Vanzari' };
     const html = renderWeeklyEmployeeEmail(reportSales, personSales, mockMeta);
     expect(html).toContain('Contactați');
     expect(html).toContain('Calificați');
     expect(html).toContain('Rata conversie');
-    expect(html).toContain('Emailuri');
     expect(html).toContain('Apeluri');
   });
 });

@@ -165,7 +165,9 @@ const mockSummary = { departments: { operational: {}, sales: {}, management: {} 
 describe('runMonthly', () => {
   beforeEach(() => {
     delete process.env.DRY_RUN;
+    delete process.env.OPENROUTER_TIMEOUT_MS;
     process.env.MONDAY_API_TOKEN = 'test-token';
+    process.env.OPENROUTER_API_KEY = 'test-key';
     sendMailMock.mockClear();
     sendMailMock.mockResolvedValue({});
     loadMonthlyRunStateMock.mockReset();
@@ -193,14 +195,16 @@ describe('runMonthly', () => {
     expect(loadOrComputeMonthlyReport).toHaveBeenCalledTimes(3);
   });
 
-  it('when DRY_RUN != 1 throws if GMAIL credentials missing', async () => {
+  it('when DRY_RUN != 1 throws if GMAIL credentials missing (runtime config validation)', async () => {
     process.env.DRY_RUN = '0';
+    process.env.SEND_MODE = 'prod';
+    process.env.TEST_EMAILS = 'test@example.com';
     delete process.env.GMAIL_USER;
     delete process.env.GMAIL_APP_PASSWORD;
+    vi.mocked(loadOrComputeMonthlyReport).mockClear();
 
-    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
-      'GMAIL_USER and GMAIL_APP_PASSWORD must be set for monthly email send'
-    );
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('GMAIL_USER');
+    expect(loadOrComputeMonthlyReport).not.toHaveBeenCalled();
   });
 
   it('throws when OpenRouter is not configured (requireOpenRouter fails)', async () => {
@@ -213,11 +217,41 @@ describe('runMonthly', () => {
     );
   });
 
-  it('throws when MONDAY_API_TOKEN is missing', async () => {
+  it('throws when MONDAY_API_TOKEN is missing (before heavy compute)', async () => {
     delete process.env.MONDAY_API_TOKEN;
+    vi.mocked(loadOrComputeMonthlyReport).mockClear();
+
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
       'MONDAY_API_TOKEN'
     );
+    expect(loadOrComputeMonthlyReport).not.toHaveBeenCalled();
+  });
+
+  it('invalid numeric env (OPENROUTER_TIMEOUT_MS=0) throws before heavy compute', async () => {
+    process.env.DRY_RUN = '1';
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    process.env.OPENROUTER_TIMEOUT_MS = '0';
+    vi.mocked(loadOrComputeMonthlyReport).mockClear();
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
+      'OPENROUTER_TIMEOUT_MS'
+    );
+    expect(loadOrComputeMonthlyReport).not.toHaveBeenCalled();
+  });
+
+  it('SEND_MODE=test and missing TEST_EMAILS throws early in NON-DRY_RUN', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.OPENROUTER_API_KEY = 'test-key';
+    process.env.GMAIL_USER = 'u@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'p';
+    process.env.SEND_MODE = 'test';
+    delete process.env.TEST_EMAILS;
+    vi.mocked(loadOrComputeMonthlyReport).mockClear();
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
+      'TEST_EMAILS must be set when SEND_MODE=test'
+    );
+    expect(loadOrComputeMonthlyReport).not.toHaveBeenCalled();
   });
 
   it('NON-DRY RUN: department email is sent once to all active managers, before any employee emails', async () => {
@@ -436,6 +470,57 @@ describe('runMonthly', () => {
 
     expect(result).toEqual({ payload: expect.any(Object) });
     expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  it('NON-DRY RUN: transient send error then success retries and succeeds', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    const transientErr = Object.assign(new Error('Connection timeout'), { code: 'ETIMEDOUT' });
+    sendMailMock
+      .mockRejectedValueOnce(transientErr)
+      .mockResolvedValue({});
+
+    const result = await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(result).toEqual({ payload: expect.any(Object) });
+    expect(sendMailMock).toHaveBeenCalled();
+    const calls = sendMailMock.mock.calls.length;
+    expect(calls).toBeGreaterThanOrEqual(2);
+  });
+
+  it('NON-DRY RUN: permanent send error fails fast without useless retries', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    const permanentErr = Object.assign(new Error('Invalid login'), { code: 'EAUTH' });
+    sendMailMock.mockRejectedValue(permanentErr);
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('Invalid login');
+    expect(sendMailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('NON-DRY RUN: retries exhausted throws and checkpoint remains failed', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+    process.env.EMAIL_SEND_MAX_ATTEMPTS = '3';
+
+    const transientErr = Object.assign(new Error('Connection closed'), { code: 'ECONNECTION' });
+    sendMailMock.mockRejectedValue(transientErr);
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('Connection closed');
+
+    expect(sendMailMock).toHaveBeenCalledTimes(3);
+    const lastSavedState = saveMonthlyRunStateMock.mock.calls[saveMonthlyRunStateMock.mock.calls.length - 1]?.[1];
+    expect(lastSavedState).toBeDefined();
+    expect(lastSavedState.stages.department.send.status).toBe('failed');
+    expect(lastSavedState.completed).toBe(false);
   });
 
   it('buildEmployeeInputCalculated produces valid shape with mock data', () => {

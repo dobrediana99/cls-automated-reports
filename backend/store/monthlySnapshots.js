@@ -6,6 +6,7 @@
 
 import { randomUUID } from 'crypto';
 import { Storage } from '@google-cloud/storage';
+import { validateMonthlySnapshot } from './schemas/monthlySnapshotSchema.js';
 
 const DEFAULT_BUCKET = 'cls-automated-reports-data';
 const PREFIX = 'monthly_snapshots';
@@ -42,18 +43,13 @@ export function getSnapshotPath(month) {
 }
 
 /**
- * Minimal schema validation: required keys for v1 hit.
+ * Schema validation for v1 snapshot (schemaVersion, kind, period.month, derived.meta/reportSummary/report).
  * @param {object} doc - Parsed snapshot
  * @param {string} month - YYYY-MM
  * @returns {boolean}
  */
 export function isValidSnapshotSchema(doc, month) {
-  if (!doc || typeof doc !== 'object') return false;
-  if (doc.schemaVersion !== '1.0' || doc.kind !== 'cls.monthlyReportSnapshot') return false;
-  if (!doc.period || doc.period.month !== month) return false;
-  if (!doc.derived || typeof doc.derived !== 'object') return false;
-  if (!doc.derived.meta || !doc.derived.report) return false;
-  return true;
+  return validateMonthlySnapshot(doc, month).valid;
 }
 
 /**
@@ -70,8 +66,10 @@ export async function readMonthlySnapshotFromGCS(month) {
   try {
     const [contents] = await file.download();
     const doc = JSON.parse(contents.toString('utf8'));
-    if (!isValidSnapshotSchema(doc, month)) {
-      console.log('[snapshot] read month=' + month + ' invalid');
+    const { valid, errors } = validateMonthlySnapshot(doc, month);
+    if (!valid) {
+      const reason = (errors && errors.length) ? errors.join('; ') : 'invalid shape';
+      console.log('[snapshot] read month=' + month + ' invalid: ' + reason);
       return null;
     }
     console.log('[snapshot] read month=' + month + ' hit');

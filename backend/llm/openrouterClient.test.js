@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { LLM_ERROR_REASONS } from './openrouterClient.js';
 
 /** Minimal valid employee output (no sectiunea_6; for performancePct >= 80). */
 function getValidEmployeePayload() {
@@ -43,6 +44,8 @@ describe('openrouterClient hardening', () => {
 
   beforeEach(() => {
     process.env.OPENROUTER_API_KEY = 'test-key';
+    // Use a non-Anthropic model in tests so response_format is honored
+    process.env.OPENROUTER_MODEL = 'openai/gpt-4.1';
     fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
   });
@@ -50,6 +53,18 @@ describe('openrouterClient hardening', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     delete process.env.OPENROUTER_USE_JSON_SCHEMA;
+    delete process.env.OPENROUTER_MODEL;
+  });
+
+  it('exposes standardized LLM error reason taxonomy constants', () => {
+    expect(LLM_ERROR_REASONS.PARSE_FAIL).toBe('parse_fail');
+    expect(LLM_ERROR_REASONS.SCHEMA_FAIL).toBe('schema_fail');
+    expect(LLM_ERROR_REASONS.CHECKIN_RULE_FAIL).toBe('checkin_rule_fail');
+    expect(LLM_ERROR_REASONS.CLOSING_MESSAGE_RULE_FAIL).toBe(
+      'closing_message_rule_fail'
+    );
+    expect(LLM_ERROR_REASONS.TRANSPORT_FAIL).toBe('transport_fail');
+    // The detailed mapping is exercised indirectly in generateMonthlySections tests below.
   });
 
   it('400 unsupported response_format -> fallback to json_object', async () => {
@@ -184,6 +199,55 @@ describe('openrouterClient hardening', () => {
     expect(repairUser).toContain('saptamana_2_4');
     expect(repairUser).toContain('mesaj_sub_80');
     expect(repairUser).toContain('mesaj_peste_80');
+  });
+
+  it('schema invalid twice -> final error has correlation requestId + repairRequestId', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+
+    // Both responses are valid JSON but fail schema validation
+    const invalidJson = '{"antet":{"subiect":"x"},"sectiunea_1_tabel_date_performanta":{"continut":["a"]}}';
+
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: invalidJson } }],
+            model: 'test',
+            usage: {},
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            choices: [{ message: { content: invalidJson } }],
+            model: 'test',
+            usage: {},
+          }),
+      });
+
+    let caught;
+    try {
+      await generateMonthlySections({
+        systemPrompt: 'S',
+        inputJson: {},
+        performancePct: 85,
+      });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(caught).toBeDefined();
+    expect(caught.reason).toBe(LLM_ERROR_REASONS.SCHEMA_FAIL);
+    expect(typeof caught.requestId === 'string' || caught.requestId === null).toBe(
+      true
+    );
+    expect(
+      typeof caught.repairRequestId === 'string' || caught.repairRequestId === null
+    ).toBe(true);
   });
 
   it('first response schema-invalid (section 5 wrong shape + empty incheiere messages) succeeds after normalization without retry', async () => {
