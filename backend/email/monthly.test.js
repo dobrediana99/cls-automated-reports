@@ -171,7 +171,9 @@ describe('Monthly employee email', () => {
     const result = buildMonthlyEmployeeEmail({
       person: mockPerson,
       data3Months: { current: mockReport.opsStats[0] },
+      deptAverages3Months: mockReportSummary?.departments?.operational ? { current: mockReportSummary.departments.operational } : null,
       periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
       llmSections: mockEmployeeLlmSections,
     });
     expect(result).toHaveProperty('subject');
@@ -186,6 +188,7 @@ describe('Monthly employee email', () => {
       person: mockPerson,
       data3Months: { current: mockReport.opsStats[0] },
       periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
       llmSections: mockEmployeeLlmSectionsWithCheckIn,
     });
     expect(resultWithCheckIn.html).toContain('Check-in intermediar');
@@ -195,6 +198,7 @@ describe('Monthly employee email', () => {
       person: mockPerson,
       data3Months: { current: okData },
       periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
       llmSections: mockEmployeeLlmSections,
     });
     expect(resultOk.html).not.toContain('Check-in intermediar');
@@ -206,6 +210,7 @@ describe('Monthly employee email', () => {
       stats: mockReport.opsStats[0],
       department: 'Operatiuni',
       periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
       llmSections: mockEmployeeLlmSections,
     });
     expect(html).toContain('Interpretare');
@@ -219,6 +224,7 @@ describe('Monthly employee email', () => {
         person: mockPerson,
         data3Months: { current: mockReport.opsStats[0] },
         periodStart: '2026-01-01',
+        workingDaysInPeriod: 22,
       })
     ).toThrow(/llmSections|missing LLM section/);
   });
@@ -237,6 +243,7 @@ describe('Monthly employee email', () => {
       stats: mockReport.opsStats[0],
       department: mockPerson.department,
       periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
       llmSections: xssLlm,
     });
     expect(html).not.toContain('<script>');
@@ -244,31 +251,77 @@ describe('Monthly employee email', () => {
     expect(html).toContain('&quot;');
   });
 
-  it('section 1 pipe-separated lines are rendered as HTML table with header and cells', () => {
-    const pipeContinut = [
-      'COMENZI DUPĂ DATA LIVRĂRII | Luna Curentă | Luna Anterioară | Δ% | Media Dept.',
-      'Curse Principal | 10 | 8 | +25% | 24',
-      'Curse Secundar | 2 | 3 | -33% | 5',
-      'Profit Principal | 1200 EUR | 900 EUR | +33% | 1000 EUR',
-    ];
-    const llmWithTable = {
-      ...mockEmployeeLlmSections,
-      sectiunea_1_tabel_date_performanta: { continut: pipeContinut },
-    };
+  it('section 1 Date de performanță is deterministic: fixed table with Indicator | Luna curentă | Luna anterioară | Δ% | Media departament', () => {
     const html = buildMonthlyEmployeeEmailHtml({
       person: mockPerson,
       department: mockPerson.department,
-      data3Months: {},
-      deptAverages3Months: {},
+      data3Months: { current: mockReport.opsStats[0], prev: null },
+      deptAverages3Months: { current: mockReportSummary.departments?.operational ?? null },
       periodStart: '2026-01-01',
-      llmSections: llmWithTable,
+      workingDaysInPeriod: 22,
+      llmSections: mockEmployeeLlmSections,
     });
-    expect(html).toContain('<table');
-    expect(html).toContain('<th');
-    expect(html).toContain('COMENZI DUPĂ DATA LIVRĂRII');
-    expect(html).toContain('Curse Principal');
-    expect(html).toContain('1200 EUR');
-    expect(html).not.toMatch(/\|\s*Luna Curentă\s*\|/);
+    expect(html).toContain('Date de performanță');
+    expect(html).toContain('Indicator');
+    expect(html).toContain('Luna curentă');
+    expect(html).toContain('Luna anterioară');
+    expect(html).toContain('Media departament');
+    expect(html).toContain('Profit total');
+    expect(html).toContain('Realizare target');
+    expect(html).not.toMatch(/COMENZI\s+DUPĂ|===\s*.+\s*===/);
+  });
+
+  it('section 1 is stable across different mock users (same table structure)', () => {
+    const htmlA = buildMonthlyEmployeeEmailHtml({
+      person: mockPerson,
+      department: mockPerson.department,
+      data3Months: { current: mockReport.opsStats[0], prev: null },
+      deptAverages3Months: { current: mockReportSummary.departments?.operational ?? null },
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
+      llmSections: { ...mockEmployeeLlmSections, antet: { ...mockEmployeeLlmSections.antet, greeting: 'Bună, User A,' } },
+    });
+    const htmlB = buildMonthlyEmployeeEmailHtml({
+      person: { ...mockPerson, name: 'User B' },
+      department: mockPerson.department,
+      data3Months: { current: mockReport.opsStats[0], prev: null },
+      deptAverages3Months: { current: mockReportSummary.departments?.operational ?? null },
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
+      llmSections: { ...mockEmployeeLlmSections, antet: { ...mockEmployeeLlmSections.antet, greeting: 'Bună, User B,' } },
+    });
+    const tableStartA = htmlA.indexOf('<table');
+    const tableStartB = htmlB.indexOf('<table');
+    expect(tableStartA).toBeGreaterThan(0);
+    expect(tableStartB).toBeGreaterThan(0);
+    const tableA = htmlA.slice(tableStartA, htmlA.indexOf('</table>') + 8);
+    const tableB = htmlB.slice(tableStartB, htmlB.indexOf('</table>') + 8);
+    expect(tableA).toContain('Profit total');
+    expect(tableB).toContain('Profit total');
+    expect(tableA).toContain('Realizare target');
+    expect(tableB).toContain('Realizare target');
+  });
+
+  it('Acțiuni prioritare section renders only role lists (freight_forwarder, sales_freight_agent), not format_actiune or structura', () => {
+    const html = buildMonthlyEmployeeEmailHtml({
+      person: mockPerson,
+      department: mockPerson.department,
+      data3Months: { current: mockReport.opsStats[0] },
+      deptAverages3Months: null,
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
+      llmSections: mockEmployeeLlmSections,
+    });
+    expect(html).toContain('Acțiuni prioritare');
+    expect(html).toContain('Freight Forwarder');
+    expect(html).toContain('Sales &amp; Freight Agent');
+    expect(html).toContain('Verifică termene furnizori.');
+    expect(html).toContain('Menține target livrări.');
+    expect(html).not.toContain('format_actiune');
+    expect(html).not.toMatch(/<td[^>]*>\s*Ce\s*<\/td>/);
+    expect(html).not.toMatch(/<td[^>]*>\s*De ce\s*<\/td>/);
+    expect(html).not.toMatch(/<td[^>]*>\s*Măsurabil\s*<\/td>/);
+    expect(html).not.toMatch(/<td[^>]*>\s*Deadline\s*<\/td>/);
   });
 });
 
@@ -365,6 +418,35 @@ describe('Monthly management email', () => {
     const html = renderMonthlyManagerEmail(mockReport, mockMeta, mockReportSummary, mockDepartmentLlmSections);
     expect(html).not.toContain('KPI-uri deterministe');
     expect(html).toContain('Rezumat Executiv');
+  });
+
+  it('department realizareTarget is deterministic: XX.XX% or N/A only, no free-form explanatory text', () => {
+    const reportSummaryWithMgmt = {
+      ...mockReportSummary,
+      departments: {
+        ...mockReportSummary.departments,
+        management: { profitTotal: 1000, targetTotal: 5000 },
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: reportSummaryWithMgmt,
+      report: null,
+      meta: mockMeta,
+      llmSections: {
+        ...mockDepartmentLlmSections,
+        sectiunea_1_rezumat_executiv: {
+          ...mockDepartmentLlmSections.sectiunea_1_rezumat_executiv,
+          performanta_generala: {
+            ...mockDepartmentLlmSections.sectiunea_1_rezumat_executiv.performanta_generala,
+            realizareTarget: '80.00%',
+          },
+        },
+      },
+    });
+    expect(html).toContain('Realizare target');
+    expect(html).toMatch(/\d+\.\d+%|N\/A/);
+    expect(html).not.toMatch(/Nu pot determina|explicație|depinde de date|calculat manual/i);
   });
 });
 

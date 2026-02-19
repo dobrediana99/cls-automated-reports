@@ -3,6 +3,14 @@
  * Email-safe HTML only: inline styles, no external CSS/JS. All dynamic content is escaped.
  */
 
+import {
+  round2,
+  totalProfitEur,
+  calcTargetAchievementPct,
+  calcCallsPerWorkingDay,
+  calcProspectingConversionPct,
+} from '../utils/kpiCalc.js';
+
 /**
  * Escape HTML entities to prevent injection. Replaces &, <, >, ", '.
  * @param {string} text
@@ -303,4 +311,90 @@ export function renderEmployeePerformanceContent(lines) {
     return renderPerformanceTextBlock(block.lines);
   }).join('');
   return html || '';
+}
+
+const DASH = '–';
+
+function fmtEur(val) {
+  if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
+  const r = round2(val);
+  return r != null ? `${r} EUR` : DASH;
+}
+function fmtPct(val) {
+  if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
+  const r = round2(val);
+  return r != null ? `${r}%` : DASH;
+}
+function fmtNum(val) {
+  if (val == null || (typeof val !== 'number') || !Number.isFinite(val)) return DASH;
+  const r = round2(val);
+  return r != null ? String(r) : DASH;
+}
+function deltaPct(cur, prev) {
+  if (prev == null || typeof prev !== 'number' || typeof cur !== 'number' || !Number.isFinite(prev) || !Number.isFinite(cur) || prev === 0) return DASH;
+  const r = round2(((cur - prev) / prev) * 100);
+  return r != null ? (r >= 0 ? `+${r}%` : `${r}%`) : DASH;
+}
+
+/**
+ * Build deterministic "Date de performanță" table from numeric data. Same layout for all employees.
+ * Columns: Indicator | Luna curentă | Luna anterioară | Δ% | Media departament
+ * Uses data3Months.current, data3Months.prev, deptAverages3Months.current only.
+ * @param {{ current?: object, prev?: object }} data3Months
+ * @param {{ current?: object }} deptAverages3Months
+ * @param {number} workingDaysInPeriod
+ * @returns {string} HTML table fragment (no section title)
+ */
+export function buildDeterministicPerformanceTable(data3Months, deptAverages3Months, workingDaysInPeriod) {
+  const cur = data3Months?.current;
+  const prev = data3Months?.prev;
+  const deptCur = deptAverages3Months?.current;
+  const wd = workingDaysInPeriod > 0 ? workingDaysInPeriod : null;
+
+  const curProfit = round2(totalProfitEur(cur));
+  const prevProfit = round2(totalProfitEur(prev));
+  const curTargetPct = calcTargetAchievementPct(cur);
+  const prevTargetPct = calcTargetAchievementPct(prev);
+  const curApeluri = wd != null ? calcCallsPerWorkingDay(cur?.callsCount, wd) : null;
+  const prevApeluri = wd != null ? calcCallsPerWorkingDay(prev?.callsCount, wd) : null;
+  const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
+  const prevConv = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
+
+  const deptProfit = deptCur?.profitTotal != null ? round2(Number(deptCur.profitTotal)) : null;
+  const deptTargetPct =
+    deptCur?.targetTotal != null && Number(deptCur.targetTotal) > 0 && deptCur?.profitTotal != null
+      ? round2((Number(deptCur.profitTotal) / Number(deptCur.targetTotal)) * 100)
+      : null;
+  const deptApeluri =
+    deptCur?.callsCount != null && wd != null ? calcCallsPerWorkingDay(deptCur.callsCount, wd) : null;
+  const deptConv =
+    deptCur?.contactat != null && deptCur?.calificat != null
+      ? calcProspectingConversionPct(deptCur.contactat, deptCur.calificat)
+      : null;
+
+  const rows = [
+    ['Profit total', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit), fmtEur(deptProfit)],
+    ['Realizare target', fmtPct(curTargetPct), fmtPct(prevTargetPct), deltaPct(curTargetPct, prevTargetPct), fmtPct(deptTargetPct)],
+    ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri), fmtNum(deptApeluri)],
+    ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv), fmtPct(deptConv)],
+  ];
+
+  const headers = ['Indicator', 'Luna curentă', 'Luna anterioară', 'Δ%', 'Media departament'];
+  const thead = '<thead><tr>' + headers.map((h) => `<th style="${PERF_TH_STYLE}">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
+  const tbody =
+    '<tbody>' +
+    rows
+      .map((cells, rowIndex) => {
+        const zebra = rowIndex % 2 === 0 ? '#ffffff' : '#fafafa';
+        const tds = cells.map((cell, colIndex) => {
+          let cellStyle = PERF_TD_BASE;
+          if (colIndex === 0) cellStyle += ';text-align:left;font-weight:600;';
+          else cellStyle += ';text-align:right;white-space:nowrap;';
+          return `<td style="${cellStyle}">${escapeHtml(cell)}</td>`;
+        });
+        return `<tr style="background:${zebra}">${tds.join('')}</tr>`;
+      })
+      .join('') +
+    '</tbody>';
+  return `<div style="margin:12px 0;overflow-x:auto;"><table style="${PERF_TABLE_STYLE}">${thead}${tbody}</table></div>`;
 }

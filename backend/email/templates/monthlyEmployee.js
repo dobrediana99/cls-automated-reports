@@ -11,7 +11,7 @@ import {
   renderSectionTitle,
   renderHr,
   renderKeyValueTable,
-  renderEmployeePerformanceContent,
+  buildDeterministicPerformanceTable,
 } from '../monthlyEmailHelpers.js';
 import { sanitizeReportHtml } from '../sanitize.js';
 import { DEPARTMENTS } from '../../config/org.js';
@@ -85,7 +85,8 @@ function assertFullStructure(llmSections) {
 
 /**
  * Builds full HTML for monthly employee email from the full validated LLM object.
- * @param {object} opts - { person, data3Months, deptAverages3Months, periodStart, llmSections }
+ * Section 1 "Date de performanță" is deterministic (built from data3Months/deptAverages3Months), not from LLM.
+ * @param {object} opts - { person, data3Months, deptAverages3Months, periodStart, workingDaysInPeriod, llmSections }
  * @param {object} opts.llmSections - Full validated output: antet, sectiunea_1_*, ..., incheiere (optional sectiunea_6)
  * @returns {string} Full HTML document
  */
@@ -95,13 +96,13 @@ export function buildMonthlyEmployeeEmailHtml({
   data3Months,
   deptAverages3Months,
   periodStart,
+  workingDaysInPeriod,
   llmSections,
 }) {
   loadMonthlyEmployeePrompt(); // Ensure prompt exists (throw if missing)
   assertFullStructure(llmSections);
 
   const antet = llmSections.antet;
-  const s1 = llmSections.sectiunea_1_tabel_date_performanta;
   const s2 = llmSections.sectiunea_2_interpretare_date;
   const s3 = llmSections.sectiunea_3_concluzii;
   const s4 = llmSections.sectiunea_4_actiuni_prioritare;
@@ -115,7 +116,11 @@ export function buildMonthlyEmployeeEmailHtml({
       : escapeHtml(getMonthlySalutation(person?.name));
   const intro = antet?.intro_message != null ? formatTextBlock(antet.intro_message) : '';
 
-  const sect1Body = renderEmployeePerformanceContent(Array.isArray(s1?.continut) ? s1.continut : []);
+  const sect1Body = buildDeterministicPerformanceTable(
+    data3Months ?? { current: null, prev: null },
+    deptAverages3Months ?? { current: null },
+    workingDaysInPeriod ?? 0,
+  );
   const sect1Html = renderSectionTitle('Date de performanță', 2) + (sect1Body || '');
 
   const includeList =
@@ -137,18 +142,6 @@ export function buildMonthlyEmployeeEmailHtml({
     `<div style="${BOX_STYLE}"><strong>Ce nu merge / necesită intervenție</strong><p style="margin:6px 0 0 0;">${ceNuMerge || '–'}</p></div>` +
     `<div style="${BOX_STYLE}"><strong>Focus luna următoare</strong><p style="margin:6px 0 0 0;">${focus || '–'}</p></div>`;
 
-  const formatActiune = s4?.format_actiune != null ? escapeHtml(String(s4.format_actiune)) : '';
-  const struct = s4?.structura;
-  const structRows =
-    struct && typeof struct === 'object'
-      ? [
-          ['Ce', struct.ce ?? ''],
-          ['De ce', struct.de_ce ?? ''],
-          ['Măsurabil', struct.masurabil ?? ''],
-          ['Deadline', struct.deadline ?? ''],
-        ]
-      : [];
-  const structHtml = structRows.length > 0 ? renderKeyValueTable(structRows) : '';
   const actiuniRol = s4?.actiuni_specifice_per_rol;
   const ffList = Array.isArray(actiuniRol?.freight_forwarder) ? actiuniRol.freight_forwarder.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('') : '';
   const salesList = Array.isArray(actiuniRol?.sales_freight_agent) ? actiuniRol.sales_freight_agent.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('') : '';
@@ -156,11 +149,7 @@ export function buildMonthlyEmployeeEmailHtml({
     (ffList || salesList)
       ? `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;"><tr><td style="padding:8px 12px 0 0;vertical-align:top;width:50%;"><strong>Freight Forwarder</strong><ul style="margin:4px 0 0 0;">${ffList || '<li>–</li>'}</ul></td><td style="padding:8px 0 0 12px;vertical-align:top;width:50%;"><strong>Sales &amp; Freight Agent</strong><ul style="margin:4px 0 0 0;">${salesList || '<li>–</li>'}</ul></td></tr></table>`
       : '';
-  const sect4Html =
-    renderSectionTitle('Acțiuni prioritare', 2) +
-    (formatActiune ? `<p style="margin:0 0 8px 0;font-size:12px;color:#555;">${formatActiune}</p>` : '') +
-    structHtml +
-    (actiuniCols ? actiuniCols : '');
+  const sect4Html = renderSectionTitle('Acțiuni prioritare', 2) + (actiuniCols || '');
 
   const fmt = s5?.format;
   const sapt1 = fmt?.saptamana_1 != null ? String(fmt.saptamana_1) : '';
@@ -229,6 +218,7 @@ export function buildMonthlyEmployeeEmail({
   data3Months,
   deptAverages3Months,
   periodStart,
+  workingDaysInPeriod,
   llmSections,
 }) {
   loadMonthlyEmployeePrompt();
@@ -243,6 +233,7 @@ export function buildMonthlyEmployeeEmail({
     data3Months: data3Months ?? { current: null },
     deptAverages3Months,
     periodStart,
+    workingDaysInPeriod: workingDaysInPeriod ?? 0,
     llmSections,
   });
   return { subject, html };

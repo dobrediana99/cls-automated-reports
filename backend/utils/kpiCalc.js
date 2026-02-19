@@ -114,6 +114,41 @@ export function calcTargetAchievementCombined(departments) {
 }
 
 /**
+ * Realizare target companie (Sales + Operațional + Management). Official business rule for department email.
+ * realizareTargetPct = ((salesProfit + operationalProfit + managementProfit) / (salesTarget + operationalTarget + managementTarget)) * 100
+ * @param {{ sales?: { profitTotal?: number, targetTotal?: number }, operational?: { profitTotal?: number, targetTotal?: number }, management?: { profitTotal?: number, targetTotal?: number } }} departments
+ * @returns {number | null} Percentage or null if denominator <= 0 or required values missing
+ */
+export function calcTargetAchievementWithManagement(departments) {
+  if (!departments || typeof departments !== 'object') return null;
+  const n = (dept, key) => {
+    const d = dept && typeof dept === 'object' ? dept : {};
+    const v = d[key];
+    return typeof v === 'number' && Number.isFinite(v) ? v : 0;
+  };
+  const salesProfit = n(departments.sales, 'profitTotal');
+  const opsProfit = n(departments.operational, 'profitTotal');
+  const mgmtProfit = n(departments.management, 'profitTotal');
+  const salesTarget = n(departments.sales, 'targetTotal');
+  const opsTarget = n(departments.operational, 'targetTotal');
+  const mgmtTarget = n(departments.management, 'targetTotal');
+  const totalTarget = salesTarget + opsTarget + mgmtTarget;
+  if (totalTarget <= 0) return null;
+  return round2(((salesProfit + opsProfit + mgmtProfit) / totalTarget) * 100);
+}
+
+/**
+ * Format realizare target for department email HTML: "XX.XX%" or "N/A". No explanatory text.
+ * @param {number | null} pct - from calcTargetAchievementWithManagement
+ * @returns {string}
+ */
+export function formatRealizareTargetForEmail(pct) {
+  if (pct == null || typeof pct !== 'number' || !Number.isFinite(pct)) return 'N/A';
+  const r = round2(pct);
+  return r != null ? `${r}%` : 'N/A';
+}
+
+/**
  * Apeluri medii per zi lucrătoare.
  * Returns null if workingDays <= 0 or callsCount is negative/non-numeric.
  * @param {number} callsCount

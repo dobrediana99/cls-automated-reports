@@ -9,6 +9,8 @@ import {
   calcTargetAchievementPct,
   assertValidPeriod,
   calcTargetAchievementCombined,
+  calcTargetAchievementWithManagement,
+  formatRealizareTargetForEmail,
   calcCallsPerWorkingDay,
   calcProspectingConversion,
   calcProspectingConversionPct,
@@ -80,6 +82,45 @@ describe('calcTargetAchievementCombined', () => {
       management: { profitTotal: 9999, targetTotal: 1 },
     };
     expect(calcTargetAchievementCombined(departments)).toBe(100);
+  });
+});
+
+describe('calcTargetAchievementWithManagement', () => {
+  it('includes management in numerator and denominator', () => {
+    const departments = {
+      sales: { profitTotal: 12000, targetTotal: 15000 },
+      operational: { profitTotal: 8000, targetTotal: 10000 },
+      management: { profitTotal: 2000, targetTotal: 5000 },
+    };
+    // (12000+8000+2000)/(15000+10000+5000) = 22000/30000 = 73.33%
+    expect(calcTargetAchievementWithManagement(departments)).toBe(73.33);
+  });
+  it('returns null when combined target is 0', () => {
+    const departments = {
+      sales: { profitTotal: 0, targetTotal: 0 },
+      operational: { profitTotal: 0, targetTotal: 0 },
+      management: { profitTotal: 0, targetTotal: 0 },
+    };
+    expect(calcTargetAchievementWithManagement(departments)).toBe(null);
+  });
+  it('treats missing management as 0', () => {
+    const departments = {
+      sales: { profitTotal: 12000, targetTotal: 15000 },
+      operational: { profitTotal: 8000, targetTotal: 10000 },
+    };
+    expect(calcTargetAchievementWithManagement(departments)).toBe(80);
+  });
+});
+
+describe('formatRealizareTargetForEmail', () => {
+  it('formats number as XX.XX%', () => {
+    expect(formatRealizareTargetForEmail(73.33)).toBe('73.33%');
+    expect(formatRealizareTargetForEmail(100)).toBe('100%');
+  });
+  it('returns N/A for null or non-finite', () => {
+    expect(formatRealizareTargetForEmail(null)).toBe('N/A');
+    expect(formatRealizareTargetForEmail(undefined)).toBe('N/A');
+    expect(formatRealizareTargetForEmail(NaN)).toBe('N/A');
   });
 });
 

@@ -120,13 +120,14 @@ function buildComparatieTable(tabelComparativ) {
 export { buildMonthlyEmployeeEmail };
 
 /** Builds full HTML for monthly employee (single report). Requires llmSections (from OpenRouter LLM); no placeholder. */
-export function buildMonthlyEmployeeEmailHtml({ personName, stats, department, periodStart, showCheckIn = false, llmSections }) {
+export function buildMonthlyEmployeeEmailHtml({ personName, stats, department, periodStart, workingDaysInPeriod = 0, showCheckIn = false, llmSections }) {
   return buildEmployeeEmailHtmlFromTemplate({
     person: { name: personName, department },
     department,
     data3Months: { current: stats },
     deptAverages3Months: null,
     periodStart,
+    workingDaysInPeriod,
     llmSections,
   });
 }
@@ -335,7 +336,9 @@ export function renderMonthlyEmployeeEmail(report, person, meta, llmSections) {
   const result = buildMonthlyEmployeeEmail({
     person,
     data3Months: { current: stats },
+    deptAverages3Months: null,
     periodStart: meta?.periodStart,
+    workingDaysInPeriod: meta?.workingDaysInPeriod ?? 0,
     llmSections,
   });
   return result.html;

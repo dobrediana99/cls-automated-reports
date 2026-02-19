@@ -9,6 +9,7 @@ import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
 import { runMonthly, buildEmployeeInputCalculated } from './monthly.js';
 import { createInitialState, RUN_STATE_UNAVAILABLE } from '../store/monthlyRunState.js';
+import * as emailMonthly from '../email/monthly.js';
 
 const {
   sendMailMock,
@@ -391,6 +392,25 @@ describe('runMonthly', () => {
 
     expect(loadMonthlyRunStateMock).not.toHaveBeenCalled();
     expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
+  });
+
+  it('department email uses deterministic realizareTarget (XX.XX% or N/A), no LLM free-form text', async () => {
+    process.env.DRY_RUN = '1';
+    let deptEmailOpts;
+    let deptEmailResult;
+    const origBuildDept = emailMonthly.buildMonthlyDepartmentEmail;
+    const spy = vi.spyOn(emailMonthly, 'buildMonthlyDepartmentEmail').mockImplementation((opts) => {
+      deptEmailOpts = opts;
+      deptEmailResult = origBuildDept(opts);
+      return deptEmailResult;
+    });
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+    spy.mockRestore();
+    expect(deptEmailOpts).toBeDefined();
+    const realizareTarget = deptEmailOpts?.llmSections?.sectiunea_1_rezumat_executiv?.performanta_generala?.realizareTarget;
+    expect(realizareTarget).toMatch(/^\d+\.\d+%$|^N\/A$/);
+    expect(deptEmailResult?.html).toContain('Realizare target');
+    expect(deptEmailResult?.html).not.toMatch(/Nu pot determina|explicație|depinde de date/i);
   });
 
   it('NON-DRY RUN: when loadMonthlyRunState throws (read error), runMonthly fails immediately without send/LLM/checkpoint save', async () => {
