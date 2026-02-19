@@ -10,6 +10,20 @@ import {
   writeMonthlySnapshotToGCS,
   writeMonthlyRunManifestToGCS,
 } from '../store/monthlySnapshots.js';
+import {
+  loadMonthlyRunState,
+  saveMonthlyRunState,
+  createInitialState,
+  markCollectOk,
+  markDepartmentLlmOk,
+  markDepartmentLlmFailed,
+  markDepartmentSend,
+  markEmployeeLlmOk,
+  markEmployeeLlmFailed,
+  markEmployeeSend,
+  ensureEmployeeEntry,
+  markCompleted,
+} from '../store/monthlyRunState.js';
 import { buildMonthlyEmployeeEmail, getPersonRow, buildMonthlyDepartmentEmail } from '../email/monthly.js';
 import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
 import { buildMonthlyXlsx } from '../export/xlsx.js';
@@ -364,13 +378,31 @@ export async function runMonthly(opts = {}) {
     return { payload, dryRunPath };
   }
 
-  // NON-DRY RUN: transport once; per-employee: LLM → build → send immediately; fail fast on any step.
+  // NON-DRY RUN: load/create run state; checkpoint collect → department → employees; skip already-completed units.
   const gmailUser = process.env.GMAIL_USER;
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
   if (!gmailUser || !gmailAppPassword) {
     console.error('[job] monthly email skipped missing env (GMAIL_USER or GMAIL_APP_PASSWORD unset)');
     throw new Error('GMAIL_USER and GMAIL_APP_PASSWORD must be set for monthly email send');
   }
+
+  let runState = await loadMonthlyRunState(label);
+  if (!runState) {
+    runState = createInitialState({ label, periodStart, periodEnd });
+    await saveMonthlyRunState(label, runState);
+    console.log('[monthly][resume] state created (new run)', { label });
+  } else {
+    console.log('[monthly][resume] state loaded', { label, completed: runState.completed });
+  }
+
+  if (runState.completed) {
+    console.log('[monthly][resume] run already completed, no-op (idempotent)', { label });
+    return { payload };
+  }
+
+  const save = (s) => saveMonthlyRunState(label, s);
+  await markCollectOk(runState, save);
+  console.log('[monthly][checkpoint] stage collect=ok');
 
   const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -384,60 +416,83 @@ export async function runMonthly(opts = {}) {
   let totalCompletionTokens = 0;
   let totalCost = null;
 
-  // 1) Department/company email FIRST: one LLM call, one composition, one send to all active managers.
-  let departmentLlmSections;
-  try {
-    const deptRaw = await generateMonthlyDepartmentSections({
-      systemPrompt: departmentPrompt,
-      inputJson: departmentInputJson,
-    });
-    departmentLlmSections = deptRaw?.sections ?? deptRaw;
-    const usage = deptRaw?.usage;
-    if (usage) {
-      const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
-      const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
-      totalPromptTokens += pt;
-      totalCompletionTokens += ct;
-      if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
+  // 1) Department: skip if send already ok; else LLM (only if llm != ok, use stored sections if present) then send.
+  const deptSendOk = runState.stages.department?.send?.status === 'ok';
+  if (deptSendOk) {
+    console.log('[monthly][resume] skip department send already completed');
+  } else {
+    let departmentLlmSections = runState.stages.department?.llmSections ?? null;
+    const needDeptLlm = runState.stages.department?.llm?.status !== 'ok' || !departmentLlmSections;
+    if (needDeptLlm) {
+      try {
+        const deptRaw = await generateMonthlyDepartmentSections({
+          systemPrompt: departmentPrompt,
+          inputJson: departmentInputJson,
+        });
+        departmentLlmSections = deptRaw?.sections ?? deptRaw;
+        const usage = deptRaw?.usage;
+        if (usage) {
+          const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+          const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
+          totalPromptTokens += pt;
+          totalCompletionTokens += ct;
+          if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
+        }
+        await markDepartmentLlmOk(runState, departmentLlmSections, save);
+        console.log('[monthly][checkpoint] stage department llm=ok');
+      } catch (err) {
+        console.error('[monthly] department_failed', 'stage=llm', err?.message ?? String(err));
+        await markDepartmentLlmFailed(runState, err, save);
+        throw err;
+      }
     }
-  } catch (err) {
-    console.error('[monthly] department_failed', 'stage=llm', err?.message ?? String(err));
-    throw err;
-  }
+    if (!departmentLlmSections) {
+      departmentLlmSections = runState.stages.department?.llmSections ?? null;
+    }
 
-  if (result0.meta && result0.reportSummary?.departments) {
-    result0.report.kpi = buildReportKpi(
-      { ...result0.meta, workingDaysInPeriod },
-      result0.reportSummary.departments,
-    );
-  }
-  const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
-    periodStart: metas[0].periodStart,
-    meta: result0.meta,
-    reportSummary: result0.reportSummary,
-    report: result0.report,
-    monthExcelCurrent: xlsxBuffer,
-    llmSections: departmentLlmSections,
-  });
-
-  const managerEmails = MANAGERS.filter((m) => m.isActive).map((m) => m.email);
-  const deptToList = resolveRecipients(managerEmails);
-  logSendRecipients(deptToList.length, deptToList);
-  try {
-    await transporter.sendMail({
-      from: gmailUser,
-      to: deptToList.join(', '),
-      subject: resolveSubject(deptSubject),
-      html: deptHtml,
-      attachments,
+    if (result0.meta && result0.reportSummary?.departments) {
+      result0.report.kpi = buildReportKpi(
+        { ...result0.meta, workingDaysInPeriod },
+        result0.reportSummary.departments,
+      );
+    }
+    const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
+      periodStart: metas[0].periodStart,
+      meta: result0.meta,
+      reportSummary: result0.reportSummary,
+      report: result0.report,
+      monthExcelCurrent: xlsxBuffer,
+      llmSections: departmentLlmSections,
     });
-  } catch (err) {
-    console.error('[monthly] department_failed', 'stage=send', err?.message ?? String(err));
-    throw err;
+
+    const managerEmails = MANAGERS.filter((m) => m.isActive).map((m) => m.email);
+    const deptToList = resolveRecipients(managerEmails);
+    logSendRecipients(deptToList.length, deptToList);
+    try {
+      await transporter.sendMail({
+        from: gmailUser,
+        to: deptToList.join(', '),
+        subject: resolveSubject(deptSubject),
+        html: deptHtml,
+        attachments,
+      });
+      await markDepartmentSend(runState, 'ok', null, save);
+      console.log('[monthly][checkpoint] stage department send=ok');
+    } catch (err) {
+      console.error('[monthly] department_failed', 'stage=send', err?.message ?? String(err));
+      await markDepartmentSend(runState, 'failed', err, save);
+      throw err;
+    }
   }
 
-  // 2) Then employee emails: one LLM + build + send per active person; fail fast on any error.
+  // 2) Employee emails: skip if send already ok; else LLM (only if llm != ok) then send; checkpoint each.
   for (const person of activePeople) {
+    ensureEmployeeEntry(runState, person.email, person.name);
+    if (runState.stages.employees[person.email]?.send?.status === 'ok') {
+      console.log('[monthly][resume] skip employee send already completed', { email: person.email });
+      continue;
+    }
+
     const data3Months = {
       current: getPersonRow(reports[0], person),
       prev: getPersonRow(reports[1], person),
@@ -465,33 +520,42 @@ export async function runMonthly(opts = {}) {
     };
 
     console.log('[monthly] employee_start', person.name, person.email);
-    const performancePct = getPerformancePct(data3Months.current);
-    let llmSections;
-    try {
-      const raw = await generateMonthlySections({
-        systemPrompt: employeePrompt,
-        inputJson,
-        performancePct,
-      });
-      llmSections = raw?.sections ?? raw;
-      const usage = raw?.usage;
-      if (usage) {
-        const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
-        const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
-        totalPromptTokens += pt;
-        totalCompletionTokens += ct;
-        if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
-        console.log('[monthly] employee_llm_success', person.name, person.email, {
-          prompt_tokens: pt,
-          completion_tokens: ct,
-          cost: usage.cost ?? null,
+    let llmSections = runState.stages.employees[person.email]?.llmSections ?? null;
+    const needEmpLlm = runState.stages.employees[person.email]?.llm?.status !== 'ok' || !llmSections;
+    if (needEmpLlm) {
+      const performancePct = getPerformancePct(data3Months.current);
+      try {
+        const raw = await generateMonthlySections({
+          systemPrompt: employeePrompt,
+          inputJson,
+          performancePct,
         });
-      } else {
-        console.log('[monthly] employee_llm_success', person.name, person.email);
+        llmSections = raw?.sections ?? raw;
+        const usage = raw?.usage;
+        if (usage) {
+          const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+          const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
+          totalPromptTokens += pt;
+          totalCompletionTokens += ct;
+          if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
+          console.log('[monthly] employee_llm_success', person.name, person.email, {
+            prompt_tokens: pt,
+            completion_tokens: ct,
+            cost: usage.cost ?? null,
+          });
+        } else {
+          console.log('[monthly] employee_llm_success', person.name, person.email);
+        }
+        await markEmployeeLlmOk(runState, person.email, llmSections, save);
+        console.log('[monthly][checkpoint] stage employee llm=ok', { email: person.email });
+      } catch (err) {
+        console.error('[monthly] employee_failed', person.name, person.email, 'stage=llm', err?.message ?? String(err));
+        await markEmployeeLlmFailed(runState, person.email, err, save, person.name);
+        throw err;
       }
-    } catch (err) {
-      console.error('[monthly] employee_failed', person.name, person.email, 'stage=llm', err?.message ?? String(err));
-      throw err;
+    }
+    if (!llmSections) {
+      llmSections = runState.stages.employees[person.email]?.llmSections ?? null;
     }
 
     try {
@@ -510,12 +574,18 @@ export async function runMonthly(opts = {}) {
         subject: resolveSubject(subject),
         html,
       });
+      await markEmployeeSend(runState, person.email, 'ok', null, save);
       console.log('[monthly] employee_email_sent', person.name, person.email);
+      console.log('[monthly][checkpoint] stage employee send=ok', { email: person.email });
     } catch (err) {
       console.error('[monthly] employee_failed', person.name, person.email, 'stage=send', err?.message ?? String(err));
+      await markEmployeeSend(runState, person.email, 'failed', err, save);
       throw err;
     }
   }
+
+  await markCompleted(runState, save);
+  console.log('[monthly][checkpoint] run completed', { label });
 
   const employeesSent = activePeople.length;
   const durationMs = Date.now() - jobStartMs;

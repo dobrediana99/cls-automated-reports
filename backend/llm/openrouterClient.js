@@ -37,7 +37,9 @@ const REQUEST_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS || 90000);
 const STRICT_JSON_APPEND =
   '\n\nReturn ONLY valid JSON object, no markdown, no extra text.';
 const SCHEMA_REPAIR_APPEND =
-  '\n\nReturnează DOAR JSON valid, fără markdown/backticks, cu exact structura cerută. Toate cheile obligatorii prezente, string-uri non-goale. NU adăuga chei suplimentare (additionalProperties false).';
+  '\n\nReturnează DOAR JSON valid, fără markdown/backticks, cu exact structura cerută. Toate cheile obligatorii prezente, string-uri non-goale. NU adăuga chei suplimentare (additionalProperties false). '
+  + 'sectiunea_5_plan_saptamanal trebuie să conțină format cu exact saptamana_1 și saptamana_2_4 (string-uri non-goale). '
+  + 'incheiere: raport_urmator, mesaj_sub_80, mesaj_peste_80 și semnatura (nume, functie, companie) trebuie să fie string-uri non-goale.';
 const PREVIEW_LEN = 200;
 const RAW_BODY_LOG_MAX = 2048;
 
@@ -505,18 +507,19 @@ export async function generateMonthlySections({
     '\n\nDate pentru analiză (JSON, ultimele 2 luni):\n' +
     JSON.stringify(inputJson);
 
+  const PARSE_FAIL_MESSAGE = 'LLM response is not valid JSON. Monthly job fails.';
   const tryParseAndValidate = (raw, requestId, attempt) => {
     let parsed;
     try {
       parsed = JSON.parse(raw);
     } catch (_) {
-      throw new Error('LLM response is not valid JSON. Monthly job fails.');
+      throw new Error(PARSE_FAIL_MESSAGE);
     }
     parsed = normalizeMonthlyEmployeeOutput(parsed);
     try {
       return validateEmployeeOutput(parsed, { performancePct });
     } catch (schemaErr) {
-      if (schemaErr?.message?.includes('schema validation failed')) {
+      if (process.env.NODE_ENV !== 'production' && schemaErr?.message?.includes('schema validation failed')) {
         console.error(
           '[LLM] After normalization still invalid, sample (500 chars):',
           JSON.stringify(parsed).slice(0, 500)
@@ -544,8 +547,12 @@ export async function generateMonthlySections({
     return { sections: result, usage: usage ?? null };
   } catch (schemaErr) {
     const reason =
-      schemaErr?.message?.includes('sectiunea_6') ? 'check-in rule' : 'schema fail';
-    console.error('[LLM audit] invalid JSON', {
+      schemaErr?.message === PARSE_FAIL_MESSAGE
+        ? 'parse fail'
+        : schemaErr?.message?.includes('sectiunea_6')
+          ? 'check-in rule'
+          : 'schema fail';
+    console.error('[LLM audit] invalid response', {
       requestId: requestId ?? null,
       model,
       attempt: 1,
@@ -573,10 +580,13 @@ export async function generateMonthlySections({
       }
       return { sections: result, usage: repairUsage ?? null };
     } catch (repairErr) {
-      const repairReason = repairErr?.message?.includes('sectiunea_6')
-        ? 'check-in rule'
-        : 'schema fail';
-      console.error('[LLM audit] invalid JSON', {
+      const repairReason =
+        repairErr?.message === PARSE_FAIL_MESSAGE
+          ? 'parse fail'
+          : repairErr?.message?.includes('sectiunea_6')
+            ? 'check-in rule'
+            : 'schema fail';
+      console.error('[LLM audit] invalid response', {
         requestId: null,
         model,
         attempt: 2,

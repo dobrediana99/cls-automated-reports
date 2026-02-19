@@ -8,8 +8,15 @@ import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSe
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
 import { runMonthly, buildEmployeeInputCalculated } from './monthly.js';
+import { createInitialState } from '../store/monthlyRunState.js';
 
-const { sendMailMock, mockEmployeeSections, mockDepartmentSections } = vi.hoisted(() => {
+const {
+  sendMailMock,
+  mockEmployeeSections,
+  mockDepartmentSections,
+  loadMonthlyRunStateMock,
+  saveMonthlyRunStateMock,
+} = vi.hoisted(() => {
   const mockEmployeeSections = {
     antet: { subiect: 'Raport', greeting: 'Bună,', intro_message: 'Intro' },
     sectiunea_1_tabel_date_performanta: { continut: ['Row 1'] },
@@ -89,6 +96,8 @@ const { sendMailMock, mockEmployeeSections, mockDepartmentSections } = vi.hoiste
     sendMailMock: vi.fn().mockResolvedValue({}),
     mockEmployeeSections,
     mockDepartmentSections,
+    loadMonthlyRunStateMock: vi.fn().mockResolvedValue(null),
+    saveMonthlyRunStateMock: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -135,6 +144,16 @@ vi.mock('../store/monthlySnapshots.js', () => ({
   writeMonthlySnapshotToGCS: vi.fn().mockResolvedValue(undefined),
   writeMonthlyRunManifestToGCS: vi.fn().mockResolvedValue(undefined),
 }));
+
+vi.mock('../store/monthlyRunState.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    loadMonthlyRunState: loadMonthlyRunStateMock,
+    saveMonthlyRunState: saveMonthlyRunStateMock,
+  };
+});
+
 vi.mock('nodemailer', () => ({
   default: { createTransport: () => ({ sendMail: sendMailMock }) },
 }));
@@ -149,6 +168,10 @@ describe('runMonthly', () => {
     process.env.MONDAY_API_TOKEN = 'test-token';
     sendMailMock.mockClear();
     sendMailMock.mockResolvedValue({});
+    loadMonthlyRunStateMock.mockReset();
+    loadMonthlyRunStateMock.mockResolvedValue(null);
+    saveMonthlyRunStateMock.mockClear();
+    saveMonthlyRunStateMock.mockResolvedValue(undefined);
     vi.mocked(generateMonthlySections).mockReset();
     vi.mocked(generateMonthlySections).mockResolvedValue({ sections: mockEmployeeSections, usage: null });
     vi.mocked(generateMonthlyDepartmentSections).mockReset();
@@ -323,6 +346,96 @@ describe('runMonthly', () => {
     expect(inputJson.calculated.employee.prev).toBeDefined();
     expect(inputJson.calculated.department).toHaveProperty('current');
     expect(inputJson.calculated.department).toHaveProperty('prev');
+  });
+
+  it('DRY_RUN path does not load or save run state', async () => {
+    process.env.DRY_RUN = '1';
+    loadMonthlyRunStateMock.mockClear();
+    saveMonthlyRunStateMock.mockClear();
+
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(loadMonthlyRunStateMock).not.toHaveBeenCalled();
+    expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
+  });
+
+  it('NON-DRY RUN: partial success then failure – first run sends department + one employee, then fails on next employee', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    const activePeople = ORG.filter((p) => p.isActive);
+    sendMailMock
+      .mockResolvedValueOnce({}) // department
+      .mockResolvedValueOnce({}) // first employee
+      .mockRejectedValueOnce(new Error('Employee B send failed'));
+
+    await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow('Employee B send failed');
+
+    expect(sendMailMock).toHaveBeenCalledTimes(3); // dept + emp1 + fail on emp2
+    const lastSavedState = saveMonthlyRunStateMock.mock.calls[saveMonthlyRunStateMock.mock.calls.length - 1]?.[1];
+    expect(lastSavedState).toBeDefined();
+    expect(lastSavedState.stages.department.send.status).toBe('ok');
+    const firstEmployeeEmail = activePeople[0].email;
+    expect(lastSavedState.stages.employees[firstEmployeeEmail].send.status).toBe('ok');
+    expect(lastSavedState.completed).toBe(false);
+  });
+
+  it('NON-DRY RUN: resume run does NOT resend department or already-sent employee, continues with remaining only', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    const activePeople = ORG.filter((p) => p.isActive);
+    const label = '2025-12-01..2025-12-31';
+    const firstEmployee = activePeople[0];
+    const resumeState = createInitialState({ label, periodStart: '2025-12-01', periodEnd: '2025-12-31' });
+    resumeState.stages.collect = { status: 'ok', completedAt: new Date().toISOString() };
+    resumeState.stages.department = {
+      llm: { status: 'ok', attempts: 1, completedAt: new Date().toISOString() },
+      send: { status: 'ok', attempts: 1, completedAt: new Date().toISOString() },
+      llmSections: mockDepartmentSections,
+    };
+    resumeState.stages.employees[firstEmployee.email] = {
+      llm: { status: 'ok', attempts: 1, completedAt: new Date().toISOString() },
+      send: { status: 'ok', attempts: 1, completedAt: new Date().toISOString() },
+      name: firstEmployee.name,
+      llmSections: mockEmployeeSections,
+    };
+    loadMonthlyRunStateMock.mockResolvedValueOnce(resumeState);
+
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(sendMailMock).toHaveBeenCalled();
+    const deptCalls = sendMailMock.mock.calls.filter((c) => c[0].attachments?.length > 0);
+    expect(deptCalls.length).toBe(0);
+    const employeeCalls = sendMailMock.mock.calls.filter((c) => !c[0].attachments?.length);
+    expect(employeeCalls.length).toBe(activePeople.length - 1);
+  });
+
+  it('NON-DRY RUN: completed run rerun is no-op, no sendMail calls', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    const label = '2025-12-01..2025-12-31';
+    const completedState = createInitialState({ label, periodStart: '2025-12-01', periodEnd: '2025-12-31' });
+    completedState.completed = true;
+    completedState.stages.collect = { status: 'ok', completedAt: new Date().toISOString() };
+    completedState.stages.department = {
+      llm: { status: 'ok', attempts: 1 },
+      send: { status: 'ok', attempts: 1 },
+    };
+    loadMonthlyRunStateMock.mockResolvedValueOnce(completedState);
+    sendMailMock.mockClear();
+
+    const result = await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(result).toEqual({ payload: expect.any(Object) });
+    expect(sendMailMock).not.toHaveBeenCalled();
   });
 
   it('buildEmployeeInputCalculated produces valid shape with mock data', () => {

@@ -9,6 +9,29 @@ const DEFAULT_CONTINUT = ['Date indisponibile'];
 const DEFAULT_STRING = 'N/A';
 const DEFAULT_ACTIUNI = ['De stabilit'];
 
+/** Deterministic defaults for sectiunea_5_plan_saptamanal.format (non-empty Romanian). */
+const DEFAULT_SAPTAMANA_1 = 'Săptămâna 1: de stabilit.';
+const DEFAULT_SAPTAMANA_2_4 = 'Săptămânile 2–4: de stabilit.';
+
+/** Deterministic defaults for incheiere (non-empty, neutral business text). */
+const DEFAULT_RAPORT_URMATOR = 'Raportul următor va fi disponibil conform programului.';
+const DEFAULT_MESAJ_SUB_80 = 'Vom reveni cu un check-in intermediar pentru îmbunătățirea performanței.';
+const DEFAULT_MESAJ_PESTE_80 = 'Continuă la fel în luna următoare.';
+const DEFAULT_SEMNATURA_NUME = 'Echipa Management';
+const DEFAULT_SEMNATURA_FUNCTIE = 'Management';
+const DEFAULT_SEMNATURA_COMPANIE = 'Crystal Logistics Services';
+
+export const DEFAULTS_S5_AND_INCHEIERE = {
+  DEFAULT_SAPTAMANA_1,
+  DEFAULT_SAPTAMANA_2_4,
+  DEFAULT_RAPORT_URMATOR,
+  DEFAULT_MESAJ_SUB_80,
+  DEFAULT_MESAJ_PESTE_80,
+  DEFAULT_SEMNATURA_NUME,
+  DEFAULT_SEMNATURA_FUNCTIE,
+  DEFAULT_SEMNATURA_COMPANIE,
+};
+
 /** Synonyms for actiuni_specifice_per_rol keys (first match wins). */
 const FREIGHT_FORWARDER_KEYS = [
   'freight_forwarder',
@@ -128,6 +151,52 @@ export function normalizeMonthlyEmployeeOutput(o) {
       sales_freight_agent: toNonEmptyStringArray(sfa),
     };
   }
+
+  // --- sectiunea_5_plan_saptamanal: only format with saptamana_1 + saptamana_2_4 (additionalProperties:false) ---
+  let s5 = o.sectiunea_5_plan_saptamanal;
+  if (!s5 || typeof s5 !== 'object') {
+    s5 = {};
+    o.sectiunea_5_plan_saptamanal = s5;
+  }
+  let format = s5.format;
+  if (!format || typeof format !== 'object' || Array.isArray(format)) {
+    format = {};
+  }
+  const saptamana1 =
+    typeof format.saptamana_1 === 'string' && format.saptamana_1.trim().length > 0
+      ? format.saptamana_1.trim()
+      : DEFAULT_SAPTAMANA_1;
+  const saptamana24 =
+    typeof format.saptamana_2_4 === 'string' && format.saptamana_2_4.trim().length > 0
+      ? format.saptamana_2_4.trim()
+      : DEFAULT_SAPTAMANA_2_4;
+  o.sectiunea_5_plan_saptamanal = {
+    format: {
+      saptamana_1: saptamana1,
+      saptamana_2_4: saptamana24,
+    },
+  };
+
+  // --- incheiere: raport_urmator, mesaj_sub_80, mesaj_peste_80, semnatura (nume, functie, companie) non-empty ---
+  let inc = o.incheiere;
+  if (!inc || typeof inc !== 'object') {
+    inc = {};
+  }
+  const trimOr = (val, defaultVal) => {
+    const s = toNonEmptyString(val).trim();
+    return s.length > 0 && s !== DEFAULT_STRING ? s : defaultVal;
+  };
+  const sig = inc.semnatura;
+  const rawSig = typeof sig === 'object' && sig !== null && !Array.isArray(sig) ? sig : {};
+  const sigNume = typeof rawSig.nume === 'string' && rawSig.nume.trim().length > 0 ? rawSig.nume.trim() : DEFAULT_SEMNATURA_NUME;
+  const sigFunctie = typeof rawSig.functie === 'string' && rawSig.functie.trim().length > 0 ? rawSig.functie.trim() : DEFAULT_SEMNATURA_FUNCTIE;
+  const sigCompanie = typeof rawSig.companie === 'string' && rawSig.companie.trim().length > 0 ? rawSig.companie.trim() : DEFAULT_SEMNATURA_COMPANIE;
+  o.incheiere = {
+    raport_urmator: trimOr(inc.raport_urmator, DEFAULT_RAPORT_URMATOR),
+    mesaj_sub_80: trimOr(inc.mesaj_sub_80, DEFAULT_MESAJ_SUB_80),
+    mesaj_peste_80: trimOr(inc.mesaj_peste_80, DEFAULT_MESAJ_PESTE_80),
+    semnatura: { nume: sigNume, functie: sigFunctie, companie: sigCompanie },
+  };
 
   return o;
 }

@@ -3,7 +3,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { normalizeMonthlyEmployeeOutput } from './normalizeMonthlyEmployeeOutput.js';
+import {
+  normalizeMonthlyEmployeeOutput,
+  DEFAULTS_S5_AND_INCHEIERE,
+} from './normalizeMonthlyEmployeeOutput.js';
 import { validateEmployeeOutput } from './validateMonthlyOutput.js';
 
 const minimalAntet = {
@@ -98,5 +101,74 @@ describe('normalizeMonthlyEmployeeOutput', () => {
       freight_forwarder: ['F1'],
       sales_freight_agent: ['S1'],
     });
+  });
+
+  it('sectiunea_5 malformed/missing keys => normalized to valid shape with only saptamana_1 and saptamana_2_4', () => {
+    const o = fullValidEmployee();
+    o.sectiunea_5_plan_saptamanal = { format: { saptamana_1: '', saptamana_2_4: null, extra: 'x' } };
+    normalizeMonthlyEmployeeOutput(o);
+    expect(o.sectiunea_5_plan_saptamanal).toEqual({
+      format: {
+        saptamana_1: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SAPTAMANA_1,
+        saptamana_2_4: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SAPTAMANA_2_4,
+      },
+    });
+    expect(Object.keys(o.sectiunea_5_plan_saptamanal.format)).toEqual(['saptamana_1', 'saptamana_2_4']);
+    validateEmployeeOutput(o, { performancePct: 85 });
+  });
+
+  it('sectiunea_5 missing or wrong shape => deterministic defaults', () => {
+    const o = fullValidEmployee();
+    delete o.sectiunea_5_plan_saptamanal;
+    normalizeMonthlyEmployeeOutput(o);
+    expect(o.sectiunea_5_plan_saptamanal.format.saptamana_1).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SAPTAMANA_1);
+    expect(o.sectiunea_5_plan_saptamanal.format.saptamana_2_4).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SAPTAMANA_2_4);
+
+    o.sectiunea_5_plan_saptamanal = { format: 'not an object' };
+    normalizeMonthlyEmployeeOutput(o);
+    expect(o.sectiunea_5_plan_saptamanal.format.saptamana_1).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SAPTAMANA_1);
+    expect(o.sectiunea_5_plan_saptamanal.format.saptamana_2_4).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SAPTAMANA_2_4);
+    validateEmployeeOutput(o, { performancePct: 85 });
+  });
+
+  it('incheiere empty mesaj_peste_80 / mesaj_sub_80 => normalized to non-empty defaults', () => {
+    const o = fullValidEmployee();
+    o.incheiere.mesaj_sub_80 = '';
+    o.incheiere.mesaj_peste_80 = '   ';
+    o.incheiere.raport_urmator = '';
+    normalizeMonthlyEmployeeOutput(o);
+    expect(o.incheiere.mesaj_sub_80).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_MESAJ_SUB_80);
+    expect(o.incheiere.mesaj_peste_80).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_MESAJ_PESTE_80);
+    expect(o.incheiere.raport_urmator).toBe(DEFAULTS_S5_AND_INCHEIERE.DEFAULT_RAPORT_URMATOR);
+    validateEmployeeOutput(o, { performancePct: 85 });
+  });
+
+  it('incheiere.semnatura empty or missing => defaults; no additionalProperties', () => {
+    const o = fullValidEmployee();
+    o.incheiere.semnatura = { nume: '', functie: '', companie: '', extra_key: 'x' };
+    normalizeMonthlyEmployeeOutput(o);
+    expect(o.incheiere.semnatura).toEqual({
+      nume: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SEMNATURA_NUME,
+      functie: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SEMNATURA_FUNCTIE,
+      companie: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_SEMNATURA_COMPANIE,
+    });
+    expect(Object.keys(o.incheiere.semnatura)).toEqual(['nume', 'functie', 'companie']);
+    validateEmployeeOutput(o, { performancePct: 85 });
+  });
+
+  it('additionalProperties in sectiunea_5 and incheiere removed post-normalization', () => {
+    const o = fullValidEmployee();
+    o.sectiunea_5_plan_saptamanal = {
+      format: { saptamana_1: 'A', saptamana_2_4: 'B', extra: 'must be stripped' },
+      otherKey: 'stripped',
+    };
+    o.incheiere.extraIncheiere = 'stripped';
+    normalizeMonthlyEmployeeOutput(o);
+    expect(o.sectiunea_5_plan_saptamanal).toEqual({
+      format: { saptamana_1: 'A', saptamana_2_4: 'B' },
+    });
+    expect(o.incheiere).not.toHaveProperty('extraIncheiere');
+    expect(Object.keys(o.incheiere)).toEqual(expect.arrayContaining(['raport_urmator', 'mesaj_sub_80', 'mesaj_peste_80', 'semnatura']));
+    validateEmployeeOutput(o, { performancePct: 85 });
   });
 });

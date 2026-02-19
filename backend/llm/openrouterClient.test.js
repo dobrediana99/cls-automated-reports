@@ -180,6 +180,43 @@ describe('openrouterClient hardening', () => {
       ?.content;
     expect(repairUser).toContain('Returnează DOAR JSON valid');
     expect(repairUser).toContain('additionalProperties');
+    expect(repairUser).toContain('saptamana_1');
+    expect(repairUser).toContain('saptamana_2_4');
+    expect(repairUser).toContain('mesaj_sub_80');
+    expect(repairUser).toContain('mesaj_peste_80');
+  });
+
+  it('first response schema-invalid (section 5 wrong shape + empty incheiere messages) succeeds after normalization without retry', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+    const payload = getValidEmployeePayload();
+    payload.sectiunea_5_plan_saptamanal = { format: { saptamana_1: 'S1' } };
+    payload.incheiere.mesaj_peste_80 = '';
+    payload.incheiere.mesaj_sub_80 = '';
+    const invalidOnceJson = JSON.stringify(payload);
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: invalidOnceJson } }],
+          model: 'test',
+          usage: {},
+        }),
+    });
+
+    const result = await generateMonthlySections({
+      systemPrompt: 'S',
+      inputJson: {},
+      performancePct: 85,
+    });
+
+    expect(result.sections.sectiunea_5_plan_saptamanal.format.saptamana_1).toBe('S1');
+    expect(result.sections.sectiunea_5_plan_saptamanal.format.saptamana_2_4).toBeDefined();
+    expect(result.sections.sectiunea_5_plan_saptamanal.format.saptamana_2_4.length).toBeGreaterThan(0);
+    expect(result.sections.incheiere.mesaj_peste_80.length).toBeGreaterThan(0);
+    expect(result.sections.incheiere.mesaj_sub_80.length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('AbortError (timeout) -> retry', async () => {
