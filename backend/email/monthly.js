@@ -18,6 +18,7 @@ import {
 } from './monthlyEmailHelpers.js';
 import { buildMonthlyEmployeeEmail, buildMonthlyEmployeeEmailHtml as buildEmployeeEmailHtmlFromTemplate } from './templates/monthlyEmployee.js';
 import { round2, calcTargetAchievementWithManagement, formatRealizareTargetForEmail } from '../utils/kpiCalc.js';
+import { departmentToSemanticPayload } from '../llm/semanticAdapters.js';
 
 export { getPersonRow };
 
@@ -126,11 +127,12 @@ function objToRows(obj) {
   return Object.entries(obj).map(([k, v]) => [String(k), v != null ? String(v) : '']);
 }
 
-/** Build one department analysis block (Vânzări or Operațional): tables + tabelAngajati (markdown→HTML) + probleme + high/low + problemeSistemice */
-function buildDeptAnalysisBlock(section) {
+/** Build one department analysis block (Vânzări or Operațional): tables + tabelAngajati (markdown→HTML) + probleme + high/low + problemeSistemice. Title from backend when provided. */
+function buildDeptAnalysisBlock(section, backendTitle = null) {
   if (!section || typeof section !== 'object') return '';
   const parts = [];
-  parts.push(renderSectionTitle(section.titlu ?? '', 2));
+  const title = backendTitle != null && String(backendTitle).trim() ? String(backendTitle).trim() : (section.titlu ?? '');
+  parts.push(renderSectionTitle(title, 2));
   const pv = section.performantaVsIstoric;
   if (pv && typeof pv === 'object') parts.push(renderKeyValueTable(objToRows(pv)));
   const td = section.targetDepartamental;
@@ -252,38 +254,37 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
     }
   }
 
-  const antet = llmSections.antet;
   const subiect = escapeHtml(getMonthlyDepartmentSubject(periodStart));
-  const intro = antet?.introducere != null ? formatTextBlock(antet.introducere) : '';
+  const payload = departmentToSemanticPayload(llmSections);
+  const intro = payload.intro ? formatTextBlock(payload.intro) : '';
 
   const rezumatExecutivHtml = buildDeterministicRezumatExecutiv(reportSummary ?? null, reportSummaryPrev ?? null);
 
-  const s2Block = buildDeptAnalysisBlock(llmSections.sectiunea_2_analiza_vanzari);
-  const s3Block = buildDeptAnalysisBlock(llmSections.sectiunea_3_analiza_operational);
+  const s2Block = buildDeptAnalysisBlock(payload.analizaVanzari, 'Analiză Vânzări');
+  const s3Block = buildDeptAnalysisBlock(payload.analizaOperational, 'Analiză Operațional');
 
-  const s4 = llmSections.sectiunea_4_comparatie_departamente;
-  const comparatieTitle = s4?.titlu != null ? renderSectionTitle(s4.titlu, 2) : renderSectionTitle('Comparație Vânzări vs. Operațional', 2);
-  const comparatieTable = buildComparatieTable(s4?.tabelComparativ);
-  const observatii = Array.isArray(s4?.observatii) ? s4.observatii : [];
+  const comparatieTitle = renderSectionTitle('Comparație Vânzări vs. Operațional', 2);
+  const comparatieTable = buildComparatieTable(payload.comparatie.tabelComparativ);
+  const observatii = payload.comparatie.observatii;
   const observatiiComparatie = observatii.length > 0
     ? '<ul style="' + SECTION_STYLE + '">' + observatii.map((o) => `<li>${escapeHtml(String(o))}</li>`).join('') + '</ul>'
     : '';
 
-  const s5 = llmSections.sectiunea_5_recomandari_management;
-  const oneToOne = Array.isArray(s5?.oneToOneLowPerformers) ? s5.oneToOneLowPerformers : [];
-  const oneToOneRows = oneToOne.map((r) => [
-    (r?.nume ?? '') + (r?.departament != null ? ` (${r.departament})` : ''),
-    r?.problemePrincipale ?? '',
+  const r = payload.recomandari;
+  const oneToOne = r.oneToOneLowPerformers;
+  const oneToOneRows = oneToOne.map((row) => [
+    (row?.nume ?? '') + (row?.departament != null ? ` (${row.departament})` : ''),
+    row?.problemePrincipale ?? '',
   ]);
-  const training = Array.isArray(s5?.trainingNecesare) ? s5.trainingNecesare : [];
-  const urmarire = Array.isArray(s5?.urmarireSaptamanala) ? s5.urmarireSaptamanala : [];
-  const urmarireRows = urmarire.map((r) => [r?.nume ?? '', r?.metricDeUrmarit ?? r?.metric ?? '']);
-  const obiective = Array.isArray(s5?.setareObiectiveSpecifice) ? s5.setareObiectiveSpecifice : [];
-  const mutari = Array.isArray(s5?.mutariRolOptional) ? s5.mutariRolOptional : [];
-  const sistProces = Array.isArray(s5?.problemeSistemiceProces) ? s5.problemeSistemiceProces : [];
+  const training = r.trainingNecesare;
+  const urmarire = r.urmarireSaptamanala;
+  const urmarireRows = urmarire.map((row) => [row?.nume ?? '', row?.metricDeUrmarit ?? row?.metric ?? '']);
+  const obiective = r.setareObiectiveSpecifice;
+  const mutari = r.mutariRolOptional;
+  const sistProces = r.problemeSistemiceProces;
 
   const recomandariParts = [];
-  recomandariParts.push(renderSectionTitle(s5?.titlu ?? 'Recomandări Management', 2));
+  recomandariParts.push(renderSectionTitle('Recomandări Management', 2));
   if (oneToOneRows.length > 0) {
     recomandariParts.push(renderSectionTitle('One-to-one performeri sub așteptări', 3));
     recomandariParts.push(renderKeyValueTable(oneToOneRows));
@@ -310,9 +311,9 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
   }
   const recomandariHtml = recomandariParts.join(renderHr());
 
-  const incheiere = llmSections.incheiere;
-  const urmatorulRaport = incheiere?.urmatorulRaport != null ? escapeHtml(String(incheiere.urmatorulRaport)) : '';
-  const semn = incheiere?.semnatura;
+  const inc = payload.incheiere;
+  const urmatorulRaport = inc.urmatorulRaport ? escapeHtml(String(inc.urmatorulRaport)) : '';
+  const semn = inc.semnatura;
   const semnaturaHtml =
     semn && typeof semn === 'object'
       ? `<p style="margin:1em 0 0 0;">${escapeHtml(String(semn.functie ?? ''))}<br/>${escapeHtml(String(semn.companie ?? ''))}</p>`
