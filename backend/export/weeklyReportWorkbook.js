@@ -58,7 +58,7 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
   });
   col += 6;
 
-  writeHeaderCell(sheet, startRow, col, startRow, col + 5, 'DUPĂ DATA LIVRARE', 'E8F5E9');
+  writeHeaderCell(sheet, startRow, col, startRow, col + 5, 'DUPĂ DATA LIVRATE', 'E8F5E9');
   ['Curse Pr.', 'Profit Pr.', 'Curse Sec.', 'Profit Sec.', 'Total Curse', 'Total Profit'].forEach((h, i) => {
     const c = sheet.getCell(startRow + 1, col + i);
     c.value = h;
@@ -502,7 +502,7 @@ function addCompanyTable(sheet, ref, companyStats) {
 
   sheet.getCell(`A${row}`).value = 'Metrică';
   sheet.getCell(`B${row}`).value = 'După Data Contract';
-  sheet.getCell(`C${row}`).value = 'După Data Livrare';
+  sheet.getCell(`C${row}`).value = 'După Data Livrate';
   [1, 2, 3].forEach((c) => {
     sheet.getCell(row, c).font = fontBold;
     sheet.getCell(row, c).border = thinBorder;

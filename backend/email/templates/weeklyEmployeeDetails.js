@@ -49,8 +49,6 @@ function getOrderedRows(stats) {
   const avgProfitability = countProfitability > 0 ? (v('sumProfitability') / countProfitability) : null;
   const totalLivrCount = v('livr_principalCount') + v('livr_secondaryCount');
   const totalLivrProfit = v('livr_principalProfitEur') + v('livr_secondaryProfitEur');
-  const target = v('target');
-  const profitPesteTarget = totalLivrProfit - target;
   const solicitari = v('solicitariCount');
   const websiteCount = v('websiteCount');
   const convWeb = solicitari > 0 ? ((websiteCount / solicitari) * 100) : (websiteCount > 0 ? 100 : null);
@@ -63,20 +61,18 @@ function getOrderedRows(stats) {
   };
 
   const rows = [
-    ['contactat', 'Contactați', () => stats.contactat, fmtInt],
-    ['calificat', 'Calificați', () => stats.calificat, fmtInt],
+    ['contactat', 'Clienți contactați telefonic', () => stats.contactat, fmtInt],
+    ['calificat', 'Clienți calificați', () => stats.calificat, fmtInt],
     ['rata_conv', 'Rata conversie clienți (%)', getRataConv, (x) => (x != null ? fmtPct(x) : '—')],
     ['callsCount', 'Apeluri', () => stats.callsCount, fmtInt],
     ['suppliersAdded', 'Furnizori adăugați', () => stats.suppliersAdded, fmtInt],
-    ['livr_principalCount', 'Curse livrare principal', () => stats.livr_principalCount, fmtInt],
-    ['livr_principalProfitEur', 'Profit livrare principal (EUR)', () => stats.livr_principalProfitEur, fmt],
-    ['livr_secondaryCount', 'Curse livrare secundar', () => stats.livr_secondaryCount, fmtInt],
-    ['livr_secondaryProfitEur', 'Profit livrare secundar (EUR)', () => stats.livr_secondaryProfitEur, fmt],
-    ['totalLivrCount', 'Total curse după livrare', () => totalLivrCount, fmtInt],
-    ['totalLivrProfit', 'Total profit după livrare (EUR)', () => totalLivrProfit, fmt],
-    ['target', 'Target total (EUR)', () => stats.target, fmt],
-    ['profitPesteTarget', 'Profit peste target (EUR)', () => profitPesteTarget, fmt],
-    ['avgProfitability', 'Profitability (%)', () => avgProfitability, (x) => (x != null ? fmtPct(x) : '—')],
+    ['livr_principalCount', 'Curse livrate principal', () => stats.livr_principalCount, fmtInt],
+    ['livr_principalProfitEur', 'Profit curse livrate principal (EUR)', () => stats.livr_principalProfitEur, fmt],
+    ['livr_secondaryCount', 'Curse livrate secundar', () => stats.livr_secondaryCount, fmtInt],
+    ['livr_secondaryProfitEur', 'Profit curse livrate secundar (EUR)', () => stats.livr_secondaryProfitEur, fmt],
+    ['totalLivrCount', 'Total curse livrate', () => totalLivrCount, fmtInt],
+    ['totalLivrProfit', 'Total profit curse livrate (EUR)', () => totalLivrProfit, fmt],
+    ['avgProfitability', 'Profitabilitate (%)', () => avgProfitability, (x) => (x != null ? fmtPct(x) : '—')],
     ['websiteCount', 'Curse web principal', () => stats.websiteCount, fmtInt],
     ['websiteProfit', 'Profit web principal (EUR)', () => stats.websiteProfit, fmt],
     ['websiteCountSec', 'Curse web secundar', () => stats.websiteCountSec, fmtInt],
@@ -111,6 +107,7 @@ const EXPLICIT_KEYS = new Set([
   'overdueInvoicesCount', 'supplierTermsUnder30', 'supplierTermsOver30',
   'sumProfitability', 'countProfitability',
   'target', 'id', 'name', 'mondayId', 'profitRonRaw',
+  'burseCountCtrPrincipal', 'burseCountCtrSecondary', 'burseCountLivrPrincipal', 'burseCountLivrSecondary',
 ]);
 
 function titleCase(str) {
