@@ -166,20 +166,23 @@ export function calcCallsPerWorkingDay(callsCount, workingDaysInPeriod) {
 }
 
 /**
- * Conversie prospectare: (calificat / contactat) * 100. Returns 0 when contactat is 0 (no NaN).
+ * Conversie prospectare: calificat / (calificat + contactat) * 100. Reference Report_monday App.jsx.
+ * Returns 0 when denominator is 0 (no NaN).
  * @param {number} contactat
  * @param {number} calificat
- * @returns {number} 0..100 or 0 when contactat is 0
+ * @returns {number} 0..100 or 0 when calificat+contactat is 0
  */
 export function calcProspectingConversion(contactat, calificat) {
   const c = typeof contactat === 'number' && Number.isFinite(contactat) ? contactat : 0;
   const q = typeof calificat === 'number' && Number.isFinite(calificat) ? calificat : 0;
-  if (c === 0) return 0;
-  return round2((q / c) * 100) ?? 0;
+  const denom = q + c;
+  if (denom === 0) return 0;
+  return round2((q / denom) * 100) ?? 0;
 }
 
 /**
- * Conversie prospectare pentru KPI per angajat. Returns null if contactat or calificat negative; 0 when contactat === 0.
+ * Conversie prospectare pentru KPI per angajat: calificat / (calificat + contactat) * 100. Reference Report_monday.
+ * Returns null if contactat or calificat negative; 0 when calificat+contactat === 0.
  * @param {number} contactat
  * @param {number} calificat
  * @returns {number | null}
@@ -189,8 +192,9 @@ export function calcProspectingConversionPct(contactat, calificat) {
   const q = calificat != null && typeof calificat === 'number' && Number.isFinite(calificat) ? calificat : null;
   if (c === null || q === null) return null;
   if (c < 0 || q < 0) return null;
-  if (c === 0) return 0;
-  return round2((q / c) * 100);
+  const denom = q + c;
+  if (denom === 0) return 0;
+  return round2((q / denom) * 100);
 }
 
 /**

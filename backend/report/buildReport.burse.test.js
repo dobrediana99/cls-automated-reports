@@ -11,8 +11,11 @@ describe('buildReport bursă metrics', () => {
     };
   }
 
-  it('counts detailed burse fields and anti-double-counts burseCount per emp per item', () => {
+  it('emp.burseCount only from CTR when principal; LIVR does not increment burseCount (Report_monday parity)', () => {
     const COLS_COMENZI = COLS.COMENZI;
+    // Use real operational mondayUserIds from backend/config/org.js (David Popescu, Roberto Coica)
+    const id1 = '74695692';
+    const id2 = '74668675';
 
     const comenziCtr = {
       items_page: {
@@ -26,8 +29,8 @@ describe('buildReport bursă metrics', () => {
               { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(50) },
               { id: COLS_COMENZI.PROFIT, value: JSON.stringify(150) },
               { id: COLS_COMENZI.MONEDA, text: 'EUR' },
-              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue('1') },
-              { id: COLS_COMENZI.SECUNDAR, ...makePersonValue('2') },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id1) },
+              { id: COLS_COMENZI.SECUNDAR, ...makePersonValue(id2) },
             ],
           },
         ],
@@ -46,8 +49,8 @@ describe('buildReport bursă metrics', () => {
               { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(0) },
               { id: COLS_COMENZI.PROFIT, value: JSON.stringify(200) },
               { id: COLS_COMENZI.MONEDA, text: 'EUR' },
-              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue('2') },
-              { id: COLS_COMENZI.SECUNDAR, ...makePersonValue('1') },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id2) },
+              { id: COLS_COMENZI.SECUNDAR, ...makePersonValue(id1) },
             ],
           },
         ],
@@ -67,19 +70,19 @@ describe('buildReport bursă metrics', () => {
     };
 
     const { opsStats } = buildReport(raw);
-    const emp1 = opsStats.find((e) => String(e.mondayId) === '1');
-    const emp2 = opsStats.find((e) => String(e.mondayId) === '2');
+    const emp1 = opsStats.find((e) => String(e.mondayId) === id1);
+    const emp2 = opsStats.find((e) => String(e.mondayId) === id2);
+    expect(emp1).toBeDefined();
+    expect(emp2).toBeDefined();
 
-    expect(emp1.burseCountCtrPrincipal).toBeGreaterThanOrEqual(0);
-    expect(emp1.burseCountCtrSecondary).toBeGreaterThanOrEqual(0);
-    expect(emp1.burseCountLivrPrincipal).toBeGreaterThanOrEqual(0);
-    expect(emp1.burseCountLivrSecondary).toBeGreaterThanOrEqual(0);
+    expect(emp1.burseCountCtrPrincipal).toBe(1);
+    expect(emp1.burseCountLivrSecondary).toBe(1);
+    expect(emp2.burseCountCtrSecondary).toBe(1);
+    expect(emp2.burseCountLivrPrincipal).toBe(1);
 
-    // A: o bursă CTR ca principal + o implicare LIVR ca secundar => 2 comenzi burse distincte
-    expect(emp1.burseCount).toBe(2);
-
-    // B: o bursă CTR ca secundar + o bursă LIVR ca principal => 2 comenzi burse distincte
-    expect(emp2.burseCount).toBe(2);
+    // Reference Report_monday: emp.burseCount only from CTR when principal; LIVR does not increment burseCount.
+    expect(emp1.burseCount).toBe(1);
+    expect(emp2.burseCount).toBe(0);
   });
 });
 

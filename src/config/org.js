@@ -57,7 +57,7 @@ export const ORG = [
     mondayUserId: 74108553,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 2112,
+    target: 2442,
     isActive: true,
   },
   {

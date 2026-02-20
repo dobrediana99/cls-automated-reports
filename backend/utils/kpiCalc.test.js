@@ -186,22 +186,23 @@ describe('calcCallsPerWorkingDay', () => {
 });
 
 describe('calcProspectingConversion', () => {
-  it('calcProspectingConversion(555, 129) ≈ 23.24', () => {
-    const result = calcProspectingConversion(555, 129);
-    expect(result).toBeGreaterThanOrEqual(23.2);
-    expect(result).toBeLessThanOrEqual(23.3);
+  it('conversion = calificat / (calificat + contactat) * 100', () => {
+    // 129 / (129 + 555) * 100 = 18.86
+    expect(calcProspectingConversion(555, 129)).toBe(18.86);
+    expect(calcProspectingConversion(10, 10)).toBe(50);
   });
-  it('returns 0 when contactat is 0 (no NaN)', () => {
-    expect(calcProspectingConversion(0, 100)).toBe(0);
+  it('returns 0 when denominator (calificat+contactat) is 0', () => {
+    expect(calcProspectingConversion(0, 0)).toBe(0);
+    expect(calcProspectingConversion(0, 100)).toBe(100); // 100/100
   });
 });
 
 describe('calcProspectingConversionPct', () => {
-  it('calcProspectingConversionPct(555, 129) => 23.24', () => {
-    expect(calcProspectingConversionPct(555, 129)).toBe(23.24);
+  it('conversion = calificat / (calificat + contactat) * 100', () => {
+    expect(calcProspectingConversionPct(555, 129)).toBe(18.86);
   });
-  it('returns 0 when contactat is 0', () => {
-    expect(calcProspectingConversionPct(0, 100)).toBe(0);
+  it('returns 0 when denominator is 0', () => {
+    expect(calcProspectingConversionPct(0, 0)).toBe(0);
   });
   it('returns null when contactat or calificat negative', () => {
     expect(calcProspectingConversionPct(-1, 100)).toBe(null);
@@ -222,8 +223,7 @@ describe('buildReportKpi', () => {
     expect(kpi.workingDaysInPeriod).toBe(22);
     expect(kpi.realizareTargetCombinatPct).toBe(80);
     expect(kpi.apeluriMediiZi).toBe(27.5); // 605/22 ≈ 27.5
-    expect(kpi.conversieProspectarePct).toBeGreaterThanOrEqual(23.2);
-    expect(kpi.conversieProspectarePct).toBeLessThanOrEqual(23.3);
+    expect(kpi.conversieProspectarePct).toBe(18.86); // calificat/(calificat+contactat)*100 = 129/684*100
     expect(kpi.conversionScope).toBe('department');
   });
   it('throws when meta invalid', () => {

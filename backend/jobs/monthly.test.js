@@ -410,7 +410,7 @@ describe('runMonthly', () => {
     expect(deptEmailOpts.reportSummaryPrev).toBeDefined();
     expect(deptEmailResult?.subject).toMatch(/raport.*departamental/i);
     expect(deptEmailResult?.subject).toMatch(/\d{4}/);
-    expect(deptEmailResult?.html).toContain('Realizare target');
+    expect(deptEmailResult?.html).toContain('Comparație Vânzări vs. Operațional');
     expect(deptEmailResult?.html).toMatch(/\d+(\.\d+)?%|N\/A/);
     expect(deptEmailResult?.html).not.toMatch(/Nu pot determina|explicație|depinde de date/i);
   });
@@ -596,7 +596,7 @@ describe('runMonthly', () => {
     expect(calculated.period.periodEnd).toBe('2026-02-28');
     expect(calculated.employee.current.realizareTargetPct).toBe(80);
     expect(calculated.employee.current.apeluriMediiZiLucratoare).toBe(28.81);
-    expect(calculated.employee.current.conversieProspectarePct).toBe(23.24);
+    expect(calculated.employee.current.conversieProspectarePct).toBe(18.86);
     expect(calculated.employee.current.profitTotalEur).toBe(20000);
     expect(calculated.department.current.realizareTargetPct).toBe(83.33);
   });
