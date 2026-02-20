@@ -236,9 +236,15 @@ describe('validateDepartmentOutput', () => {
     );
   });
 
-  it('FAIL when missing required key', () => {
+  it('accepts department without sectiunea_1_rezumat_executiv (optional)', () => {
     const obj = validDepartment();
     delete obj.sectiunea_1_rezumat_executiv;
+    expect(validateDepartmentOutput(obj)).toEqual(obj);
+  });
+
+  it('FAIL when missing required key', () => {
+    const obj = validDepartment();
+    delete obj.sectiunea_2_analiza_vanzari;
     expect(() => validateDepartmentOutput(obj)).toThrow(
       /schema validation failed|required/
     );
