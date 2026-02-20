@@ -184,14 +184,11 @@ export function buildReport(raw) {
 
       const profitToAddP = isRon ? valPrincipal / EXCHANGE_RATE : valPrincipal;
       const profitToAddS = isRon ? valSecundar / EXCHANGE_RATE : valSecundar;
-      // Anti double-count: pentru fiecare item burse, un angajat este numărat o singură dată în burseCount
-      // chiar dacă apare accidental atât ca PRINCIPAL cât și ca SECUNDAR.
-      const countedBurseByEmpId = new Set();
+      // Reference Report_monday: emp.burseCount increases only on CTR when principal and isBurse (no LIVR, no dedup).
       applyToAllStats((statsList) => {
         statsList.forEach((emp) => {
           const isPrincipal = principalIds.includes(String(emp.mondayId));
           const isSecondary = secondaryIds.includes(String(emp.mondayId));
-          const isInAnyRole = isPrincipal || isSecondary;
           if (isPrincipal) {
             emp.ctr_principalCount++;
             emp.ctr_principalProfitEur += safeVal(profitToAddP);
@@ -211,6 +208,7 @@ export function buildReport(raw) {
             if (isOverdue) emp.overdueInvoicesCount++;
             if (isBurse) {
               emp.burseCountCtrPrincipal++;
+              emp.burseCount++;
             }
           }
           if (isSecondary) {
@@ -224,10 +222,6 @@ export function buildReport(raw) {
             if (isBurse) {
               emp.burseCountCtrSecondary++;
             }
-          }
-          if (isBurse && isInAnyRole && !countedBurseByEmpId.has(emp.id)) {
-            emp.burseCount++;
-            countedBurseByEmpId.add(emp.id);
           }
           if (isSecondary || (isPrincipal && !hadSecondary)) {
             if (supplierTerm > 0) {
@@ -277,14 +271,11 @@ export function buildReport(raw) {
 
       const profitToAddP = isRon ? valPrincipal / EXCHANGE_RATE : valPrincipal;
       const profitToAddS = isRon ? valSecundar / EXCHANGE_RATE : valSecundar;
-      // Anti double-count: pentru fiecare item burse, un angajat este numărat o singură dată în burseCount
-      // chiar dacă apare accidental atât ca PRINCIPAL cât și ca SECUNDAR.
-      const countedBurseByEmpId = new Set();
+      // Reference Report_monday: emp.burseCount is NOT incremented in LIVR (only CTR principal).
       applyToAllStats((statsList) => {
         statsList.forEach((emp) => {
           const isPrincipal = principalIds.includes(String(emp.mondayId));
           const isSecondary = secondaryIds.includes(String(emp.mondayId));
-          const isInAnyRole = isPrincipal || isSecondary;
           if (isPrincipal) {
             emp.livr_principalCount++;
             emp.livr_principalProfitEur += safeVal(profitToAddP);
@@ -298,10 +289,6 @@ export function buildReport(raw) {
             if (isBurse) {
               emp.burseCountLivrSecondary++;
             }
-          }
-          if (isBurse && isInAnyRole && !countedBurseByEmpId.has(emp.id)) {
-            emp.burseCount++;
-            countedBurseByEmpId.add(emp.id);
           }
         });
       });
