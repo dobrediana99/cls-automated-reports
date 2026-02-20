@@ -398,6 +398,35 @@ describe('Monthly management email', () => {
     expect(html).not.toContain('| Nume | Profit |');
   });
 
+  it('Analiză Vânzări and Analiză Operațional render tabelAngajati as real HTML table (table/thead/tbody)', () => {
+    const markdownTable = '| # | Angajat | TotP(EUR) |\n|---|---|---|\n| 1 | A | 100 |\n| 2 | B | 200 |';
+    const withBothTables = {
+      ...mockDepartmentLlmSections,
+      sectiunea_2_analiza_vanzari: {
+        ...mockDepartmentLlmSections.sectiunea_2_analiza_vanzari,
+        tabelAngajati: markdownTable,
+      },
+      sectiunea_3_analiza_operational: {
+        ...mockDepartmentLlmSections.sectiunea_3_analiza_operational,
+        tabelAngajati: markdownTable,
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: withBothTables,
+    });
+    expect(html).not.toContain('Rezumat Executiv');
+    expect(html).toContain('Analiză Vânzări');
+    expect(html).toContain('Analiză Operațional');
+    expect(html).toContain('<table');
+    expect(html).toContain('<thead>');
+    expect(html).toContain('<tbody>');
+    expect(html).not.toMatch(/\|\s*#\s*\|\s*Angajat\s*\|/);
+  });
+
   it('all user text is escaped (no HTML injection)', () => {
     const xssLlm = {
       ...mockDepartmentLlmSections,
@@ -438,19 +467,20 @@ describe('Monthly management email', () => {
     expect(html).toContain('Recomandări Management');
   });
 
-  it('department email builds when sectiunea_1_rezumat_executiv is missing from llmSections', () => {
-    const llmWithoutS1 = { ...mockDepartmentLlmSections };
-    delete llmWithoutS1.sectiunea_1_rezumat_executiv;
+  it('buildMonthlyDepartmentEmailHtml works when llmSections has no sectiunea_1_rezumat_executiv', () => {
+    const withoutS1 = { ...mockDepartmentLlmSections };
+    delete withoutS1.sectiunea_1_rezumat_executiv;
     const html = buildMonthlyDepartmentEmailHtml({
       periodStart: '2026-01-01',
       reportSummary: mockReportSummary,
       report: null,
       meta: mockMeta,
-      llmSections: llmWithoutS1,
+      llmSections: withoutS1,
     });
     expect(html).toContain('Analiză Vânzări');
+    expect(html).toContain('Analiză Operațional');
+    expect(html).toContain('Comparație');
     expect(html).toContain('Recomandări Management');
-    expect(html).not.toContain('Rezumat Executiv');
   });
 });
 
