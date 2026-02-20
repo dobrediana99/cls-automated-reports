@@ -326,12 +326,12 @@ describe('Monthly employee email', () => {
 });
 
 describe('Monthly management email', () => {
-  it('output contains required sections from monthlyDepartmentPrompt.md', () => {
+  it('output contains required sections from monthlyDepartmentPrompt.md (no Rezumat Executiv)', () => {
     const html = renderMonthlyManagerEmail(mockReport, mockMeta, mockReportSummary, mockDepartmentLlmSections);
-    expect(html).toContain('Rezumat executiv');
+    expect(html).not.toContain('Rezumat Executiv');
     expect(html).toContain('Analiză Vânzări');
     expect(html).toContain('Analiză Operațional');
-    expect(html).toContain('Comparații');
+    expect(html).toContain('Comparație');
     expect(html).toContain('Recomandări');
     expect(html).not.toContain('Date agregate (tabel)');
   });
@@ -351,7 +351,8 @@ describe('Monthly management email', () => {
     expect(result.subject).toMatch(/raport.*departamental/i);
     expect(result.subject).not.toBe('Custom LLM subject');
     expect(result.subject).toBe(getMonthlyDepartmentSubject(mockMeta.periodStart));
-    expect(result.html).toContain('Rezumat Executiv');
+    expect(result.html).not.toContain('Rezumat Executiv');
+    expect(result.html).toContain('Analiză Vânzări');
   });
 
   it('buildMonthlyDepartmentEmailHtml uses prompt (loads and does not throw)', () => {
@@ -362,16 +363,17 @@ describe('Monthly management email', () => {
       meta: mockMeta,
       llmSections: mockDepartmentLlmSections,
     });
-    expect(html).toContain('Rezumat executiv');
+    expect(html).not.toContain('Rezumat Executiv');
     expect(html).toContain('Analiză Vânzări');
     expect(html).toContain('Analiză Operațional');
   });
 
-  it('monthly management email contains headings: Rezumat executiv, Vânzări, Operațional, Recomandări', () => {
+  it('monthly management email contains headings: Analiză Vânzări, Operațional, Comparație, Recomandări (no Rezumat Executiv)', () => {
     const html = renderMonthlyManagerEmail(mockReport, mockMeta, mockReportSummary, mockDepartmentLlmSections);
-    expect(html).toContain('Rezumat executiv');
+    expect(html).not.toContain('Rezumat Executiv');
     expect(html).toContain('Analiză Vânzări');
     expect(html).toContain('Analiză Operațional');
+    expect(html).toContain('Comparație');
     expect(html).toContain('Recomandări');
   });
 
@@ -416,63 +418,24 @@ describe('Monthly management email', () => {
     expect(html).toContain('&quot;');
   });
 
-  it('department email does not contain KPI-uri deterministe block and contains Rezumat Executiv', () => {
+  it('department email does not contain KPI-uri deterministe block or Rezumat Executiv section', () => {
     const html = renderMonthlyManagerEmail(mockReport, mockMeta, mockReportSummary, mockDepartmentLlmSections);
     expect(html).not.toContain('KPI-uri deterministe');
-    expect(html).toContain('Rezumat Executiv');
+    expect(html).not.toContain('Rezumat Executiv');
   });
 
-  it('department realizareTarget is deterministic: XX.XX% or N/A only, from reportSummary not LLM', () => {
-    const reportSummaryWithMgmt = {
-      ...mockReportSummary,
-      departments: {
-        ...mockReportSummary.departments,
-        management: { profitTotal: 1000, targetTotal: 5000 },
-      },
-    };
+  it('department email does not render Rezumat Executiv heading or content', () => {
     const html = buildMonthlyDepartmentEmailHtml({
       periodStart: '2026-01-01',
-      reportSummary: reportSummaryWithMgmt,
-      reportSummaryPrev: null,
-      report: null,
-      meta: mockMeta,
-      llmSections: {
-        ...mockDepartmentLlmSections,
-        sectiunea_1_rezumat_executiv: {
-          performanta_generala: { totalProfitCompanie: 'LLM garbage', realizareTarget: 'LLM text' },
-          departamentVanzari: {},
-          departamentOperational: {},
-          observatiiCritice: [],
-        },
-      },
-    });
-    expect(html).toContain('Realizare target');
-    expect(html).toMatch(/\d+(\.\d+)?%|N\/A/);
-    expect(html).not.toContain('LLM garbage');
-    expect(html).not.toContain('LLM text');
-    expect(html).not.toMatch(/Nu pot determina|explicație|depinde de date|calculat manual/i);
-  });
-
-  it('Rezumat Executiv uses reportSummary data only; sectiunea_1_rezumat_executiv content is ignored', () => {
-    const reportSummaryCustom = {
-      departments: {
-        sales: { profitTotal: 50000, targetTotal: 60000 },
-        operational: { profitTotal: 10000, targetTotal: 10000 },
-        management: { profitTotal: 0, targetTotal: 5000 },
-      },
-      company: {},
-    };
-    const html = buildMonthlyDepartmentEmailHtml({
-      periodStart: '2026-01-01',
-      reportSummary: reportSummaryCustom,
+      reportSummary: mockReportSummary,
       reportSummaryPrev: null,
       report: null,
       meta: mockMeta,
       llmSections: mockDepartmentLlmSections,
     });
-    expect(html).toContain('Rezumat Executiv');
-    expect(html).toContain('60000 EUR');
-    expect(html).toContain('75000 EUR');
+    expect(html).not.toContain('Rezumat Executiv');
+    expect(html).toContain('Analiză Vânzări');
+    expect(html).toContain('Recomandări Management');
   });
 });
 
