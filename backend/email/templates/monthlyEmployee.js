@@ -143,13 +143,11 @@ export function buildMonthlyEmployeeEmailHtml({
     `<div style="${BOX_STYLE}"><strong>Focus luna următoare</strong><p style="margin:6px 0 0 0;">${focus || '–'}</p></div>`;
 
   const actiuniRol = s4?.actiuni_specifice_per_rol;
-  const ffList = Array.isArray(actiuniRol?.freight_forwarder) ? actiuniRol.freight_forwarder.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('') : '';
-  const salesList = Array.isArray(actiuniRol?.sales_freight_agent) ? actiuniRol.sales_freight_agent.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('') : '';
-  const actiuniCols =
-    (ffList || salesList)
-      ? `<table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;"><tr><td style="padding:8px 12px 0 0;vertical-align:top;width:50%;"><strong>Freight Forwarder</strong><ul style="margin:4px 0 0 0;">${ffList || '<li>–</li>'}</ul></td><td style="padding:8px 0 0 12px;vertical-align:top;width:50%;"><strong>Sales &amp; Freight Agent</strong><ul style="margin:4px 0 0 0;">${salesList || '<li>–</li>'}</ul></td></tr></table>`
-      : '';
-  const sect4Html = renderSectionTitle('Acțiuni prioritare', 2) + (actiuniCols || '');
+  const ffItems = Array.isArray(actiuniRol?.freight_forwarder) ? actiuniRol.freight_forwarder : [];
+  const salesItems = Array.isArray(actiuniRol?.sales_freight_agent) ? actiuniRol.sales_freight_agent : [];
+  const actiuniList = [...ffItems, ...salesItems].map((a) => `<li>${escapeHtml(String(a))}</li>`).join('');
+  const actiuniBlock = actiuniList ? `<ul style="margin:4px 0 0 0;">${actiuniList}</ul>` : '';
+  const sect4Html = renderSectionTitle('Acțiuni prioritare', 2) + (actiuniBlock || '');
 
   const fmt = s5?.format;
   const sapt1 = fmt?.saptamana_1 != null ? String(fmt.saptamana_1) : '';

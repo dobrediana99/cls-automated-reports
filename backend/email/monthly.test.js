@@ -251,7 +251,7 @@ describe('Monthly employee email', () => {
     expect(html).toContain('&quot;');
   });
 
-  it('section 1 Date de performanță is deterministic: fixed table with Indicator | Luna curentă | Luna anterioară | Δ% | Media departament', () => {
+  it('section 1 Date de performanță is deterministic: fixed table with Indicator | Luna curentă | Luna anterioară | Δ% (no Media departament)', () => {
     const html = buildMonthlyEmployeeEmailHtml({
       person: mockPerson,
       department: mockPerson.department,
@@ -265,7 +265,7 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Indicator');
     expect(html).toContain('Luna curentă');
     expect(html).toContain('Luna anterioară');
-    expect(html).toContain('Media departament');
+    expect(html).not.toContain('Media departament');
     expect(html).toContain('Profit total');
     expect(html).toContain('Realizare target');
     expect(html).not.toMatch(/COMENZI\s+DUPĂ|===\s*.+\s*===/);
@@ -302,7 +302,7 @@ describe('Monthly employee email', () => {
     expect(tableB).toContain('Realizare target');
   });
 
-  it('Acțiuni prioritare section renders only role lists (freight_forwarder, sales_freight_agent), not format_actiune or structura', () => {
+  it('Acțiuni prioritare section renders single list of actions (no role titles Freight Forwarder / Sales & Freight Agent)', () => {
     const html = buildMonthlyEmployeeEmailHtml({
       person: mockPerson,
       department: mockPerson.department,
@@ -313,8 +313,8 @@ describe('Monthly employee email', () => {
       llmSections: mockEmployeeLlmSections,
     });
     expect(html).toContain('Acțiuni prioritare');
-    expect(html).toContain('Freight Forwarder');
-    expect(html).toContain('Sales &amp; Freight Agent');
+    expect(html).not.toContain('Freight Forwarder');
+    expect(html).not.toContain('Sales &amp; Freight Agent');
     expect(html).toContain('Verifică termene furnizori.');
     expect(html).toContain('Menține target livrări.');
     expect(html).not.toContain('format_actiune');

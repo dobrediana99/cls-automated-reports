@@ -338,17 +338,16 @@ function deltaPct(cur, prev) {
 
 /**
  * Build deterministic "Date de performanță" table from numeric data. Same layout for all employees.
- * Columns: Indicator | Luna curentă | Luna anterioară | Δ% | Media departament
- * Uses data3Months.current, data3Months.prev, deptAverages3Months.current only.
+ * Columns: Indicator | Luna curentă | Luna anterioară | Δ%
+ * Uses data3Months.current, data3Months.prev only (no department average column).
  * @param {{ current?: object, prev?: object }} data3Months
- * @param {{ current?: object }} deptAverages3Months
+ * @param {{ current?: object }} deptAverages3Months - kept for API compatibility, not used in output
  * @param {number} workingDaysInPeriod
  * @returns {string} HTML table fragment (no section title)
  */
 export function buildDeterministicPerformanceTable(data3Months, deptAverages3Months, workingDaysInPeriod) {
   const cur = data3Months?.current;
   const prev = data3Months?.prev;
-  const deptCur = deptAverages3Months?.current;
   const wd = workingDaysInPeriod > 0 ? workingDaysInPeriod : null;
 
   const curProfit = round2(totalProfitEur(cur));
@@ -360,26 +359,14 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
   const prevConv = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
 
-  const deptProfit = deptCur?.profitTotal != null ? round2(Number(deptCur.profitTotal)) : null;
-  const deptTargetPct =
-    deptCur?.targetTotal != null && Number(deptCur.targetTotal) > 0 && deptCur?.profitTotal != null
-      ? round2((Number(deptCur.profitTotal) / Number(deptCur.targetTotal)) * 100)
-      : null;
-  const deptApeluri =
-    deptCur?.callsCount != null && wd != null ? calcCallsPerWorkingDay(deptCur.callsCount, wd) : null;
-  const deptConv =
-    deptCur?.contactat != null && deptCur?.calificat != null
-      ? calcProspectingConversionPct(deptCur.contactat, deptCur.calificat)
-      : null;
-
   const rows = [
-    ['Profit total', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit), fmtEur(deptProfit)],
-    ['Realizare target', fmtPct(curTargetPct), fmtPct(prevTargetPct), deltaPct(curTargetPct, prevTargetPct), fmtPct(deptTargetPct)],
-    ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri), fmtNum(deptApeluri)],
-    ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv), fmtPct(deptConv)],
+    ['Profit total', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
+    ['Realizare target', fmtPct(curTargetPct), fmtPct(prevTargetPct), deltaPct(curTargetPct, prevTargetPct)],
+    ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri)],
+    ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv)],
   ];
 
-  const headers = ['Indicator', 'Luna curentă', 'Luna anterioară', 'Δ%', 'Media departament'];
+  const headers = ['Indicator', 'Luna curentă', 'Luna anterioară', 'Δ%'];
   const thead = '<thead><tr>' + headers.map((h) => `<th style="${PERF_TH_STYLE}">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
   const tbody =
     '<tbody>' +
