@@ -511,7 +511,7 @@ const EMPLOYEE_JSON_INSTRUCTION = `
 Răspunde EXCLUSIV în JSON valid, cu exact structura din prompt (antet, sectiunea_1_tabel_date_performanta, sectiunea_2_interpretare_date, sectiunea_3_concluzii, sectiunea_4_actiuni_prioritare, sectiunea_5_plan_saptamanal, sectiunea_6_check_in_intermediar doar dacă performanța sub 80%, incheiere). NU include text în afara JSON. NU folosi \`\`\`. NU include chei suplimentare.`;
 
 const DEPARTMENT_JSON_INSTRUCTION = `
-Răspunde EXCLUSIV în JSON valid, cu exact structura din prompt (antet, sectiunea_1_rezumat_executiv, sectiunea_2_analiza_vanzari, sectiunea_3_analiza_operational, sectiunea_4_comparatie_departamente, sectiunea_5_recomandari_management, incheiere). NU include text în afara JSON. NU folosi \`\`\`. NU include chei suplimentare.`;
+Răspunde EXCLUSIV în JSON valid, cu exact structura din prompt (antet, sectiunea_2_analiza_vanzari, sectiunea_3_analiza_operational, sectiunea_4_comparatie_departamente, sectiunea_5_recomandari_management, incheiere). NU include text în afara JSON. NU folosi \`\`\`. NU include chei suplimentare.`;
 
 /**
  * Generate monthly employee sections. Returns full validated JSON (antet, sectiuni, incheiere). Fail fast if invalid.

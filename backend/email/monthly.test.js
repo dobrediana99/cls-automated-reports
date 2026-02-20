@@ -437,6 +437,22 @@ describe('Monthly management email', () => {
     expect(html).toContain('Analiză Vânzări');
     expect(html).toContain('Recomandări Management');
   });
+
+  it('buildMonthlyDepartmentEmailHtml works when llmSections has no sectiunea_1_rezumat_executiv', () => {
+    const withoutS1 = { ...mockDepartmentLlmSections };
+    delete withoutS1.sectiunea_1_rezumat_executiv;
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: withoutS1,
+    });
+    expect(html).toContain('Analiză Vânzări');
+    expect(html).toContain('Analiză Operațional');
+    expect(html).toContain('Comparație');
+    expect(html).toContain('Recomandări Management');
+  });
 });
 
 describe('Monthly texts', () => {

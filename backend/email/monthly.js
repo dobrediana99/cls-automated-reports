@@ -134,7 +134,6 @@ export function buildMonthlyEmployeeEmailHtml({ personName, stats, department, p
 
 const DEPT_REQUIRED_KEYS = [
   'antet',
-  'sectiunea_1_rezumat_executiv',
   'sectiunea_2_analiza_vanzari',
   'sectiunea_3_analiza_operational',
   'sectiunea_4_comparatie_departamente',
