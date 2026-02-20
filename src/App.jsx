@@ -527,7 +527,7 @@ const TableHeader = ({ showSalesMetrics }) => (
             </th>
             
             <th colSpan={6} className="px-2 py-2 text-center bg-green-50 border-b border-green-200 border-r text-green-800 font-bold">
-                După Data Livrate
+                După Data Livrare
             </th>
 
             <th className="px-2 py-3 text-center bg-blue-50/30 text-blue-900 border-b border-blue-200">Target</th>
@@ -634,7 +634,7 @@ const CompanyTable = ({ stats }) => {
                     <tr>
                          <th className="px-4 py-3">Metrică</th>
                          <th className="px-4 py-3 text-right">După Data Contract</th>
-                         <th className="px-4 py-3 text-right">După Data Livrate</th>
+                         <th className="px-4 py-3 text-right">După Data Livrare</th>
                     </tr>
                 </thead>
                 <tbody>
