@@ -394,7 +394,7 @@ describe('runMonthly', () => {
     expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
   });
 
-  it('department email uses deterministic realizareTarget (XX.XX% or N/A), no LLM free-form text', async () => {
+  it('department email: subject from code, Rezumat Executiv from reportSummary (deterministic)', async () => {
     process.env.DRY_RUN = '1';
     let deptEmailOpts;
     let deptEmailResult;
@@ -407,9 +407,11 @@ describe('runMonthly', () => {
     await runMonthly({ now: new Date('2026-01-15T09:30:00') });
     spy.mockRestore();
     expect(deptEmailOpts).toBeDefined();
-    const realizareTarget = deptEmailOpts?.llmSections?.sectiunea_1_rezumat_executiv?.performanta_generala?.realizareTarget;
-    expect(realizareTarget).toMatch(/^\d+\.\d+%$|^N\/A$/);
+    expect(deptEmailOpts.reportSummaryPrev).toBeDefined();
+    expect(deptEmailResult?.subject).toMatch(/raport.*departamental/i);
+    expect(deptEmailResult?.subject).toMatch(/\d{4}/);
     expect(deptEmailResult?.html).toContain('Realizare target');
+    expect(deptEmailResult?.html).toMatch(/\d+(\.\d+)?%|N\/A/);
     expect(deptEmailResult?.html).not.toMatch(/Nu pot determina|explicație|depinde de date/i);
   });
 

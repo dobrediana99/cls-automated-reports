@@ -39,8 +39,6 @@ import {
   calcTargetAchievementPct,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
-  calcTargetAchievementWithManagement,
-  formatRealizareTargetForEmail,
 } from '../utils/kpiCalc.js';
 import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
 import { validateMonthlyRuntimeConfig } from '../config/validateRuntimeConfig.js';
@@ -113,20 +111,6 @@ function departmentToSummaryKey(department) {
   if (department === DEPARTMENTS.SALES) return 'sales';
   if (department === DEPARTMENTS.MANAGEMENT) return 'management';
   return 'operational';
-}
-
-/**
- * Hard-set deterministic realizareTarget (Sales + Operational + Management) on department LLM sections.
- * No LLM text is used for this field; backend formula only.
- */
-function applyDeterministicRealizareTarget(llmSections, reportSummary) {
-  if (!llmSections?.sectiunea_1_rezumat_executiv || !reportSummary?.departments) return;
-  const pct = calcTargetAchievementWithManagement(reportSummary.departments);
-  const value = formatRealizareTargetForEmail(pct);
-  if (!llmSections.sectiunea_1_rezumat_executiv.performanta_generala) {
-    llmSections.sectiunea_1_rezumat_executiv.performanta_generala = {};
-  }
-  llmSections.sectiunea_1_rezumat_executiv.performanta_generala.realizareTarget = value;
 }
 
 /**
@@ -371,7 +355,6 @@ export async function runMonthly(opts = {}) {
       inputJson: departmentInputJson,
     });
     const departmentLlmSections = deptRaw?.sections ?? deptRaw;
-    applyDeterministicRealizareTarget(departmentLlmSections, result0.reportSummary);
     const dryRunPath = writeDryRunFile(JOB_TYPE, label, { ...payload, reports3: reports, metas3: metas });
     if (result0.meta && result0.reportSummary?.departments) {
       result0.report.kpi = buildReportKpi(
@@ -383,6 +366,7 @@ export async function runMonthly(opts = {}) {
       periodStart: metas[0].periodStart,
       meta: result0.meta,
       reportSummary: result0.reportSummary,
+      reportSummaryPrev: result1.reportSummary,
       report: result0.report,
       monthExcelCurrent: xlsxBuffer,
       llmSections: departmentLlmSections,
@@ -482,7 +466,6 @@ export async function runMonthly(opts = {}) {
     if (!departmentLlmSections) {
       departmentLlmSections = runState.stages.department?.llmSections ?? null;
     }
-    applyDeterministicRealizareTarget(departmentLlmSections, result0.reportSummary);
 
     if (result0.meta && result0.reportSummary?.departments) {
       result0.report.kpi = buildReportKpi(
@@ -494,6 +477,7 @@ export async function runMonthly(opts = {}) {
       periodStart: metas[0].periodStart,
       meta: result0.meta,
       reportSummary: result0.reportSummary,
+      reportSummaryPrev: result1.reportSummary,
       report: result0.report,
       monthExcelCurrent: xlsxBuffer,
       llmSections: departmentLlmSections,

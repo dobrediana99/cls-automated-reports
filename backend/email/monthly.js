@@ -4,7 +4,6 @@
  * Management email: department prompt from monthlyDepartmentPrompt.md; Total Company doar tabel.
  */
 
-import { DEPARTMENTS } from '../config/org.js';
 import { loadMonthlyDepartmentPrompt } from '../prompts/loadPrompts.js';
 import { getMonthlyDepartmentSubject } from './content/monthlyTexts.js';
 import { getPersonRow } from './getPersonRow.js';
@@ -18,15 +17,108 @@ import {
   parseMarkdownTableToHtml,
 } from './monthlyEmailHelpers.js';
 import { buildMonthlyEmployeeEmail, buildMonthlyEmployeeEmailHtml as buildEmployeeEmailHtmlFromTemplate } from './templates/monthlyEmployee.js';
+import { round2, calcTargetAchievementWithManagement, formatRealizareTargetForEmail } from '../utils/kpiCalc.js';
 
 export { getPersonRow };
 
 const CONTAINER_STYLE = 'font-family:Arial,sans-serif;background:#ffffff;padding:0;margin:0;';
 const INNER_TABLE_STYLE = 'width:100%;max-width:680px;margin:0 auto;padding:20px;';
 const SECTION_STYLE = 'margin:1em 0 0 0;';
+const DASH = '–';
 
 function getDepartmentPrompt() {
   return loadMonthlyDepartmentPrompt();
+}
+
+function n(val) {
+  return typeof val === 'number' && Number.isFinite(val) ? val : 0;
+}
+
+function fmtEur(val) {
+  if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
+  const r = round2(val);
+  return r != null ? `${r} EUR` : DASH;
+}
+
+/**
+ * Build "Rezumat Executiv" section HTML exclusively from backend data (reportSummary, reportSummaryPrev).
+ * LLM content for sectiunea_1 is ignored. Used for deterministic department email.
+ * @param {{ departments?: { sales?: object, operational?: object, management?: object } }} reportSummary
+ * @param {{ departments?: { sales?: object, operational?: object, management?: object } }} [reportSummaryPrev] - optional, for trend
+ * @returns {string} HTML fragment (section title + KPI cards)
+ */
+function buildDeterministicRezumatExecutiv(reportSummary, reportSummaryPrev) {
+  const depts = reportSummary?.departments ?? {};
+  const sales = depts.sales && typeof depts.sales === 'object' ? depts.sales : {};
+  const ops = depts.operational && typeof depts.operational === 'object' ? depts.operational : {};
+  const mgmt = depts.management && typeof depts.management === 'object' ? depts.management : {};
+
+  const salesProfit = n(sales.profitTotal);
+  const opsProfit = n(ops.profitTotal);
+  const mgmtProfit = n(mgmt.profitTotal);
+  const totalProfitCompanie = salesProfit + opsProfit + mgmtProfit;
+  const salesTarget = n(sales.targetTotal);
+  const opsTarget = n(ops.targetTotal);
+  const mgmtTarget = n(mgmt.targetTotal);
+  const targetDepartamentalCombinat = salesTarget + opsTarget + mgmtTarget;
+
+  const realizareTarget = formatRealizareTargetForEmail(calcTargetAchievementWithManagement(depts));
+
+  const totalCurse =
+    n(sales.ctr_principalCount) + n(sales.ctr_secondaryCount) + n(sales.livr_principalCount) + n(sales.livr_secondaryCount) +
+    n(ops.ctr_principalCount) + n(ops.ctr_secondaryCount) + n(ops.livr_principalCount) + n(ops.livr_secondaryCount) +
+    n(mgmt.ctr_principalCount) + n(mgmt.ctr_secondaryCount) + n(mgmt.livr_principalCount) + n(mgmt.livr_secondaryCount);
+  const numarTotalCurse = totalCurse > 0 ? String(totalCurse) : DASH;
+
+  const prev = reportSummaryPrev?.departments ?? {};
+  const salesPrev = prev.sales && typeof prev.sales === 'object' ? prev.sales : {};
+  const opsPrev = prev.operational && typeof prev.operational === 'object' ? prev.operational : {};
+  const salesProfitPrev = n(salesPrev.profitTotal);
+  const opsProfitPrev = n(opsPrev.profitTotal);
+
+  function trend(cur, prevVal) {
+    if (prevVal == null || prevVal === 0) return cur > 0 ? '+' : '=';
+    const pct = round2(((cur - prevVal) / prevVal) * 100);
+    if (pct == null) return '=';
+    return pct >= 0 ? `+${pct}%` : `${pct}%`;
+  }
+  function status(profit, target) {
+    if (target <= 0) return 'N/A';
+    const pct = (profit / target) * 100;
+    return pct >= 80 ? 'OK' : 'Sub target';
+  }
+  function pctDinTarget(profit, target) {
+    if (target <= 0) return 'N/A';
+    const pct = round2((profit / target) * 100);
+    return pct != null ? `${pct}%` : 'N/A';
+  }
+
+  const kpiCards = [
+    { label: 'Profit total companie', value: fmtEur(totalProfitCompanie) },
+    { label: 'Target departamental combinat', value: fmtEur(targetDepartamentalCombinat) },
+    { label: 'Realizare target', value: realizareTarget },
+    { label: 'Număr total curse', value: numarTotalCurse },
+  ];
+  const vanzariCards = [
+    { label: 'Vânzări – Profit', value: fmtEur(salesProfit) },
+    { label: 'Vânzări – % din target', value: pctDinTarget(salesProfit, salesTarget) },
+    { label: 'Vânzări – Trend', value: trend(salesProfit, salesProfitPrev) },
+    { label: 'Vânzări – Status', value: status(salesProfit, salesTarget) },
+  ];
+  const opCards = [
+    { label: 'Operațional – Profit', value: fmtEur(opsProfit) },
+    { label: 'Operațional – % din target', value: pctDinTarget(opsProfit, opsTarget) },
+    { label: 'Operațional – Trend', value: trend(opsProfit, opsProfitPrev) },
+    { label: 'Operațional – Status', value: status(opsProfit, opsTarget) },
+  ];
+
+  const parts = [
+    renderSectionTitle('Rezumat Executiv', 2),
+    renderKpiCards(kpiCards, 2),
+    renderKpiCards(vanzariCards, 2),
+    renderKpiCards(opCards, 2),
+  ];
+  return parts.join('');
 }
 
 function objToRows(obj) {
@@ -144,12 +236,12 @@ const DEPT_REQUIRED_KEYS = [
 
 /**
  * Builds full HTML for monthly management email from full validated LLM structure.
- * Corporate simple: 680px container, KPI cards, real HTML tables, bullet lists; all content escaped.
- * @param {object} opts - { periodStart, periodEnd?, workingDaysInPeriod?, reportSummary?, report?, meta?, llmSections }
- * @param {object} opts.llmSections - Full validated: antet, sectiunea_1_*, ..., incheiere
+ * Subject/title and Rezumat Executiv are built deterministically from code (reportSummary); LLM content for sectiunea_1 is ignored.
+ * @param {object} opts - { periodStart, periodEnd?, workingDaysInPeriod?, reportSummary?, reportSummaryPrev?, report?, meta?, llmSections }
+ * @param {object} opts.llmSections - Full validated: antet, sectiunea_1_*, ..., incheiere (sectiunea_1 content not used for rezumat)
  * @returns {string} Full HTML document
  */
-export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workingDaysInPeriod, reportSummary, report, meta, llmSections }) {
+export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workingDaysInPeriod, reportSummary, reportSummaryPrev, report, meta, llmSections }) {
   getDepartmentPrompt();
   if (!llmSections || typeof llmSections !== 'object') {
     throw new Error('Monthly management email requires llmSections (full validated structure). Job fails without valid analysis.');
@@ -161,41 +253,10 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
   }
 
   const antet = llmSections.antet;
-  const subiect = antet?.subiect != null ? escapeHtml(String(antet.subiect).trim()) : escapeHtml('Raport performanță departamentală');
+  const subiect = escapeHtml(getMonthlyDepartmentSubject(periodStart));
   const intro = antet?.introducere != null ? formatTextBlock(antet.introducere) : '';
 
-  const s1 = llmSections.sectiunea_1_rezumat_executiv;
-  const pg = s1?.performanta_generala;
-  const kpiCards = pg && typeof pg === 'object'
-    ? [
-        { label: 'Profit total companie', value: pg.totalProfitCompanie ?? '' },
-        { label: 'Target departamental combinat', value: pg.targetDepartamentalCombinat ?? '' },
-        { label: 'Realizare target', value: pg.realizareTarget ?? '' },
-        { label: 'Număr total curse', value: pg.numarTotalCurse ?? '' },
-      ]
-    : [];
-  const dv = s1?.departamentVanzari;
-  const do_ = s1?.departamentOperational;
-  const vanzariCards = dv && typeof dv === 'object'
-    ? [
-        { label: 'Vânzări – Profit', value: dv.profit ?? '' },
-        { label: 'Vânzări – % din target', value: dv.procentDinTarget ?? '' },
-        { label: 'Vânzări – Trend', value: dv.trend ?? '' },
-        { label: 'Vânzări – Status', value: dv.status ?? '' },
-      ]
-    : [];
-  const opCards = do_ && typeof do_ === 'object'
-    ? [
-        { label: 'Operațional – Profit', value: do_.profit ?? '' },
-        { label: 'Operațional – % din target', value: do_.procentDinTarget ?? '' },
-        { label: 'Operațional – Trend', value: do_.trend ?? '' },
-        { label: 'Operațional – Status', value: do_.status ?? '' },
-      ]
-    : [];
-  const observatiiCritice = Array.isArray(s1?.observatiiCritice) ? s1.observatiiCritice : [];
-  const observatiiList = observatiiCritice.length > 0
-    ? '<ul style="' + SECTION_STYLE + '">' + observatiiCritice.map((o) => `<li>${escapeHtml(String(o))}</li>`).join('') + '</ul>'
-    : '';
+  const rezumatExecutivHtml = buildDeterministicRezumatExecutiv(reportSummary ?? null, reportSummaryPrev ?? null);
 
   const s2Block = buildDeptAnalysisBlock(llmSections.sectiunea_2_analiza_vanzari);
   const s3Block = buildDeptAnalysisBlock(llmSections.sectiunea_3_analiza_operational);
@@ -260,11 +321,7 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
   const bodyInner =
     (intro ? `<div style="margin:0 0 16px 0;">${intro}</div>` : '') +
     renderHr() +
-    renderSectionTitle('Rezumat Executiv', 2) +
-    (kpiCards.length > 0 ? renderKpiCards(kpiCards, 2) : '') +
-    (vanzariCards.length > 0 ? renderKpiCards(vanzariCards, 2) : '') +
-    (opCards.length > 0 ? renderKpiCards(opCards, 2) : '') +
-    (observatiiList ? observatiiList : '') +
+    rezumatExecutivHtml +
     renderHr() +
     s2Block +
     renderHr() +
@@ -295,21 +352,20 @@ ${bodyInner}
 
 /**
  * Builds monthly department/management email from full validated LLM structure.
- * @param {object} opts - { periodStart, meta?, reportSummary?, report?, monthExcelCurrent?, monthExcelPrev?, monthExcelPrev2?, llmSections }
+ * Subject is always from code (getMonthlyDepartmentSubject). Rezumat Executiv is built from reportSummary (deterministic).
+ * @param {object} opts - { periodStart, meta?, reportSummary?, reportSummaryPrev?, report?, monthExcelCurrent?, monthExcelPrev?, monthExcelPrev2?, llmSections }
  * @param {object} opts.llmSections - Full validated structure (antet, sectiuni, incheiere)
  * @returns {{ subject: string, html: string, attachments: Array<{ filename: string, content: Buffer }> }}
  */
-export function buildMonthlyDepartmentEmail({ periodStart, meta, reportSummary, report, monthExcelCurrent, monthExcelPrev, monthExcelPrev2, llmSections }) {
+export function buildMonthlyDepartmentEmail({ periodStart, meta, reportSummary, reportSummaryPrev, report, monthExcelCurrent, monthExcelPrev, monthExcelPrev2, llmSections }) {
   getDepartmentPrompt();
-  const subject =
-    llmSections?.antet?.subiect != null && String(llmSections.antet.subiect).trim() !== ''
-      ? String(llmSections.antet.subiect).trim()
-      : getMonthlyDepartmentSubject(periodStart);
+  const subject = getMonthlyDepartmentSubject(periodStart);
   const html = buildMonthlyDepartmentEmailHtml({
     periodStart,
     periodEnd: meta?.periodEnd,
     workingDaysInPeriod: meta?.workingDaysInPeriod,
     reportSummary: reportSummary ?? null,
+    reportSummaryPrev: reportSummaryPrev ?? null,
     report: report ?? null,
     meta: meta ?? null,
     llmSections,
