@@ -39,7 +39,18 @@ Returnează EXCLUSIV un obiect JSON valid.
 • NU comenta output-ul.
 • NU folosi backticks.
 Output-ul trebuie să fie strict un obiect JSON valid, parsabil direct cu JSON.parse().
- 
+
+Reguli obligatorii pentru tabelAngajati (sectiunea_2_analiza_vanzari și sectiunea_3_analiza_operational):
+1. tabelAngajati trebuie să fie un tabel markdown valid, cu separatori pipe `|`.
+2. Prima linie = header; a doua linie = separator (`|---|---|...|`); apoi un rând de date per angajat.
+3. Fiecare rând trebuie să aibă exact același număr de coloane ca headerul.
+4. Fără tab-uri, fără conținut multiline în celule, fără liste bullet în celule.
+5. Dacă o valoare lipsește, folosește `N/A`.
+6. Header-ele să fie scurte (abrevieri permise) pentru coloane compacte.
+7. Explicațiile detaliate apar în problemeIdentificateAngajati, nu în tabelAngajati.
+
+Exemplu de header compact (adaptat per departament): | # | Angajat | CtrC | CtrP(EUR) | TotP(EUR) | Tgt(EUR) | %Tgt | Burse | PrShare | Profit% | AvgTerm | Ovd | F<30 | F>30 |
+
 Structura Raport Departamental:
 {
   "antet": {
@@ -89,7 +100,7 @@ Structura Raport Departamental:
   	"apeluriMediiZi": "[valoare]",
   	"conversieMedieClienti": "[X]%"
     },
-    "tabelAngajati": "Tabel complet cu toți angajații Vânzări, incluzând o linie SUMĂ și MEDIE",
+    "tabelAngajati": "Tabel markdown valid: linie 1 = header (pipe |), linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
     "problemeIdentificateAngajati": [
   	{
     	"nume": "[Nume angajat]",
@@ -140,7 +151,7 @@ Structura Raport Departamental:
  "procentProfitPrincipal": "[X]%",
  "procentProfitSecundar": "[X]%"
  },
- "tabelAngajati": "Tabel complet cu toți angajații Operațional, incluzând o linie SUMĂ și MEDIE",
+ "tabelAngajati": "Tabel markdown valid: linie 1 = header (pipe |), linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
  "problemeIdentificateAngajati": [
  {
  "nume": "[Nume angajat]",
