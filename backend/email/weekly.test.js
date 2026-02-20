@@ -26,9 +26,9 @@ describe('renderWeeklyEmployeeEmail', () => {
     expect(html).toContain('<table');
     expect(html).toContain('Metrică');
     expect(html).toContain('Valoare');
-    expect(html).toContain('Curse livrare principal');
-    expect(html).not.toContain('Contactați');
-    expect(html).not.toContain('Calificați');
+    expect(html).toContain('Curse livrate principal');
+    expect(html).not.toContain('Clienți contactați telefonic');
+    expect(html).not.toContain('Clienți calificați');
     expect(html).not.toContain('Rata conversie');
     expect(html).not.toContain('Emailuri');
     expect(html).not.toContain('Apeluri');
@@ -38,8 +38,8 @@ describe('renderWeeklyEmployeeEmail', () => {
     const reportSales = { ...mockReport, opsStats: [], salesStats: mockReport.opsStats, mgmtStats: [] };
     const personSales = { ...mockPerson, department: 'Vanzari' };
     const html = renderWeeklyEmployeeEmail(reportSales, personSales, mockMeta);
-    expect(html).toContain('Contactați');
-    expect(html).toContain('Calificați');
+    expect(html).toContain('Clienți contactați telefonic');
+    expect(html).toContain('Clienți calificați');
     expect(html).toContain('Rata conversie');
     expect(html).toContain('Apeluri');
   });
@@ -52,7 +52,7 @@ describe('renderWeeklyManagerEmail', () => {
     expect(html).toContain('Raportul complet');
     expect(html).toContain('atașat acestui email');
     expect(html).toContain('Excel');
-    expect(html).toContain('Target');
+    expect(html).not.toContain('Target total');
     expect(html).not.toContain('Date per angajat');
   });
 
