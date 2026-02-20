@@ -38,6 +38,8 @@ Returnează EXCLUSIV un obiect JSON valid.
 • NU adăuga text suplimentar.
 • NU comenta output-ul.
 • NU folosi backticks.
+• NU folosi paranteze rotunde () în output-ul final JSON.
+• NU include explicații de calcul în output: nu menționa rawSummaries, analytics, formule, Δ în paranteză sau „din calcul”. Valorile trebuie să fie concise și curate, ex.: „14645 EUR”, „74.52%”, „+12.3%”, „Creștere”.
 Output-ul trebuie să fie strict un obiect JSON valid, parsabil direct cu JSON.parse().
 
 Reguli obligatorii pentru tabelAngajati (sectiunea_2_analiza_vanzari și sectiunea_3_analiza_operational):
@@ -60,22 +62,22 @@ Structura Raport Departamental:
   "sectiunea_1_rezumat_executiv": {
     "titlu": "Rezumat Executiv",
     "performanta_generala": {
-  	"totalProfitCompanie": "[valoare] EUR ([+/-X]% față de [luna anterioară])",
+  	"totalProfitCompanie": "[valoare] EUR",
   	"targetDepartamentalCombinat": "[valoare] EUR",
   	"realizareTarget": "[X]%",
-  	"numarTotalCurse": "[valoare] ([+/-X]% față de [luna anterioară])"
+  	"numarTotalCurse": "[valoare]"
     },
     "departamentVanzari": {
   	"profit": "[valoare] EUR",
   	"procentDinTarget": "[X]%",
-  	"trend": "[Creștere/Scădere/Stagnare] ([+/-X]% vs. luna anterioară)",
-  	"status": "[Peste/Sub] așteptări"
+  	"trend": "Creștere sau Scădere sau Stagnare",
+  	"status": "Peste așteptări sau Sub așteptări"
     },
     "departamentOperational": {
   	"profit": "[valoare] EUR",
   	"procentDinTarget": "[X]%",
-  	"trend": "[Creștere/Scădere/Stagnare] ([+/-X]% vs. luna anterioară)",
-  	"status": "[Peste/Sub] așteptări"
+  	"trend": "Creștere sau Scădere sau Stagnare",
+  	"status": "Peste așteptări sau Sub așteptări"
     },
     "observatiiCritice": [
   	"1-3 observații cheie la nivel strategic"
@@ -85,14 +87,14 @@ Structura Raport Departamental:
     "titlu": "Departament Vânzări - Analiză Detaliată",
     "performantaVsIstoric": {
   	"lunaCurenta": "[profit] EUR, [curse] curse",
-  	"lunaAnterioara": "[profit] EUR, [curse] curse (Δ: [+/-X]%)",
-  	"trend": "[Creștere /Descreștere /Stagnare]"
+  	"lunaAnterioara": "[profit] EUR, [curse] curse, variație [+/-X]%",
+  	"trend": "Creștere sau Descreștere sau Stagnare"
     },
     "targetDepartamental": {
-  	"target": "[valoare] EUR (rawSummaries.current.departments.<dept>.targetTotal)",
+  	"target": "[valoare] EUR",
   	"realizat": "[valoare] EUR",
   	"procentAtingere": "[X]%",
-  	"status": "[Peste/Sub] target"
+  	"status": "Peste target sau Sub target"
     },
     "metriciMediiPerAngajat": {
   	"profitMediu": "[valoare] EUR",
@@ -100,7 +102,7 @@ Structura Raport Departamental:
   	"apeluriMediiZi": "[valoare]",
   	"conversieMedieClienti": "[X]%"
     },
-    "tabelAngajati": "Tabel markdown valid: linie 1 = header (pipe |), linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
+    "tabelAngajati": "Tabel markdown valid: linie 1 = header cu pipe |, linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
     "problemeIdentificateAngajati": [
   	{
     	"nume": "[Nume angajat]",
@@ -135,14 +137,14 @@ Structura Raport Departamental:
  "titlu": "Departament Operațional - Analiză Detaliată",
  "performantaVsIstoric": {
  "lunaCurenta": "[profit] EUR, [curse] curse",
- "lunaAnterioara": "[profit] EUR, [curse] curse (Δ: [+/-X]%)",
- "trend": "[Creștere /Descreștere /Stagnare]"
+ "lunaAnterioara": "[profit] EUR, [curse] curse, variație [+/-X]%",
+ "trend": "Creștere sau Descreștere sau Stagnare"
  },
  "targetDepartamental": {
- "target": "[valoare] EUR (rawSummaries.current.departments.<dept>.targetTotal)",
+ "target": "[valoare] EUR",
  "realizat": "[valoare] EUR",
  "procentAtingere": "[X]%",
- "status": "[Peste/Sub] target"
+ "status": "Peste target sau Sub target"
  },
  "metriciMediiPerAngajat": {
  "profitMediu": "[valoare] EUR",
@@ -151,7 +153,7 @@ Structura Raport Departamental:
  "procentProfitPrincipal": "[X]%",
  "procentProfitSecundar": "[X]%"
  },
- "tabelAngajati": "Tabel markdown valid: linie 1 = header (pipe |), linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
+ "tabelAngajati": "Tabel markdown valid: linie 1 = header cu pipe |, linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
  "problemeIdentificateAngajati": [
  {
  "nume": "[Nume angajat]",
