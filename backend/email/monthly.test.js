@@ -32,8 +32,26 @@ const mockReport = {
 
 const mockReportSummary = {
   departments: {
-    operational: { livr_principalCount: 10, livr_principalProfitEur: 1000, profitTotal: 8000, targetTotal: 10000, callsCount: 0 },
-    sales: { contactat: 555, calificat: 129, callsCount: 605, profitTotal: 12000, targetTotal: 15000 },
+    operational: {
+      livr_principalCount: 10,
+      livr_principalProfitEur: 1000,
+      profitTotal: 8000,
+      targetTotal: 10000,
+      callsCount: 0,
+      totalCurseCtr: 42,
+      ctr_principalCount: 30,
+      ctr_secondaryCount: 12,
+    },
+    sales: {
+      contactat: 555,
+      calificat: 129,
+      callsCount: 605,
+      profitTotal: 12000,
+      targetTotal: 15000,
+      totalCurseCtr: 58,
+      ctr_principalCount: 45,
+      ctr_secondaryCount: 13,
+    },
     management: { target: 5000 },
   },
   company: {},
@@ -557,6 +575,34 @@ describe('Monthly management email', () => {
       const xlsx = fs.readFileSync(xlsxPath, 'utf8');
       expect(xlsx).not.toContain('toHumanLabel');
     }
+  });
+
+  it('department email numarCurseTotal: backend override replaces "Nu pot determina" with CTR values', () => {
+    const llmWithNuPotDetermina = {
+      ...mockDepartmentLlmSections,
+      sectiunea_4_comparatie_departamente: {
+        ...mockDepartmentLlmSections.sectiunea_4_comparatie_departamente,
+        tabelComparativ: {
+          ...mockDepartmentLlmSections.sectiunea_4_comparatie_departamente.tabelComparativ,
+          numarCurseTotal: {
+            vanzari: 'Nu pot determina din datele disponibile.',
+            operational: 'Nu pot determina din datele disponibile.',
+            diferenta: 'N/A',
+          },
+        },
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: llmWithNuPotDetermina,
+    });
+    expect(html).toContain('42');
+    expect(html).toContain('58');
+    expect(html).toContain('Număr total curse');
+    expect(html).not.toContain('Nu pot determina din datele disponibile');
   });
 
   it('department email defensive: strips procentProfitPrincipal/Secundar from old llmSections', () => {

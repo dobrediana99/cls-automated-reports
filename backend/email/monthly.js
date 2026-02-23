@@ -93,6 +93,38 @@ function buildDeptAnalysisBlock(section, backendTitle = null) {
   return parts.join(renderHr());
 }
 
+/**
+ * Compute deterministic numarCurseTotal row (CTR-only) from reportSummary.
+ * Overrides LLM output to avoid "Nu pot determina...".
+ * @param {object} reportSummary - { departments: { sales, operational } }
+ * @returns {{ vanzari: string, operational: string, diferenta: string }}
+ */
+function computeNumarCurseTotalFromBackend(reportSummary) {
+  const sales = reportSummary?.departments?.sales;
+  const ops = reportSummary?.departments?.operational;
+  const salesCurse =
+    sales?.totalCurseCtr ??
+    (Number(sales?.ctr_principalCount ?? 0) + Number(sales?.ctr_secondaryCount ?? 0));
+  const opsCurse =
+    ops?.totalCurseCtr ??
+    (Number(ops?.ctr_principalCount ?? 0) + Number(ops?.ctr_secondaryCount ?? 0));
+
+  const hasSales = typeof salesCurse === 'number' && !Number.isNaN(salesCurse);
+  const hasOps = typeof opsCurse === 'number' && !Number.isNaN(opsCurse);
+
+  const vanzari = hasSales ? String(salesCurse) : 'N/A';
+  const operational = hasOps ? String(opsCurse) : 'N/A';
+
+  let diferenta = 'N/A';
+  if (hasSales && hasOps && salesCurse > 0) {
+    const pct = (((opsCurse - salesCurse) / salesCurse) * 100);
+    const sign = pct >= 0 ? '+' : '';
+    diferenta = `${sign}${pct.toFixed(2)}%`;
+  }
+
+  return { vanzari, operational, diferenta };
+}
+
 /** Build comparație table from tabelComparativ object (profitTotal, numarCurseTotal, etc.) */
 function buildComparatieTable(tabelComparativ) {
   if (!tabelComparativ || typeof tabelComparativ !== 'object') return '';
@@ -171,8 +203,14 @@ export function buildMonthlyDepartmentEmailHtml({ periodStart, periodEnd, workin
   const s2Block = buildDeptAnalysisBlock(payload.analizaVanzari, 'Analiză Vânzări');
   const s3Block = buildDeptAnalysisBlock(payload.analizaOperational, 'Analiză Operațional');
 
+  const tabelComparativ = { ...payload.comparatie.tabelComparativ };
+  if (reportSummary) {
+    const numarCurseRow = computeNumarCurseTotalFromBackend(reportSummary);
+    tabelComparativ.numarCurseTotal = { ...(tabelComparativ.numarCurseTotal || {}), ...numarCurseRow };
+  }
+
   const comparatieTitle = renderSectionTitle('Comparație Vânzări vs. Operațional', 2);
-  const comparatieTable = buildComparatieTable(payload.comparatie.tabelComparativ);
+  const comparatieTable = buildComparatieTable(tabelComparativ);
   const observatii = payload.comparatie.observatii;
   const observatiiComparatie = observatii.length > 0
     ? '<ul style="' + SECTION_STYLE + '">' + observatii.map((o) => `<li>${escapeHtml(String(o))}</li>`).join('') + '</ul>'
