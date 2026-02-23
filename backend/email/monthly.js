@@ -14,6 +14,8 @@ import {
   renderHr,
   renderKeyValueTable,
   parseMarkdownTableToHtml,
+  toHumanLabel,
+  toTableHeaderLabel,
 } from './monthlyEmailHelpers.js';
 import { buildMonthlyEmployeeEmail, buildMonthlyEmployeeEmailHtml as buildEmployeeEmailHtmlFromTemplate } from './templates/monthlyEmployee.js';
 import { departmentToSemanticPayload } from '../llm/semanticAdapters.js';
@@ -28,9 +30,12 @@ function getDepartmentPrompt() {
   return loadMonthlyDepartmentPrompt();
 }
 
-function objToRows(obj) {
+function objToRows(obj, humanizeLabels = false) {
   if (!obj || typeof obj !== 'object') return [];
-  return Object.entries(obj).map(([k, v]) => [String(k), v != null ? String(v) : '']);
+  return Object.entries(obj).map(([k, v]) => [
+    humanizeLabels ? toHumanLabel(k) : String(k),
+    v != null ? String(v) : '',
+  ]);
 }
 
 /** Build one department analysis block (Vânzări or Operațional): tables + tabelAngajati (markdown→HTML) + probleme + high/low + problemeSistemice. Title from backend when provided. */
@@ -40,14 +45,14 @@ function buildDeptAnalysisBlock(section, backendTitle = null) {
   const title = backendTitle != null && String(backendTitle).trim() ? String(backendTitle).trim() : (section.titlu ?? '');
   parts.push(renderSectionTitle(title, 2));
   const pv = section.performantaVsIstoric;
-  if (pv && typeof pv === 'object') parts.push(renderKeyValueTable(objToRows(pv)));
+  if (pv && typeof pv === 'object') parts.push(renderKeyValueTable(objToRows(pv, true)));
   const td = section.targetDepartamental;
-  if (td && typeof td === 'object') parts.push(renderKeyValueTable(objToRows(td)));
+  if (td && typeof td === 'object') parts.push(renderKeyValueTable(objToRows(td, true)));
   const metrici = section.metriciMediiPerAngajat;
-  if (metrici && typeof metrici === 'object') parts.push(renderKeyValueTable(objToRows(metrici)));
+  if (metrici && typeof metrici === 'object') parts.push(renderKeyValueTable(objToRows(metrici, true)));
   const tabelStr = section.tabelAngajati;
   if (tabelStr != null && String(tabelStr).trim() !== '') {
-    parts.push(parseMarkdownTableToHtml(String(tabelStr)));
+    parts.push(parseMarkdownTableToHtml(String(tabelStr), { normalizeTableHeaders: toTableHeaderLabel }));
   }
   const problemeAng = section.problemeIdentificateAngajati;
   if (Array.isArray(problemeAng) && problemeAng.length > 0) {
@@ -95,11 +100,11 @@ function buildComparatieTable(tabelComparativ) {
   const TH = 'padding:8px 10px;border:1px solid #ddd;background:#f7f7f7;text-align:left;font-weight:bold;';
   const TD = 'padding:8px 10px;border:1px solid #ddd;';
   const labels = {
-    profitTotal: 'Profit Total',
-    numarCurseTotal: 'Număr Curse Total',
-    procentTargetDepartamental: '% Target Departamental',
-    profitMediuAngajat: 'Profit Mediu/Angajat',
-    trendVsLunaAnterioara: 'Trend vs. luna anterioară',
+    profitTotal: 'Profit total',
+    numarCurseTotal: 'Număr total curse',
+    procentTargetDepartamental: 'Procent profit din target',
+    profitMediuAngajat: 'Profit mediu per angajat',
+    trendVsLunaAnterioara: 'Evoluție vs luna anterioară',
   };
   let html = `<table style="${TABLE_STYLE}"><thead><tr><th style="${TH}">Indicator</th><th style="${TH}">Vânzări</th><th style="${TH}">Operațional</th><th style="${TH}">Diferență</th></tr></thead><tbody>`;
   const rowOrder = ['profitTotal', 'numarCurseTotal', 'procentTargetDepartamental', 'profitMediuAngajat', 'trendVsLunaAnterioara'];

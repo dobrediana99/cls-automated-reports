@@ -53,7 +53,7 @@ Reguli obligatorii pentru tabelAngajati (sectiunea_2_analiza_vanzari și sectiun
 6. Header-ele să fie scurte (abrevieri permise) pentru coloane compacte.
 7. Explicațiile detaliate apar în problemeIdentificateAngajati, nu în tabelAngajati.
 
-Exemplu de header compact (adaptat per departament): | # | Angajat | CtrC | CtrP(EUR) | TotP(EUR) | Tgt(EUR) | %Tgt | Burse | PrShare | Profit% | AvgTerm | Ovd | F<30 | F>30 |
+Exemplu de header (adaptat per departament, etichete umane): | Nr. | Nume angajat | Curse | Profit (EUR) | Target (EUR) | Procent profit din target | Curse din burse | Pondere profit principal | Profitabilitate (%) | Termen mediu plată client (zile) | Întârzieri >15 zile | Furnizori <30 zile | Furnizori ≥30 zile |
 
 Structura Raport Departamental:
 {

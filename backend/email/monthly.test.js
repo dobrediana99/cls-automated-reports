@@ -486,6 +486,79 @@ describe('Monthly management email', () => {
     expect(html).not.toContain('procentProfitSecundar');
   });
 
+  it('department email HTML contains human labels (Luna curentă, Profit realizat, Procent profit din target)', () => {
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: mockDepartmentLlmSections,
+    });
+    expect(html).toContain('Luna curentă');
+    expect(html).toContain('Profit realizat');
+    expect(html).toContain('Procent profit din target');
+    expect(html).toContain('Evoluție vs luna anterioară');
+    expect(html).toContain('Profit total');
+  });
+
+  it('department email HTML does not contain technical labels (lunaCurenta, realizat, CurseCtr, %Tgt)', () => {
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: mockDepartmentLlmSections,
+    });
+    expect(html).not.toContain('lunaCurenta');
+    expect(html).not.toMatch(/>realizat</);
+    expect(html).not.toContain('CurseCtr');
+    expect(html).not.toContain('%Tgt');
+  });
+
+  it('department email tabelAngajati headers are normalized to human labels when LLM sends old headers', () => {
+    const oldHeadersTable = '| # | Angajat | CurseCtr | ProfitCtr(EUR) | Target(EUR) | %Tgt | Burse |\n|---|---|---|---|---|---|---|\n| 1 | Ion Pop | 10 | 500 | 400 | 125% | 2 |';
+    const withOldHeaders = {
+      ...mockDepartmentLlmSections,
+      sectiunea_2_analiza_vanzari: {
+        ...mockDepartmentLlmSections.sectiunea_2_analiza_vanzari,
+        tabelAngajati: oldHeadersTable,
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: withOldHeaders,
+    });
+    expect(html).toContain('Nr.');
+    expect(html).toContain('Nume angajat');
+    expect(html).toContain('Curse');
+    expect(html).toContain('Profit (EUR)');
+    expect(html).toContain('Procent profit din target');
+    expect(html).toContain('Curse din burse');
+    expect(html).not.toContain('CurseCtr');
+    expect(html).not.toContain('%Tgt');
+  });
+
+  it('Excel export files are untouched (weeklyReportWorkbook, xlsx)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const wbPath = path.join(__dirname, '..', 'export', 'weeklyReportWorkbook.js');
+    const xlsxPath = path.join(__dirname, '..', 'export', 'xlsx.js');
+    if (fs.existsSync(wbPath)) {
+      const wb = fs.readFileSync(wbPath, 'utf8');
+      expect(wb).not.toContain('toHumanLabel');
+      expect(wb).not.toContain('Luna curentă');
+    }
+    if (fs.existsSync(xlsxPath)) {
+      const xlsx = fs.readFileSync(xlsxPath, 'utf8');
+      expect(xlsx).not.toContain('toHumanLabel');
+    }
+  });
+
   it('department email defensive: strips procentProfitPrincipal/Secundar from old llmSections', () => {
     const oldLlmSections = {
       ...mockDepartmentLlmSections,
