@@ -36,7 +36,7 @@ describe('buildEmployeeKpiBullets', () => {
     expect(lines[0]).toMatch(/Realizare target: 40% \(luna anterioară: 40%\)/);
     expect(lines[1]).toMatch(/Profit total: 10000 EUR \(luna anterioară: 8000 EUR\)/);
     expect(lines[2]).toMatch(/Apeluri medii\/zi \(lucrătoare\): 28\.81/);
-    expect(lines[3]).toMatch(/Conversie prospectare.*23\.24%.*luna anterioară/);
+    expect(lines[3]).toMatch(/Conversie prospectare.*18\.86%.*luna anterioară/);
     expect(lines[4]).toContain('Zile lucrătoare în perioadă: 21');
   });
 

@@ -64,13 +64,8 @@ export function computeTotals(rows) {
     acc.websiteProfit += safeVal(row.websiteProfit);
     acc.websiteCountSec += safeVal(row.websiteCountSec);
     acc.websiteProfitSec += safeVal(row.websiteProfitSec);
-    acc.profitTotal +=
-      safeVal(row.ctr_principalProfitEur) +
-      safeVal(row.ctr_secondaryProfitEur) +
-      safeVal(row.livr_principalProfitEur) +
-      safeVal(row.livr_secondaryProfitEur) +
-      safeVal(row.websiteProfit) +
-      safeVal(row.websiteProfitSec);
+    // Reference Report_monday: target/bonus use CTR profit; profitTotal for realizare = CTR only.
+    acc.profitTotal += safeVal(row.ctr_principalProfitEur) + safeVal(row.ctr_secondaryProfitEur);
     acc.burseCountCtrPrincipal += safeVal(row.burseCountCtrPrincipal);
     acc.burseCountCtrSecondary += safeVal(row.burseCountCtrSecondary);
     acc.burseCountLivrPrincipal += safeVal(row.burseCountLivrPrincipal);
