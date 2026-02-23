@@ -6,7 +6,9 @@ import { describe, it, expect } from 'vitest';
 import {
   round2,
   totalProfitEur,
+  totalProfitCtr,
   calcTargetAchievementPct,
+  calcTargetAchievementPctCtr,
   assertValidPeriod,
   calcTargetAchievementCombined,
   calcTargetAchievementWithManagement,
@@ -124,8 +126,24 @@ describe('formatRealizareTargetForEmail', () => {
   });
 });
 
+describe('totalProfitCtr', () => {
+  it('sums only ctr_principal + ctr_secondary (CTR-only, no LIVR)', () => {
+    const row = {
+      ctr_principalProfitEur: 10000,
+      ctr_secondaryProfitEur: 5000,
+      livr_principalProfitEur: 10000,
+      livr_secondaryProfitEur: 2000,
+    };
+    expect(totalProfitCtr(row)).toBe(15000);
+  });
+  it('returns 0 for missing or non-numeric fields', () => {
+    expect(totalProfitCtr({})).toBe(0);
+    expect(totalProfitCtr(null)).toBe(0);
+  });
+});
+
 describe('totalProfitEur', () => {
-  it('sums ctr + livr principal and secondary', () => {
+  it('returns full sum (CTR + LIVR)', () => {
     const row = {
       ctr_principalProfitEur: 10000,
       ctr_secondaryProfitEur: 0,
@@ -140,8 +158,31 @@ describe('totalProfitEur', () => {
   });
 });
 
+describe('calcTargetAchievementPctCtr', () => {
+  it('uses CTR-only profit: 10000 CTR, target 25000 => 40%', () => {
+    const row = {
+      ctr_principalProfitEur: 10000,
+      ctr_secondaryProfitEur: 0,
+      livr_principalProfitEur: 10000,
+      livr_secondaryProfitEur: 0,
+      target: 25000,
+    };
+    expect(calcTargetAchievementPctCtr(row)).toBe(40);
+  });
+  it('returns 80% for CTR 20000, target 25000', () => {
+    const row = {
+      ctr_principalProfitEur: 10000,
+      ctr_secondaryProfitEur: 10000,
+      livr_principalProfitEur: 0,
+      livr_secondaryProfitEur: 0,
+      target: 25000,
+    };
+    expect(calcTargetAchievementPctCtr(row)).toBe(80);
+  });
+});
+
 describe('calcTargetAchievementPct', () => {
-  it('returns 80.00 for profit 20000, target 25000', () => {
+  it('uses full profit (CTR+LIVR): 20000 total, target 25000 => 80%', () => {
     const row = {
       ctr_principalProfitEur: 10000,
       ctr_secondaryProfitEur: 0,

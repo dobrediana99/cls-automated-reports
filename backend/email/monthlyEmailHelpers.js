@@ -5,8 +5,8 @@
 
 import {
   round2,
-  totalProfitEur,
-  calcTargetAchievementPct,
+  totalProfitCtr,
+  calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
 } from '../utils/kpiCalc.js';
@@ -350,10 +350,10 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prev = data3Months?.prev;
   const wd = workingDaysInPeriod > 0 ? workingDaysInPeriod : null;
 
-  const curProfit = round2(totalProfitEur(cur));
-  const prevProfit = round2(totalProfitEur(prev));
-  const curTargetPct = calcTargetAchievementPct(cur);
-  const prevTargetPct = calcTargetAchievementPct(prev);
+  const curProfit = round2(totalProfitCtr(cur));
+  const prevProfit = round2(totalProfitCtr(prev));
+  const curTargetPct = calcTargetAchievementPctCtr(cur);
+  const prevTargetPct = calcTargetAchievementPctCtr(prev);
   const curApeluri = wd != null ? calcCallsPerWorkingDay(cur?.callsCount, wd) : null;
   const prevApeluri = wd != null ? calcCallsPerWorkingDay(prev?.callsCount, wd) : null;
   const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);

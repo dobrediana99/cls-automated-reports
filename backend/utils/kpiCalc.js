@@ -36,6 +36,32 @@ export function totalProfitEur(row) {
 }
 
 /**
+ * Total profit CTR only (contracte): ctr_principalProfitEur + ctr_secondaryProfitEur.
+ * Used for email pipeline KPI (realizare target, profit display).
+ * @param {object} row - Report row with profit fields
+ * @returns {number}
+ */
+export function totalProfitCtr(row) {
+  if (!row || typeof row !== 'object') return 0;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return n(row.ctr_principalProfitEur) + n(row.ctr_secondaryProfitEur);
+}
+
+/**
+ * Realizare target per angajat based on CTR profit only: (totalProfitCtr / target) * 100. Null if target <= 0.
+ * Used for email pipeline (KPI bullets, performance table).
+ * @param {object} row - Report row with target and profit fields
+ * @returns {number | null}
+ */
+export function calcTargetAchievementPctCtr(row) {
+  if (!row || typeof row !== 'object') return null;
+  const target = Number(row.target);
+  if (target <= 0 || !Number.isFinite(target)) return null;
+  const profit = totalProfitCtr(row);
+  return round2((profit / target) * 100);
+}
+
+/**
  * Realizare target per angajat: (totalProfitEur / target) * 100. Null if target <= 0.
  * @param {object} row - Report row with target and profit fields
  * @returns {number | null}

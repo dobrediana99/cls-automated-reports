@@ -18,7 +18,7 @@ describe('buildEmployeeKpiBullets', () => {
     expect(lines[4]).toContain('2026-02-01..2026-02-28');
   });
 
-  it('fills numeric KPI when cur has data', () => {
+  it('fills numeric KPI when cur has data (profit KPI = CTR only)', () => {
     const cur = {
       target: 25000,
       ctr_principalProfitEur: 10000,
@@ -32,7 +32,9 @@ describe('buildEmployeeKpiBullets', () => {
     const prev = { target: 20000, ctr_principalProfitEur: 8000, livr_principalProfitEur: 8000, callsCount: 400, contactat: 200, calificat: 50 };
     const meta = { periodStart: '2026-02-01', periodEnd: '2026-02-28' };
     const lines = buildEmployeeKpiBullets(cur, prev, 21, meta);
-    expect(lines[0]).toMatch(/Realizare target: 80% \(luna anterioară: 80%\)/);
+    // CTR-only: 10000/25000=40%, 8000/20000=40%; profit 10000, 8000
+    expect(lines[0]).toMatch(/Realizare target: 40% \(luna anterioară: 40%\)/);
+    expect(lines[1]).toMatch(/Profit total: 10000 EUR \(luna anterioară: 8000 EUR\)/);
     expect(lines[2]).toMatch(/Apeluri medii\/zi \(lucrătoare\): 28\.81/);
     expect(lines[3]).toMatch(/Conversie prospectare.*23\.24%.*luna anterioară/);
     expect(lines[4]).toContain('Zile lucrătoare în perioadă: 21');
