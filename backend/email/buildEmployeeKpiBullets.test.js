@@ -40,6 +40,24 @@ describe('buildEmployeeKpiBullets', () => {
     expect(lines[4]).toContain('Zile lucrătoare în perioadă: 21');
   });
 
+  it('CTR-only: when livr_* has large values, % target and profit ignore livr', () => {
+    const cur = {
+      target: 10000,
+      ctr_principalProfitEur: 1000,
+      ctr_secondaryProfitEur: 0,
+      livr_principalProfitEur: 90000,
+      livr_secondaryProfitEur: 5000,
+      callsCount: 100,
+      contactat: 50,
+      calificat: 10,
+    };
+    const prev = { target: 5000, ctr_principalProfitEur: 400, livr_principalProfitEur: 80000 };
+    const meta = { periodStart: '2026-02-01', periodEnd: '2026-02-28' };
+    const lines = buildEmployeeKpiBullets(cur, prev, 20, meta);
+    expect(lines[0]).toMatch(/Realizare target: 10% \(luna anterioară: 8%\)/);
+    expect(lines[1]).toMatch(/Profit total: 1000 EUR \(luna anterioară: 400 EUR\)/);
+  });
+
   it('never contains "Nu pot determina"', () => {
     const lines = buildEmployeeKpiBullets(null, null, 22, { periodStart: '2026-01-01', periodEnd: '2026-01-31' });
     const joined = lines.join(' ');

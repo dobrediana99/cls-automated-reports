@@ -117,7 +117,7 @@ const mockDepartmentLlmSections = {
     titlu: 'Analiză Operațional',
     performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
     targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
-    metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3', procentProfitPrincipal: '4', procentProfitSecundar: '5' },
+    metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3' },
     tabelAngajati: 'Tabel',
     problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
     highPerformers: [],
@@ -202,6 +202,34 @@ describe('Monthly employee email', () => {
       llmSections: mockEmployeeLlmSections,
     });
     expect(resultOk.html).not.toContain('Check-in intermediar');
+  });
+
+  it('CTR-only: buildMonthlyEmployeeEmail shows profit and % target from CTR when livr_* is large', () => {
+    const data3Months = {
+      current: {
+        target: 10000,
+        ctr_principalProfitEur: 1000,
+        ctr_secondaryProfitEur: 0,
+        livr_principalProfitEur: 90000,
+        livr_secondaryProfitEur: 5000,
+        callsCount: 100,
+        contactat: 50,
+        calificat: 10,
+      },
+      prev: { target: 5000, ctr_principalProfitEur: 400, livr_principalProfitEur: 80000 },
+    };
+    const result = buildMonthlyEmployeeEmail({
+      person: mockPerson,
+      data3Months,
+      deptAverages3Months: null,
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 20,
+      llmSections: mockEmployeeLlmSections,
+    });
+    expect(result.html).toContain('1000');
+    expect(result.html).toContain('10%');
+    expect(result.html).toContain('400');
+    expect(result.html).toContain('8%');
   });
 
   it('buildMonthlyEmployeeEmailHtml uses prompt (loads and does not throw)', () => {
@@ -445,6 +473,41 @@ describe('Monthly management email', () => {
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&quot;');
+  });
+
+  it('department email Analiză Operațional does not contain procentProfitPrincipal or procentProfitSecundar', () => {
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      llmSections: mockDepartmentLlmSections,
+    });
+    expect(html).not.toContain('procentProfitPrincipal');
+    expect(html).not.toContain('procentProfitSecundar');
+  });
+
+  it('department email defensive: strips procentProfitPrincipal/Secundar from old llmSections', () => {
+    const oldLlmSections = {
+      ...mockDepartmentLlmSections,
+      sectiunea_3_analiza_operational: {
+        ...mockDepartmentLlmSections.sectiunea_3_analiza_operational,
+        metriciMediiPerAngajat: {
+          profitMediu: '1',
+          curseMedii: '2',
+          curseMediiBurse: '3',
+          procentProfitPrincipal: '40',
+          procentProfitSecundar: '60',
+        },
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      llmSections: oldLlmSections,
+    });
+    expect(html).not.toContain('procentProfitPrincipal');
+    expect(html).not.toContain('procentProfitSecundar');
   });
 
   it('department email does not contain KPI-uri deterministe block or Rezumat Executiv section', () => {

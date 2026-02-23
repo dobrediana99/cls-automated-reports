@@ -64,7 +64,7 @@ const {
       titlu: 'Operațional',
       performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
       targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
-      metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3', procentProfitPrincipal: '4', procentProfitSecundar: '5' },
+      metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3' },
       tabelAngajati: 'Tabel',
       problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
       highPerformers: [],

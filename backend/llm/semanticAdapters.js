@@ -122,7 +122,12 @@ export function departmentToSemanticPayload(llmSections) {
     analizaOperational: {
       performantaVsIstoric: s3.performantaVsIstoric && typeof s3.performantaVsIstoric === 'object' ? s3.performantaVsIstoric : {},
       targetDepartamental: s3.targetDepartamental && typeof s3.targetDepartamental === 'object' ? s3.targetDepartamental : {},
-      metriciMediiPerAngajat: s3.metriciMediiPerAngajat && typeof s3.metriciMediiPerAngajat === 'object' ? s3.metriciMediiPerAngajat : {},
+      metriciMediiPerAngajat: (() => {
+        const m = s3.metriciMediiPerAngajat && typeof s3.metriciMediiPerAngajat === 'object' ? { ...s3.metriciMediiPerAngajat } : {};
+        delete m.procentProfitPrincipal;
+        delete m.procentProfitSecundar;
+        return m;
+      })(),
       tabelAngajati: typeof s3.tabelAngajati === 'string' ? s3.tabelAngajati : '',
       problemeIdentificateAngajati: Array.isArray(s3.problemeIdentificateAngajati) ? s3.problemeIdentificateAngajati : [],
       highPerformers: Array.isArray(s3.highPerformers) ? s3.highPerformers : [],

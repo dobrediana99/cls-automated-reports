@@ -8,6 +8,7 @@ o current = luna curentă analizată
 o prev1 = luna anterioară
 Nu folosi și nu menționa “acum 2 luni / luna -2”. Dacă există câmpuri în JSON legate de a treia lună, ignoră-le.
 4.  Ton: executiv, concis, factual. Fără limbaj motivațional.
+5.  Profit KPI: În email se folosește UN SINGUR profit – Profit CTR (profit din contracte = ctr principal + ctr secundar). Nu genera formulări de tip „X EUR (contracte), Y EUR (total)” sau comparații CTR vs total incluzând livrări. Afișează doar o valoare de profit (ex.: „14645 EUR”).
 Vei primi ca input un obiect JSON structurat care conține toate datele necesare pentru analiză. Acesta include câmpul periodStart (string), care indică începutul perioadei curente analizate, precum și un obiect analytics, ce reprezintă sursa principală de analiză și conține rezultate deja pre-calculate la nivel de departament. În cadrul obiectului analytics există două secțiuni – sales și operational – fiecare incluzând: headcount, averages, highPerformers (maximum 1–2 angajați), lowPerformers (maximum 1–2 angajați), volatility (listă de variații semnificative), employeeIssues (listă per angajat ce conține: name, id, active, kpis și issues[]) și systemicIssues (probleme recurente la nivel de departament).
 De asemenea, JSON-ul conține obiectul rawSummaries, structurat pe două luni: current (sumar agregat pentru luna curentă, la nivel de departamente și companie) și prev1 (sumar agregat pentru luna anterioară). În analiză, prioritatea este următoarea: obiectul analytics reprezintă sursa principală pentru identificarea problemelor, volatilității, performerilor ridicați sau scăzuți și a problemelor sistemice, iar rawSummaries trebuie utilizat exclusiv pentru extragerea cifrelor agregate (profit total, curse totale, total per departament etc.) și pentru comparația între luna curentă și luna anterioară.
 Structura organizațională este împărțită în două departamente principale. Departamentul Vânzări include rolul de Sales & Freight Agent, care poate gestiona atât relația cu clienții, cât și cu transportatorii, având ca focus principal achiziția de clienți noi și administrarea transportatorilor. Activitatea se desfășoară cu prioritate pe platforma Cargopedia, iar performanța este evaluată pe baza unor metrici cheie precum numărul de apeluri efectuate, rata de conversie a clienților, numărul de curse generate din web și nivelul de fidelizare a clienților.
@@ -40,6 +41,7 @@ Returnează EXCLUSIV un obiect JSON valid.
 • NU folosi backticks.
 • NU folosi paranteze rotunde () în output-ul final JSON.
 • NU include explicații de calcul în output: nu menționa rawSummaries, analytics, formule, Δ în paranteză sau „din calcul”. Valorile trebuie să fie concise și curate, ex.: „14645 EUR”, „74.52%”, „+12.3%”, „Creștere”.
+• NU folosi formulări de tip „X EUR (contracte), Y EUR (total)" – un singur profit KPI (Profit CTR), o singură valoare per metric.
 Output-ul trebuie să fie strict un obiect JSON valid, parsabil direct cu JSON.parse().
 
 Reguli obligatorii pentru tabelAngajati (sectiunea_2_analiza_vanzari și sectiunea_3_analiza_operational):
@@ -149,9 +151,7 @@ Structura Raport Departamental:
  "metriciMediiPerAngajat": {
  "profitMediu": "[valoare] EUR",
  "curseMedii": "[valoare]",
- "curseMediiBurse": "[valoare]",
- "procentProfitPrincipal": "[X]%",
- "procentProfitSecundar": "[X]%"
+ "curseMediiBurse": "[valoare]"
  },
  "tabelAngajati": "Tabel markdown valid: linie 1 = header cu pipe |, linie 2 = separator |---|..., apoi un rând per angajat; coloane egale cu header; valori lipsă = N/A; header scurt; detalii în problemeIdentificateAngajati",
  "problemeIdentificateAngajati": [
