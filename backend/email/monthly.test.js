@@ -312,7 +312,7 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Luna curentă');
     expect(html).toContain('Luna anterioară');
     expect(html).not.toContain('Media departament');
-    expect(html).toContain('Profit total');
+    expect(html).toContain('Profit contracte (CTR)');
     expect(html).toContain('Realizare target');
     expect(html).not.toMatch(/COMENZI\s+DUPĂ|===\s*.+\s*===/);
   });
@@ -342,8 +342,8 @@ describe('Monthly employee email', () => {
     expect(tableStartB).toBeGreaterThan(0);
     const tableA = htmlA.slice(tableStartA, htmlA.indexOf('</table>') + 8);
     const tableB = htmlB.slice(tableStartB, htmlB.indexOf('</table>') + 8);
-    expect(tableA).toContain('Profit total');
-    expect(tableB).toContain('Profit total');
+    expect(tableA).toContain('Profit contracte (CTR)');
+    expect(tableB).toContain('Profit contracte (CTR)');
     expect(tableA).toContain('Realizare target');
     expect(tableB).toContain('Realizare target');
   });

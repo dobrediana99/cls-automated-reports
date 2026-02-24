@@ -48,9 +48,11 @@ export function employeeToSemanticPayload(llmSections, person = null) {
   const inc = llmSections.incheiere ?? {};
 
   const rol = s4?.actiuni_specifice_per_rol;
-  const ff = toStrArray(rol?.freight_forwarder);
-  const sfa = toStrArray(rol?.sales_freight_agent);
-  const actiuni = [...ff, ...sfa];
+  const toNonEmpty = (arr) =>
+    Array.isArray(arr) ? arr.map((x) => (typeof x === 'string' ? x.trim() : x != null ? String(x).trim() : '')).filter(Boolean) : [];
+  const ff = toNonEmpty(rol?.freight_forwarder);
+  const sfa = toNonEmpty(rol?.sales_freight_agent);
+  const actiuni = ff.length > 0 || sfa.length > 0 ? [...ff, ...sfa] : DEFAULT_ACTIUNI;
 
   const fmt = s5?.format ?? {};
   const semn = inc.semnatura && typeof inc.semnatura === 'object' ? inc.semnatura : {};

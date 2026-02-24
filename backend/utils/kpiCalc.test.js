@@ -7,6 +7,7 @@ import {
   round2,
   totalProfitEur,
   totalProfitCtr,
+  totalCurseCtrCount,
   calcTargetAchievementPct,
   calcTargetAchievementPctCtr,
   assertValidPeriod,
@@ -139,6 +140,17 @@ describe('totalProfitCtr', () => {
   it('returns 0 for missing or non-numeric fields', () => {
     expect(totalProfitCtr({})).toBe(0);
     expect(totalProfitCtr(null)).toBe(0);
+  });
+});
+
+describe('totalCurseCtrCount', () => {
+  it('sums ctr_principalCount + ctr_secondaryCount only', () => {
+    const row = { ctr_principalCount: 10, ctr_secondaryCount: 5, livr_principalCount: 20 };
+    expect(totalCurseCtrCount(row)).toBe(15);
+  });
+  it('returns 0 for missing or non-numeric', () => {
+    expect(totalCurseCtrCount({})).toBe(0);
+    expect(totalCurseCtrCount(null)).toBe(0);
   });
 });
 

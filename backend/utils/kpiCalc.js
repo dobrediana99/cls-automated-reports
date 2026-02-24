@@ -47,6 +47,21 @@ export function totalProfitCtr(row) {
   return n(row.ctr_principalProfitEur) + n(row.ctr_secondaryProfitEur);
 }
 
+/** Alias for totalProfitCtr. Same formula: ctr_principalProfitEur + ctr_secondaryProfitEur. */
+export const totalProfitCtrEur = totalProfitCtr;
+
+/**
+ * Total curse CTR only: ctr_principalCount + ctr_secondaryCount.
+ * Used for email pipeline (curse count display).
+ * @param {object} row - Report row with count fields
+ * @returns {number}
+ */
+export function totalCurseCtrCount(row) {
+  if (!row || typeof row !== 'object') return 0;
+  const n = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  return n(row.ctr_principalCount) + n(row.ctr_secondaryCount);
+}
+
 /**
  * Realizare target per angajat based on CTR profit only: (totalProfitCtr / target) * 100. Null if target <= 0.
  * Used for email pipeline (KPI bullets, performance table).

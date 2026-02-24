@@ -58,6 +58,37 @@ describe('employeeToSemanticPayload', () => {
     expect(() => employeeToSemanticPayload(null)).toThrow(/requires validated llmSections/);
     expect(() => employeeToSemanticPayload(undefined)).toThrow(/requires validated llmSections/);
   });
+
+  it('De stabilit only when BOTH role lists empty; no artefact when one role has actions', () => {
+    const onlyFf = {
+      ...minimalEmployeeSections,
+      sectiunea_4_actiuni_prioritare: {
+        actiuni_specifice_per_rol: { freight_forwarder: ['Action FF'], sales_freight_agent: [] },
+      },
+    };
+    const payloadFf = employeeToSemanticPayload(onlyFf);
+    expect(payloadFf.actiuni).toEqual(['Action FF']);
+    expect(payloadFf.actiuni).not.toContain('De stabilit');
+
+    const onlySfa = {
+      ...minimalEmployeeSections,
+      sectiunea_4_actiuni_prioritare: {
+        actiuni_specifice_per_rol: { freight_forwarder: [], sales_freight_agent: ['Action SFA'] },
+      },
+    };
+    const payloadSfa = employeeToSemanticPayload(onlySfa);
+    expect(payloadSfa.actiuni).toEqual(['Action SFA']);
+    expect(payloadSfa.actiuni).not.toContain('De stabilit');
+
+    const bothEmpty = {
+      ...minimalEmployeeSections,
+      sectiunea_4_actiuni_prioritare: {
+        actiuni_specifice_per_rol: { freight_forwarder: [], sales_freight_agent: [] },
+      },
+    };
+    const payloadEmpty = employeeToSemanticPayload(bothEmpty);
+    expect(payloadEmpty.actiuni).toEqual(['De stabilit']);
+  });
 });
 
 describe('departmentToSemanticPayload', () => {

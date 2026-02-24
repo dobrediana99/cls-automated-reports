@@ -6,6 +6,7 @@
 import {
   round2,
   totalProfitCtr,
+  totalCurseCtrCount,
   calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
@@ -421,14 +422,17 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prevProfit = round2(totalProfitCtr(prev));
   const curTargetPct = calcTargetAchievementPctCtr(cur);
   const prevTargetPct = calcTargetAchievementPctCtr(prev);
+  const curCurseCtr = totalCurseCtrCount(cur);
+  const prevCurseCtr = totalCurseCtrCount(prev);
   const curApeluri = wd != null ? calcCallsPerWorkingDay(cur?.callsCount, wd) : null;
   const prevApeluri = wd != null ? calcCallsPerWorkingDay(prev?.callsCount, wd) : null;
   const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
   const prevConv = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
 
   const rows = [
-    ['Profit total', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
+    ['Profit contracte (CTR)', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
     ['Realizare target', fmtPct(curTargetPct), fmtPct(prevTargetPct), deltaPct(curTargetPct, prevTargetPct)],
+    ['Curse contracte (CTR)', fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? curCurseCtr : null), fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? prevCurseCtr : null), deltaPct(curCurseCtr, prevCurseCtr)],
     ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri)],
     ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv)],
   ];

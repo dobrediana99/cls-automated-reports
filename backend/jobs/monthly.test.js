@@ -598,7 +598,7 @@ describe('runMonthly', () => {
     expect(calculated.employee.current.realizareTargetPct).toBe(40);
     expect(calculated.employee.current.apeluriMediiZiLucratoare).toBe(28.81);
     expect(calculated.employee.current.conversieProspectarePct).toBe(18.86);
-    expect(calculated.employee.current.profitTotalEur).toBe(20000);
+    expect(calculated.employee.current.profitTotalEur).toBe(10000);
     expect(calculated.department.current.realizareTargetPct).toBe(83.33);
   });
 });

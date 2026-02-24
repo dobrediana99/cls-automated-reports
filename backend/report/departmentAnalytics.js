@@ -92,11 +92,15 @@ function analyseEmployeeIssues(row, kpis, departmentKey) {
 
     if (kpis.principalShare !== null) {
       const sharePct = Math.round(kpis.principalShare * 100);
-      if (kpis.principalShare > 0.7 || kpis.principalShare < 0.3) {
+      if (kpis.principalShare < 0.3) {
         issues.push(
-          `Dezechilibru principal/secundar: ${sharePct}% din profit dintr-o singură parte (principal vs secundar).`,
+          `Problema critică: peste 70% din profit din Secundar (${sharePct}% principal) – necesită focus pe achiziție clienți proprii și ofertare burse.`,
         );
         flags.imbalancePrincipalSecondary = true;
+      } else if (kpis.principalShare > 0.7) {
+        issues.push(
+          `Recomandare: intensifică colaborarea cu Vânzări (${sharePct}% din profit din Principal).`,
+        );
       }
     }
 
