@@ -171,4 +171,27 @@ describe('normalizeMonthlyEmployeeOutput', () => {
     expect(Object.keys(o.incheiere)).toEqual(expect.arrayContaining(['raport_urmator', 'mesaj_sub_80', 'mesaj_peste_80', 'semnatura']));
     validateEmployeeOutput(o, { performancePct: 85 });
   });
+
+  it('performancePct < 80: adds deterministic sectiunea_6 when missing', () => {
+    const o = fullValidEmployee();
+    delete o.sectiunea_6_check_in_intermediar;
+    normalizeMonthlyEmployeeOutput(o, { performancePct: 70 });
+    expect(o.sectiunea_6_check_in_intermediar).toEqual({
+      regula: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_S6_REGULA,
+      format: DEFAULTS_S5_AND_INCHEIERE.DEFAULT_S6_FORMAT,
+    });
+    validateEmployeeOutput(o, { performancePct: 70 });
+  });
+
+  it('performancePct >= 80: removes sectiunea_6 when present', () => {
+    const o = fullValidEmployee();
+    o.sectiunea_6_check_in_intermediar = {
+      regula: 'Sub 80',
+      format: 'Check-in custom',
+      extra: 'remove me',
+    };
+    normalizeMonthlyEmployeeOutput(o, { performancePct: 85 });
+    expect(o).not.toHaveProperty('sectiunea_6_check_in_intermediar');
+    validateEmployeeOutput(o, { performancePct: 85 });
+  });
 });

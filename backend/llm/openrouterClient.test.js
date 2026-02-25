@@ -283,6 +283,64 @@ describe('openrouterClient hardening', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('performancePct < 80: missing sectiunea_6 is auto-filled by normalization (no repair retry)', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+    const payload = getValidEmployeePayload();
+    delete payload.sectiunea_6_check_in_intermediar;
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: JSON.stringify(payload) } }],
+          model: 'test',
+          usage: {},
+        }),
+    });
+
+    const result = await generateMonthlySections({
+      systemPrompt: 'S',
+      inputJson: {},
+      performancePct: 70,
+    });
+
+    expect(result.sections).toHaveProperty('sectiunea_6_check_in_intermediar');
+    expect(result.sections.sectiunea_6_check_in_intermediar.regula.length).toBeGreaterThan(0);
+    expect(result.sections.sectiunea_6_check_in_intermediar.format.length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('performancePct >= 80: unexpected sectiunea_6 is removed by normalization', async () => {
+    const { generateMonthlySections } = await import('./openrouterClient.js');
+    const payload = getValidEmployeePayload();
+    payload.sectiunea_6_check_in_intermediar = {
+      regula: 'Sub 80',
+      format: 'Check-in custom',
+      extra: 'remove me',
+    };
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({
+          choices: [{ message: { content: JSON.stringify(payload) } }],
+          model: 'test',
+          usage: {},
+        }),
+    });
+
+    const result = await generateMonthlySections({
+      systemPrompt: 'S',
+      inputJson: {},
+      performancePct: 85,
+    });
+
+    expect(result.sections).not.toHaveProperty('sectiunea_6_check_in_intermediar');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('AbortError (timeout) -> retry', async () => {
     const { generateMonthlySections } = await import('./openrouterClient.js');
 

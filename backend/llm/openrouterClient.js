@@ -560,7 +560,7 @@ export async function generateMonthlySections({
     } catch (_) {
       throw new Error(PARSE_FAIL_MESSAGE);
     }
-    parsed = normalizeMonthlyEmployeeOutput(parsed);
+    parsed = normalizeMonthlyEmployeeOutput(parsed, { performancePct });
     try {
       return validateEmployeeOutput(parsed, { performancePct });
     } catch (schemaErr) {
