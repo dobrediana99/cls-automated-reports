@@ -350,7 +350,7 @@ function computeSystemicIssues(perEmployeeFlags, activeEmployees, departmentKey)
     );
     pushIfSystemic(
       'imbalance_principal_secondary_operational',
-      'Peste 50% din angajații activi Operațional au dezechilibru principal/secundar (>70% dintr-o singură parte).',
+      'Peste 50% din angajații activi Operațional au dependență excesivă pe Secundar (<30% Principal) – necesită focus pe achiziție clienți proprii.',
       imbalanceCount,
     );
   }

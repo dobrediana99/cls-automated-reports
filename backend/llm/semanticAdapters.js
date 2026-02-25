@@ -52,7 +52,11 @@ export function employeeToSemanticPayload(llmSections, person = null) {
     Array.isArray(arr) ? arr.map((x) => (typeof x === 'string' ? x.trim() : x != null ? String(x).trim() : '')).filter(Boolean) : [];
   const ff = toNonEmpty(rol?.freight_forwarder);
   const sfa = toNonEmpty(rol?.sales_freight_agent);
-  const actiuni = ff.length > 0 || sfa.length > 0 ? [...ff, ...sfa] : DEFAULT_ACTIUNI;
+  let combined = [...ff, ...sfa];
+  if (combined.some((a) => a && a !== DEFAULT_ACTIUNI[0])) {
+    combined = combined.filter((a) => a !== DEFAULT_ACTIUNI[0]);
+  }
+  const actiuni = combined.length > 0 ? combined : DEFAULT_ACTIUNI;
 
   const fmt = s5?.format ?? {};
   const semn = inc.semnatura && typeof inc.semnatura === 'object' ? inc.semnatura : {};
