@@ -445,10 +445,8 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prevCurseCtr = totalCurseCtrCount(prev);
   const curApeluri = wd != null ? calcCallsPerWorkingDay(cur?.callsCount, wd) : null;
   const prevApeluri = wd != null ? calcCallsPerWorkingDay(prev?.callsCount, wd) : null;
-  const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
-  const prevConv = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
-  const curRataConv = curConv;
-  const prevRataConv = prevConv;
+  const curRataConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
+  const prevRataConv = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
   const curLivrPrincipalCount = n(cur, 'livr_principalCount');
   const prevLivrPrincipalCount = n(prev, 'livr_principalCount');
   const curLivrPrincipalProfit = n(cur, 'livr_principalProfitEur');
@@ -499,7 +497,6 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
     ['Realizare target', fmtPct(curTargetPct), fmtPct(prevTargetPct), deltaPct(curTargetPct, prevTargetPct)],
     ['Curse contracte (CTR)', fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? curCurseCtr : null), fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? prevCurseCtr : null), deltaPct(curCurseCtr, prevCurseCtr)],
     ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri)],
-    ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv)],
     ['Clienți contactați telefonic', fmtInt(curContactat), fmtInt(prevContactat), deltaPct(curContactat, prevContactat)],
     ['Clienți calificați', fmtInt(curCalificat), fmtInt(prevCalificat), deltaPct(curCalificat, prevCalificat)],
     ['Rata conversie clienți (%)', fmtPct(curRataConv), fmtPct(prevRataConv), deltaPct(curRataConv, prevRataConv)],

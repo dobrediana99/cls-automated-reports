@@ -316,6 +316,7 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Realizare target');
     expect(html).toContain('Curse livrate principal');
     expect(html).toContain('Profitabilitate (%)');
+    expect(html).not.toContain('Conversie prospectare');
     expect(html).not.toContain('Furnizori adăugați');
     expect(html).not.toContain('Curse CTR principal');
     expect(html).not.toContain('Profit CTR principal (EUR)');
