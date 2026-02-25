@@ -20,6 +20,8 @@ const DEFAULT_MESAJ_PESTE_80 = 'Continuă la fel în luna următoare.';
 const DEFAULT_SEMNATURA_NUME = 'Echipa Management';
 const DEFAULT_SEMNATURA_FUNCTIE = 'Management';
 const DEFAULT_SEMNATURA_COMPANIE = 'Crystal Logistics Services';
+const DEFAULT_S6_REGULA = 'Se include doar dacă performanța este sub standard (<80% target sau alte probleme majore).';
+const DEFAULT_S6_FORMAT = 'Check-in intermediar: Vineri, 10:00 - Review obligatoriu progres pe temele principale.';
 
 export const DEFAULTS_S5_AND_INCHEIERE = {
   DEFAULT_SAPTAMANA_1,
@@ -30,6 +32,8 @@ export const DEFAULTS_S5_AND_INCHEIERE = {
   DEFAULT_SEMNATURA_NUME,
   DEFAULT_SEMNATURA_FUNCTIE,
   DEFAULT_SEMNATURA_COMPANIE,
+  DEFAULT_S6_REGULA,
+  DEFAULT_S6_FORMAT,
 };
 
 /** Synonyms for actiuni_specifice_per_rol keys (first match wins). */
@@ -102,9 +106,10 @@ function pickFirst(obj, keys) {
  * - sectiunea_4_actiuni_prioritare.actiuni_specifice_per_rol: map synonyms to freight_forwarder & sales_freight_agent, strip other keys, ensure both arrays min 1 non-empty string
  *
  * @param {object} o - Parsed JSON output (will be mutated)
+ * @param {{ performancePct?: number | null }} [opts]
  * @returns {object} The same object (normalized in place)
  */
-export function normalizeMonthlyEmployeeOutput(o) {
+export function normalizeMonthlyEmployeeOutput(o, opts = {}) {
   if (!o || typeof o !== 'object') return o;
 
   // --- sectiunea_1_tabel_date_performanta.continut ---
@@ -197,6 +202,32 @@ export function normalizeMonthlyEmployeeOutput(o) {
     mesaj_peste_80: trimOr(inc.mesaj_peste_80, DEFAULT_MESAJ_PESTE_80),
     semnatura: { nume: sigNume, functie: sigFunctie, companie: sigCompanie },
   };
+
+  // --- sectiunea_6_check_in_intermediar: deterministic enforcement by performance band ---
+  // If performancePct < 80 => section must exist with exact schema keys.
+  // If performancePct >= 80 => section must be absent.
+  const pct = opts?.performancePct;
+  if (typeof pct === 'number' && Number.isFinite(pct)) {
+    if (pct < 80) {
+      const rawS6 =
+        o.sectiunea_6_check_in_intermediar &&
+        typeof o.sectiunea_6_check_in_intermediar === 'object' &&
+        !Array.isArray(o.sectiunea_6_check_in_intermediar)
+          ? o.sectiunea_6_check_in_intermediar
+          : {};
+      const regula =
+        typeof rawS6.regula === 'string' && rawS6.regula.trim().length > 0
+          ? rawS6.regula.trim()
+          : DEFAULT_S6_REGULA;
+      const format =
+        typeof rawS6.format === 'string' && rawS6.format.trim().length > 0
+          ? rawS6.format.trim()
+          : DEFAULT_S6_FORMAT;
+      o.sectiunea_6_check_in_intermediar = { regula, format };
+    } else {
+      delete o.sectiunea_6_check_in_intermediar;
+    }
+  }
 
   return o;
 }
