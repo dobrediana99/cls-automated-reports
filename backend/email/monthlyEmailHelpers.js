@@ -423,8 +423,6 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prevCalificat = n(prev, 'calificat');
   const curCallsCount = n(cur, 'callsCount');
   const prevCallsCount = n(prev, 'callsCount');
-  const curSuppliersAdded = n(cur, 'suppliersAdded');
-  const prevSuppliersAdded = n(prev, 'suppliersAdded');
 
   const rows = [
     ['Profit total', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
@@ -435,7 +433,6 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
     ['Clienți calificați', fmtInt(curCalificat), fmtInt(prevCalificat), deltaPct(curCalificat, prevCalificat)],
     ['Rata conversie clienți (%)', fmtPct(curRataConv), fmtPct(prevRataConv), deltaPct(curRataConv, prevRataConv)],
     ['Apeluri', fmtInt(curCallsCount), fmtInt(prevCallsCount), deltaPct(curCallsCount, prevCallsCount)],
-    ['Furnizori adăugați', fmtInt(curSuppliersAdded), fmtInt(prevSuppliersAdded), deltaPct(curSuppliersAdded, prevSuppliersAdded)],
     ['Curse livrate principal', fmtInt(curLivrPrincipalCount), fmtInt(prevLivrPrincipalCount), deltaPct(curLivrPrincipalCount, prevLivrPrincipalCount)],
     ['Profit curse livrate principal (EUR)', fmtEur(curLivrPrincipalProfit), fmtEur(prevLivrPrincipalProfit), deltaPct(curLivrPrincipalProfit, prevLivrPrincipalProfit)],
     ['Curse livrate secundar', fmtInt(curLivrSecondaryCount), fmtInt(prevLivrSecondaryCount), deltaPct(curLivrSecondaryCount, prevLivrSecondaryCount)],

@@ -270,6 +270,13 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Realizare target');
     expect(html).toContain('Curse livrate principal');
     expect(html).toContain('Profitabilitate (%)');
+    expect(html).not.toContain('Furnizori adăugați');
+    expect(html).not.toContain('Curse CTR principal');
+    expect(html).not.toContain('Profit CTR principal (EUR)');
+    expect(html).not.toContain('Curse CTR secundar');
+    expect(html).not.toContain('Profit CTR secundar (EUR)');
+    expect(html).not.toContain('Total curse după contract');
+    expect(html).not.toContain('Total profit după contract (EUR)');
     expect(html).not.toMatch(/COMENZI\s+DUPĂ|===\s*.+\s*===/);
   });
 
