@@ -43,10 +43,8 @@ function getOrderedRows(stats) {
   const v = (key) => safeVal(stats[key]);
   const countClientTerms = v('countClientTerms');
   const countSupplierTerms = v('countSupplierTerms');
-  const countProfitability = v('countProfitability');
   const termenMediuClient = countClientTerms > 0 ? (v('sumClientTerms') / countClientTerms) : null;
   const termenMediuFurnizor = countSupplierTerms > 0 ? (v('sumSupplierTerms') / countSupplierTerms) : null;
-  const avgProfitability = countProfitability > 0 ? (v('sumProfitability') / countProfitability) : null;
   const totalLivrCount = v('livr_principalCount') + v('livr_secondaryCount');
   const totalLivrProfit = v('livr_principalProfitEur') + v('livr_secondaryProfitEur');
   const solicitari = v('solicitariCount');
@@ -72,7 +70,6 @@ function getOrderedRows(stats) {
     ['livr_secondaryProfitEur', 'Profit curse livrate secundar (EUR)', () => stats.livr_secondaryProfitEur, fmt],
     ['totalLivrCount', 'Total curse livrate', () => totalLivrCount, fmtInt],
     ['totalLivrProfit', 'Total profit curse livrate (EUR)', () => totalLivrProfit, fmt],
-    ['avgProfitability', 'Profitabilitate (%)', () => avgProfitability, (x) => (x != null ? fmtPct(x) : '—')],
     ['websiteCount', 'Curse web principal', () => stats.websiteCount, fmtInt],
     ['websiteProfit', 'Profit web principal (EUR)', () => stats.websiteProfit, fmt],
     ['websiteCountSec', 'Curse web secundar', () => stats.websiteCountSec, fmtInt],

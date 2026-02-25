@@ -398,6 +398,10 @@ function fmtNum(val) {
   const r = round2(val);
   return r != null ? String(r) : DASH;
 }
+function fmtInt(val) {
+  if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
+  return String(Math.round(val));
+}
 function deltaPct(cur, prev) {
   if (prev == null || typeof prev !== 'number' || typeof cur !== 'number' || !Number.isFinite(prev) || !Number.isFinite(cur) || prev === 0) return DASH;
   const r = round2(((cur - prev) / prev) * 100);
@@ -417,6 +421,21 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const cur = data3Months?.current;
   const prev = data3Months?.prev;
   const wd = workingDaysInPeriod > 0 ? workingDaysInPeriod : null;
+  const n = (row, key) => {
+    const val = Number(row?.[key]);
+    return Number.isFinite(val) ? val : 0;
+  };
+  const avgFromSums = (row, sumKey, countKey) => {
+    const count = n(row, countKey);
+    if (count <= 0) return null;
+    return n(row, sumKey) / count;
+  };
+  const convWebPct = (row) => {
+    const solicitari = n(row, 'solicitariCount');
+    const website = n(row, 'websiteCount');
+    if (solicitari > 0) return (website / solicitari) * 100;
+    return website > 0 ? 100 : null;
+  };
 
   const curProfit = round2(totalProfitCtr(cur));
   const prevProfit = round2(totalProfitCtr(prev));
@@ -428,6 +447,52 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prevApeluri = wd != null ? calcCallsPerWorkingDay(prev?.callsCount, wd) : null;
   const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
   const prevConv = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
+  const curRataConv = curConv;
+  const prevRataConv = prevConv;
+  const curLivrPrincipalCount = n(cur, 'livr_principalCount');
+  const prevLivrPrincipalCount = n(prev, 'livr_principalCount');
+  const curLivrPrincipalProfit = n(cur, 'livr_principalProfitEur');
+  const prevLivrPrincipalProfit = n(prev, 'livr_principalProfitEur');
+  const curLivrSecondaryCount = n(cur, 'livr_secondaryCount');
+  const prevLivrSecondaryCount = n(prev, 'livr_secondaryCount');
+  const curLivrSecondaryProfit = n(cur, 'livr_secondaryProfitEur');
+  const prevLivrSecondaryProfit = n(prev, 'livr_secondaryProfitEur');
+  const curTotalLivrCount = curLivrPrincipalCount + curLivrSecondaryCount;
+  const prevTotalLivrCount = prevLivrPrincipalCount + prevLivrSecondaryCount;
+  const curTotalLivrProfit = curLivrPrincipalProfit + curLivrSecondaryProfit;
+  const prevTotalLivrProfit = prevLivrPrincipalProfit + prevLivrSecondaryProfit;
+  const curProfitability = avgFromSums(cur, 'sumProfitability', 'countProfitability');
+  const prevProfitability = avgFromSums(prev, 'sumProfitability', 'countProfitability');
+  const curWebCount = n(cur, 'websiteCount');
+  const prevWebCount = n(prev, 'websiteCount');
+  const curWebProfit = n(cur, 'websiteProfit');
+  const prevWebProfit = n(prev, 'websiteProfit');
+  const curWebCountSec = n(cur, 'websiteCountSec');
+  const prevWebCountSec = n(prev, 'websiteCountSec');
+  const curWebProfitSec = n(cur, 'websiteProfitSec');
+  const prevWebProfitSec = n(prev, 'websiteProfitSec');
+  const curBurse = n(cur, 'burseCount');
+  const prevBurse = n(prev, 'burseCount');
+  const curSolicitari = n(cur, 'solicitariCount');
+  const prevSolicitari = n(prev, 'solicitariCount');
+  const curConvWeb = convWebPct(cur);
+  const prevConvWeb = convWebPct(prev);
+  const curTermenClient = avgFromSums(cur, 'sumClientTerms', 'countClientTerms');
+  const prevTermenClient = avgFromSums(prev, 'sumClientTerms', 'countClientTerms');
+  const curTermenFurn = avgFromSums(cur, 'sumSupplierTerms', 'countSupplierTerms');
+  const prevTermenFurn = avgFromSums(prev, 'sumSupplierTerms', 'countSupplierTerms');
+  const curOverdue = n(cur, 'overdueInvoicesCount');
+  const prevOverdue = n(prev, 'overdueInvoicesCount');
+  const curSup30 = n(cur, 'supplierTermsUnder30');
+  const prevSup30 = n(prev, 'supplierTermsUnder30');
+  const curSupGe30 = n(cur, 'supplierTermsOver30');
+  const prevSupGe30 = n(prev, 'supplierTermsOver30');
+  const curContactat = n(cur, 'contactat');
+  const prevContactat = n(prev, 'contactat');
+  const curCalificat = n(cur, 'calificat');
+  const prevCalificat = n(prev, 'calificat');
+  const curCallsCount = n(cur, 'callsCount');
+  const prevCallsCount = n(prev, 'callsCount');
 
   const rows = [
     ['Profit contracte (CTR)', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
@@ -435,6 +500,29 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
     ['Curse contracte (CTR)', fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? curCurseCtr : null), fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? prevCurseCtr : null), deltaPct(curCurseCtr, prevCurseCtr)],
     ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri)],
     ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv)],
+    ['Clienți contactați telefonic', fmtInt(curContactat), fmtInt(prevContactat), deltaPct(curContactat, prevContactat)],
+    ['Clienți calificați', fmtInt(curCalificat), fmtInt(prevCalificat), deltaPct(curCalificat, prevCalificat)],
+    ['Rata conversie clienți (%)', fmtPct(curRataConv), fmtPct(prevRataConv), deltaPct(curRataConv, prevRataConv)],
+    ['Apeluri', fmtInt(curCallsCount), fmtInt(prevCallsCount), deltaPct(curCallsCount, prevCallsCount)],
+    ['Curse livrate principal', fmtInt(curLivrPrincipalCount), fmtInt(prevLivrPrincipalCount), deltaPct(curLivrPrincipalCount, prevLivrPrincipalCount)],
+    ['Profit curse livrate principal (EUR)', fmtEur(curLivrPrincipalProfit), fmtEur(prevLivrPrincipalProfit), deltaPct(curLivrPrincipalProfit, prevLivrPrincipalProfit)],
+    ['Curse livrate secundar', fmtInt(curLivrSecondaryCount), fmtInt(prevLivrSecondaryCount), deltaPct(curLivrSecondaryCount, prevLivrSecondaryCount)],
+    ['Profit curse livrate secundar (EUR)', fmtEur(curLivrSecondaryProfit), fmtEur(prevLivrSecondaryProfit), deltaPct(curLivrSecondaryProfit, prevLivrSecondaryProfit)],
+    ['Total curse livrate', fmtInt(curTotalLivrCount), fmtInt(prevTotalLivrCount), deltaPct(curTotalLivrCount, prevTotalLivrCount)],
+    ['Total profit curse livrate (EUR)', fmtEur(curTotalLivrProfit), fmtEur(prevTotalLivrProfit), deltaPct(curTotalLivrProfit, prevTotalLivrProfit)],
+    ['Profitabilitate (%)', fmtPct(curProfitability), fmtPct(prevProfitability), deltaPct(curProfitability, prevProfitability)],
+    ['Curse web principal', fmtInt(curWebCount), fmtInt(prevWebCount), deltaPct(curWebCount, prevWebCount)],
+    ['Profit web principal (EUR)', fmtEur(curWebProfit), fmtEur(prevWebProfit), deltaPct(curWebProfit, prevWebProfit)],
+    ['Curse web secundar', fmtInt(curWebCountSec), fmtInt(prevWebCountSec), deltaPct(curWebCountSec, prevWebCountSec)],
+    ['Profit web secundar (EUR)', fmtEur(curWebProfitSec), fmtEur(prevWebProfitSec), deltaPct(curWebProfitSec, prevWebProfitSec)],
+    ['Curse burse', fmtInt(curBurse), fmtInt(prevBurse), deltaPct(curBurse, prevBurse)],
+    ['Solicitări web', fmtInt(curSolicitari), fmtInt(prevSolicitari), deltaPct(curSolicitari, prevSolicitari)],
+    ['Conversie web (%)', fmtPct(curConvWeb), fmtPct(prevConvWeb), deltaPct(curConvWeb, prevConvWeb)],
+    ['Termen mediu client (zile)', fmtNum(curTermenClient), fmtNum(prevTermenClient), deltaPct(curTermenClient, prevTermenClient)],
+    ['Termen mediu furnizor (zile)', fmtNum(curTermenFurn), fmtNum(prevTermenFurn), deltaPct(curTermenFurn, prevTermenFurn)],
+    ['Întârzieri > 15 zile', fmtInt(curOverdue), fmtInt(prevOverdue), deltaPct(curOverdue, prevOverdue)],
+    ['Furnizori < 30 zile', fmtInt(curSup30), fmtInt(prevSup30), deltaPct(curSup30, prevSup30)],
+    ['Furnizori >= 30 zile', fmtInt(curSupGe30), fmtInt(prevSupGe30), deltaPct(curSupGe30, prevSupGe30)],
   ];
 
   const headers = ['Indicator', 'Luna curentă', 'Luna anterioară', 'Δ%'];

@@ -59,7 +59,7 @@ describe('buildEmployeeDetailsTable', () => {
     expect(html).not.toContain('Total curse după contract');
     expect(html).not.toContain('Total profit după contract');
     expect(html).toContain('Termen mediu client');
-    expect(html).toContain('Profitabilitate');
+    expect(html).not.toContain('Profitabilitate');
     expect(html).not.toContain('Target total');
     expect(html).not.toContain('Profit peste target');
   });
@@ -70,7 +70,7 @@ describe('buildEmployeeDetailsTable', () => {
     expect(html).toContain('Curse livrate principal');
     expect(html).toContain('Termen mediu client');
     expect(html).toContain('Termen mediu furnizor');
-    expect(html).toContain('Profitabilitate');
+    expect(html).not.toContain('Profitabilitate');
     expect(html).not.toContain('Clienți contactați telefonic');
     expect(html).not.toContain('Clienți calificați');
     expect(html).not.toContain('Rata conversie');

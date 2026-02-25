@@ -314,6 +314,15 @@ describe('Monthly employee email', () => {
     expect(html).not.toContain('Media departament');
     expect(html).toContain('Profit contracte (CTR)');
     expect(html).toContain('Realizare target');
+    expect(html).toContain('Curse livrate principal');
+    expect(html).toContain('Profitabilitate (%)');
+    expect(html).not.toContain('Furnizori adăugați');
+    expect(html).not.toContain('Curse CTR principal');
+    expect(html).not.toContain('Profit CTR principal (EUR)');
+    expect(html).not.toContain('Curse CTR secundar');
+    expect(html).not.toContain('Profit CTR secundar (EUR)');
+    expect(html).not.toContain('Total curse după contract');
+    expect(html).not.toContain('Total profit după contract (EUR)');
     expect(html).not.toMatch(/COMENZI\s+DUPĂ|===\s*.+\s*===/);
   });
 
@@ -346,6 +355,8 @@ describe('Monthly employee email', () => {
     expect(tableB).toContain('Profit contracte (CTR)');
     expect(tableA).toContain('Realizare target');
     expect(tableB).toContain('Realizare target');
+    expect(tableA).toContain('Profitabilitate (%)');
+    expect(tableB).toContain('Profitabilitate (%)');
   });
 
   it('Acțiuni prioritare section renders single list of actions (no role titles Freight Forwarder / Sales & Freight Agent)', () => {
