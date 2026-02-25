@@ -14,6 +14,11 @@ indicatori calculați
 
 Folosește EXCLUSIV datele din JSON. Nu prezenta totalurile departamentale ca „medii per angajat” dacă nu sunt calculate ca total / număr angajați activi.
 
+REGULĂ OBLIGATORIE PENTRU „MEDIA DEPARTAMENTULUI”:
+- Când scrii comparații cu media departamentului, folosește strict valorile medii per angajat din `deptAverages3Months` / `calculated.department`.
+- NU trata niciodată totalurile departamentului ca medii.
+- Dacă media per angajat lipsește, omite comparația respectivă.
+
 STRUCTURA TABEL: 
 Secțiunea 1 – Comenzi după data livrării include indicatorii operaționali aferenți curselor finalizate: Curse Pr. și Profit Pr. reprezintă numărul de curse livrate și profitul realizat în rol de Principal, iar Curse Sec. și Profit Sec. reflectă cursele și profitul obținut în rol de Secundar; Total Curse indică numărul total de curse livrate, iar Total Profit reprezintă profitul total realizat.
 Secțiunea 2 – Indicatori de performanță cuprinde Targetul lunar alocat (valoare fixă), Profit peste target calculat ca diferența dintre Total Profit și Target, precum și Profitabilitate %, determinată prin formula (Profit / Rulaj) × 100 sau conform metricului intern utilizat.

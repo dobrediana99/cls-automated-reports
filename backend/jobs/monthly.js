@@ -44,9 +44,83 @@ import { ORG, MANAGERS, DEPARTMENTS } from '../config/org.js';
 import { validateMonthlyRuntimeConfig } from '../config/validateRuntimeConfig.js';
 import { sanitizeEmailForFilename } from '../utils/sanitizeEmailForFilename.js';
 
+function safeNumber(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * Build department averages per active employee for employee-monthly LLM input.
+ * This avoids confusing totals with "media departamentului" in narrative sections.
+ */
+function computeDepartmentEmployeeAverages(rows, workingDaysInPeriod) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (list.length === 0) {
+    return {
+      totalEmployees: 0,
+      activeEmployees: 0,
+      avgProfitCtrEur: null,
+      avgTargetEur: null,
+      avgTripsCtr: null,
+      avgCallsCount: null,
+      avgContactat: null,
+      avgCalificat: null,
+      avgCallsPerWorkingDay: null,
+      avgConversieProspectarePct: null,
+      avgTargetAchievementPct: null,
+    };
+  }
+
+  const enriched = list.map((row) => {
+    const tripsCtr = safeNumber(row?.ctr_principalCount) + safeNumber(row?.ctr_secondaryCount);
+    const profitCtr = safeNumber(row?.ctr_principalProfitEur) + safeNumber(row?.ctr_secondaryProfitEur);
+    const profitAll = totalProfitEur(row);
+    const active = tripsCtr > 0 || profitAll !== 0;
+    return { row, tripsCtr, profitCtr, active };
+  });
+
+  const activeEntries = enriched.filter((e) => e.active);
+  const usedEntries = activeEntries.length > 0 ? activeEntries : enriched;
+  const denominator = usedEntries.length;
+
+  const sums = usedEntries.reduce(
+    (acc, e) => {
+      acc.tripsCtr += e.tripsCtr;
+      acc.profitCtr += e.profitCtr;
+      acc.target += safeNumber(e.row?.target);
+      acc.calls += safeNumber(e.row?.callsCount);
+      acc.contactat += safeNumber(e.row?.contactat);
+      acc.calificat += safeNumber(e.row?.calificat);
+      return acc;
+    },
+    { tripsCtr: 0, profitCtr: 0, target: 0, calls: 0, contactat: 0, calificat: 0 },
+  );
+
+  const avgProfitCtrEurRaw = sums.profitCtr / denominator;
+  const avgTargetEurRaw = sums.target / denominator;
+  const avgCallsCountRaw = sums.calls / denominator;
+  const avgContactatRaw = sums.contactat / denominator;
+  const avgCalificatRaw = sums.calificat / denominator;
+
+  return {
+    totalEmployees: list.length,
+    activeEmployees: activeEntries.length,
+    avgProfitCtrEur: round2(avgProfitCtrEurRaw),
+    avgTargetEur: round2(avgTargetEurRaw),
+    avgTripsCtr: round2(sums.tripsCtr / denominator),
+    avgCallsCount: round2(avgCallsCountRaw),
+    avgContactat: round2(avgContactatRaw),
+    avgCalificat: round2(avgCalificatRaw),
+    avgCallsPerWorkingDay: calcCallsPerWorkingDay(avgCallsCountRaw, workingDaysInPeriod),
+    avgConversieProspectarePct: calcProspectingConversionPct(avgContactatRaw, avgCalificatRaw),
+    avgTargetAchievementPct:
+      avgTargetEurRaw > 0 ? round2((avgProfitCtrEurRaw / avgTargetEurRaw) * 100) : null,
+  };
+}
+
 /**
  * Build the "calculated" KPI object for LLM input (employee + department current/prev).
- * Department summary uses profitTotal/targetTotal from reportSummary.departments.
+ * Department values should represent averages per employee (not totals).
  */
 function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingDaysInPeriod, periodStart, periodEnd) {
   const cur = data3Months?.current;
@@ -75,26 +149,66 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
     target: prev?.target ?? null,
   };
 
-  const deptProfitCur = deptCur?.profitTotal != null ? Number(deptCur.profitTotal) : null;
-  const deptTargetCur = deptCur?.targetTotal != null && Number(deptCur.targetTotal) > 0 ? Number(deptCur.targetTotal) : null;
-  const deptProfitPrev = deptPrev?.profitTotal != null ? Number(deptPrev.profitTotal) : null;
-  const deptTargetPrev = deptPrev?.targetTotal != null && Number(deptPrev.targetTotal) > 0 ? Number(deptPrev.targetTotal) : null;
+  const asNumberOrNull = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const deptProfitCur = asNumberOrNull(deptCur?.avgProfitCtrEur ?? deptCur?.profitTotal);
+  const deptTargetCur = asNumberOrNull(deptCur?.avgTargetEur ?? deptCur?.targetTotal);
+  const deptProfitPrev = asNumberOrNull(deptPrev?.avgProfitCtrEur ?? deptPrev?.profitTotal);
+  const deptTargetPrev = asNumberOrNull(deptPrev?.avgTargetEur ?? deptPrev?.targetTotal);
+  const deptCallsCur = asNumberOrNull(deptCur?.avgCallsCount ?? deptCur?.callsCount);
+  const deptCallsPrev = asNumberOrNull(deptPrev?.avgCallsCount ?? deptPrev?.callsCount);
+  const deptContactCur = asNumberOrNull(deptCur?.avgContactat ?? deptCur?.contactat);
+  const deptContactPrev = asNumberOrNull(deptPrev?.avgContactat ?? deptPrev?.contactat);
+  const deptCalifCur = asNumberOrNull(deptCur?.avgCalificat ?? deptCur?.calificat);
+  const deptCalifPrev = asNumberOrNull(deptPrev?.avgCalificat ?? deptPrev?.calificat);
 
   return {
     period: { periodStart, periodEnd, workingDaysInPeriod },
     employee: { current: empCur, prev: empPrev },
     department: {
       current: {
+        // Legacy key kept for compatibility; value represents average per employee.
         profitTotalEur: deptProfitCur != null ? round2(deptProfitCur) : null,
-        realizareTargetPct: deptTargetCur != null && deptProfitCur != null ? round2((deptProfitCur / deptTargetCur) * 100) : null,
-        apeluriMediiZiLucratoare: deptCur?.callsCount != null ? calcCallsPerWorkingDay(deptCur.callsCount, workingDaysInPeriod) : null,
-        conversieProspectarePct: (deptCur?.contactat != null && deptCur?.calificat != null) ? calcProspectingConversionPct(deptCur.contactat, deptCur.calificat) : null,
+        profitMediuPerAngajatEur: deptProfitCur != null ? round2(deptProfitCur) : null,
+        realizareTargetPct:
+          asNumberOrNull(deptCur?.avgTargetAchievementPct) ??
+          (deptTargetCur != null && deptTargetCur > 0 && deptProfitCur != null
+            ? round2((deptProfitCur / deptTargetCur) * 100)
+            : null),
+        apeluriMediiZiLucratoare:
+          asNumberOrNull(deptCur?.avgCallsPerWorkingDay) ??
+          (deptCallsCur != null
+            ? calcCallsPerWorkingDay(deptCallsCur, workingDaysInPeriod)
+            : null),
+        conversieProspectarePct:
+          asNumberOrNull(deptCur?.avgConversieProspectarePct) ??
+          (deptContactCur != null && deptCalifCur != null
+            ? calcProspectingConversionPct(deptContactCur, deptCalifCur)
+            : null),
+        activeEmployees: asNumberOrNull(deptCur?.activeEmployees),
       },
       prev: {
+        // Legacy key kept for compatibility; value represents average per employee.
         profitTotalEur: deptProfitPrev != null ? round2(deptProfitPrev) : null,
-        realizareTargetPct: deptTargetPrev != null && deptProfitPrev != null ? round2((deptProfitPrev / deptTargetPrev) * 100) : null,
-        apeluriMediiZiLucratoare: deptPrev?.callsCount != null ? calcCallsPerWorkingDay(deptPrev.callsCount, workingDaysInPeriod) : null,
-        conversieProspectarePct: (deptPrev?.contactat != null && deptPrev?.calificat != null) ? calcProspectingConversionPct(deptPrev.contactat, deptPrev.calificat) : null,
+        profitMediuPerAngajatEur: deptProfitPrev != null ? round2(deptProfitPrev) : null,
+        realizareTargetPct:
+          asNumberOrNull(deptPrev?.avgTargetAchievementPct) ??
+          (deptTargetPrev != null && deptTargetPrev > 0 && deptProfitPrev != null
+            ? round2((deptProfitPrev / deptTargetPrev) * 100)
+            : null),
+        apeluriMediiZiLucratoare:
+          asNumberOrNull(deptPrev?.avgCallsPerWorkingDay) ??
+          (deptCallsPrev != null
+            ? calcCallsPerWorkingDay(deptCallsPrev, workingDaysInPeriod)
+            : null),
+        conversieProspectarePct:
+          asNumberOrNull(deptPrev?.avgConversieProspectarePct) ??
+          (deptContactPrev != null && deptCalifPrev != null
+            ? calcProspectingConversionPct(deptContactPrev, deptCalifPrev)
+            : null),
+        activeEmployees: asNumberOrNull(deptPrev?.activeEmployees),
       },
     },
   };
@@ -248,6 +362,19 @@ export async function runMonthly(opts = {}) {
     periodStart: metas[0].periodStart,
   });
 
+  const departmentAveragesByMonth = [
+    {
+      operational: computeDepartmentEmployeeAverages(reports[0]?.opsStats ?? [], workingDaysInPeriod),
+      sales: computeDepartmentEmployeeAverages(reports[0]?.salesStats ?? [], workingDaysInPeriod),
+      management: computeDepartmentEmployeeAverages(reports[0]?.mgmtStats ?? [], workingDaysInPeriod),
+    },
+    {
+      operational: computeDepartmentEmployeeAverages(reports[1]?.opsStats ?? [], workingDaysInPeriod),
+      sales: computeDepartmentEmployeeAverages(reports[1]?.salesStats ?? [], workingDaysInPeriod),
+      management: computeDepartmentEmployeeAverages(reports[1]?.mgmtStats ?? [], workingDaysInPeriod),
+    },
+  ];
+
   const validation = validateDepartmentAnalytics(departmentAnalytics);
   if (!validation.ok) {
     console.warn('[monthly] validateDepartmentAnalytics errors', validation.errors);
@@ -310,8 +437,8 @@ export async function runMonthly(opts = {}) {
       };
       const deptKey = departmentToSummaryKey(person.department);
       const deptAverages3Months = {
-        current: reportSummaries[0]?.departments?.[deptKey] ?? null,
-        prev: reportSummaries[1]?.departments?.[deptKey] ?? null,
+        current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
+        prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
       };
       const calculated = buildEmployeeInputCalculated(
         data3Months,
@@ -522,8 +649,8 @@ export async function runMonthly(opts = {}) {
     };
     const deptKey = departmentToSummaryKey(person.department);
     const deptAverages3Months = {
-      current: reportSummaries[0]?.departments?.[deptKey] ?? null,
-      prev: reportSummaries[1]?.departments?.[deptKey] ?? null,
+      current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
+      prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
     };
     const calculated = buildEmployeeInputCalculated(
       data3Months,
