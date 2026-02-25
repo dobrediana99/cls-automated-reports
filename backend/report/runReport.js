@@ -17,6 +17,7 @@ export function computeTotals(rows) {
     ctr_principalProfitEur: 0,
     ctr_secondaryCount: 0,
     ctr_secondaryProfitEur: 0,
+    totalCurseCtr: 0,
     livr_principalCount: 0,
     livr_principalProfitEur: 0,
     livr_secondaryCount: 0,
@@ -56,6 +57,7 @@ export function computeTotals(rows) {
     acc.ctr_principalProfitEur += safeVal(row.ctr_principalProfitEur);
     acc.ctr_secondaryCount += safeVal(row.ctr_secondaryCount);
     acc.ctr_secondaryProfitEur += safeVal(row.ctr_secondaryProfitEur);
+    acc.totalCurseCtr += safeVal(row.ctr_principalCount) + safeVal(row.ctr_secondaryCount);
     acc.livr_principalCount += safeVal(row.livr_principalCount);
     acc.livr_principalProfitEur += safeVal(row.livr_principalProfitEur);
     acc.livr_secondaryCount += safeVal(row.livr_secondaryCount);

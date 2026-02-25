@@ -213,8 +213,6 @@ function validDepartment() {
         profitMediu: '1',
         curseMedii: '2',
         curseMediiBurse: '3',
-        procentProfitPrincipal: '4',
-        procentProfitSecundar: '5',
       },
     },
     sectiunea_4_comparatie_departamente: minimalComparatie,
@@ -255,6 +253,14 @@ describe('validateDepartmentOutput', () => {
     obj.antet.subiect = '';
     expect(() => validateDepartmentOutput(obj)).toThrow(
       /schema validation failed|minLength/
+    );
+  });
+
+  it('FAIL when sectiunea_3 metriciMediiPerAngajat has procentProfitPrincipal or procentProfitSecundar', () => {
+    const obj = validDepartment();
+    obj.sectiunea_3_analiza_operational.metriciMediiPerAngajat.procentProfitPrincipal = '50';
+    expect(() => validateDepartmentOutput(obj)).toThrow(
+      /schema validation failed|additionalProperties/
     );
   });
 });

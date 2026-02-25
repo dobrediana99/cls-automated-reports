@@ -28,4 +28,14 @@ describe('computeTotals', () => {
     expect(totals.profitTotal).toBe(250);
     expect(totals.targetTotal).toBe(80 + 100);
   });
+
+  it('totalCurseCtr is CTR principal + CTR secondary only (no livr)', () => {
+    const rows = [
+      { ctr_principalCount: 5, ctr_secondaryCount: 3, livr_principalCount: 10, livr_secondaryCount: 2 },
+      { ctr_principalCount: 4, ctr_secondaryCount: 1, livr_principalCount: 8, livr_secondaryCount: 0 },
+    ];
+    const totals = computeTotals(rows);
+    expect(totals.totalCurseCtr).toBe(5 + 3 + 4 + 1);
+    expect(totals.totalCurseCtr).toBe(13);
+  });
 });

@@ -35,8 +35,8 @@ import {
   buildReportKpi,
   countWorkingDays,
   round2,
-  totalProfitEur,
-  calcTargetAchievementPct,
+  totalProfitCtr,
+  calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
 } from '../utils/kpiCalc.js';
@@ -129,8 +129,8 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
   const deptPrev = deptAverages3Months?.prev;
 
   const empCur = {
-    profitTotalEur: round2(totalProfitEur(cur)),
-    realizareTargetPct: calcTargetAchievementPct(cur),
+    profitTotalEur: round2(totalProfitCtr(cur)),
+    realizareTargetPct: calcTargetAchievementPctCtr(cur),
     apeluriMediiZiLucratoare: calcCallsPerWorkingDay(cur?.callsCount, workingDaysInPeriod),
     conversieProspectarePct: calcProspectingConversionPct(cur?.contactat, cur?.calificat),
     callsCount: cur?.callsCount ?? null,
@@ -139,8 +139,8 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
     target: cur?.target ?? null,
   };
   const empPrev = {
-    profitTotalEur: round2(totalProfitEur(prev)),
-    realizareTargetPct: calcTargetAchievementPct(prev),
+    profitTotalEur: round2(totalProfitCtr(prev)),
+    realizareTargetPct: calcTargetAchievementPctCtr(prev),
     apeluriMediiZiLucratoare: calcCallsPerWorkingDay(prev?.callsCount, workingDaysInPeriod),
     conversieProspectarePct: calcProspectingConversionPct(prev?.contactat, prev?.calificat),
     callsCount: prev?.callsCount ?? null,
@@ -417,17 +417,14 @@ export async function runMonthly(opts = {}) {
     },
   };
 
-  /** performancePct = (totalProfit / target) * 100 for check-in rule; null if unknown. */
+  /** performancePct = (totalProfitCtr / target) * 100 for check-in rule; null if unknown. Email KPI = DOAR CTR. */
   function getPerformancePct(monthData) {
     if (!monthData || typeof monthData !== 'object') return null;
     const target = Number(monthData.target);
     if (!target || target <= 0) return null;
-    const totalProfit =
-      Number(monthData.ctr_principalProfitEur ?? 0) +
-      Number(monthData.ctr_secondaryProfitEur ?? 0) +
-      Number(monthData.livr_principalProfitEur ?? 0) +
-      Number(monthData.livr_secondaryProfitEur ?? 0);
-    return (totalProfit / target) * 100;
+    const totalProfitCtr =
+      Number(monthData.ctr_principalProfitEur ?? 0) + Number(monthData.ctr_secondaryProfitEur ?? 0);
+    return (totalProfitCtr / target) * 100;
   }
 
   if (process.env.DRY_RUN === '1') {

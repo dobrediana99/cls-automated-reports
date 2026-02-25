@@ -32,8 +32,26 @@ const mockReport = {
 
 const mockReportSummary = {
   departments: {
-    operational: { livr_principalCount: 10, livr_principalProfitEur: 1000, profitTotal: 8000, targetTotal: 10000, callsCount: 0 },
-    sales: { contactat: 555, calificat: 129, callsCount: 605, profitTotal: 12000, targetTotal: 15000 },
+    operational: {
+      livr_principalCount: 10,
+      livr_principalProfitEur: 1000,
+      profitTotal: 8000,
+      targetTotal: 10000,
+      callsCount: 0,
+      totalCurseCtr: 42,
+      ctr_principalCount: 30,
+      ctr_secondaryCount: 12,
+    },
+    sales: {
+      contactat: 555,
+      calificat: 129,
+      callsCount: 605,
+      profitTotal: 12000,
+      targetTotal: 15000,
+      totalCurseCtr: 58,
+      ctr_principalCount: 45,
+      ctr_secondaryCount: 13,
+    },
     management: { target: 5000 },
   },
   company: {},
@@ -117,7 +135,7 @@ const mockDepartmentLlmSections = {
     titlu: 'Analiză Operațional',
     performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
     targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
-    metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3', procentProfitPrincipal: '4', procentProfitSecundar: '5' },
+    metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3' },
     tabelAngajati: 'Tabel',
     problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
     highPerformers: [],
@@ -204,6 +222,34 @@ describe('Monthly employee email', () => {
     expect(resultOk.html).not.toContain('Check-in intermediar');
   });
 
+  it('CTR-only: buildMonthlyEmployeeEmail shows profit and % target from CTR when livr_* is large', () => {
+    const data3Months = {
+      current: {
+        target: 10000,
+        ctr_principalProfitEur: 1000,
+        ctr_secondaryProfitEur: 0,
+        livr_principalProfitEur: 90000,
+        livr_secondaryProfitEur: 5000,
+        callsCount: 100,
+        contactat: 50,
+        calificat: 10,
+      },
+      prev: { target: 5000, ctr_principalProfitEur: 400, livr_principalProfitEur: 80000 },
+    };
+    const result = buildMonthlyEmployeeEmail({
+      person: mockPerson,
+      data3Months,
+      deptAverages3Months: null,
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 20,
+      llmSections: mockEmployeeLlmSections,
+    });
+    expect(result.html).toContain('1000');
+    expect(result.html).toContain('10%');
+    expect(result.html).toContain('400');
+    expect(result.html).toContain('8%');
+  });
+
   it('buildMonthlyEmployeeEmailHtml uses prompt (loads and does not throw)', () => {
     const html = buildMonthlyEmployeeEmailHtml({
       personName: 'Alexandru Pop',
@@ -266,7 +312,7 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Luna curentă');
     expect(html).toContain('Luna anterioară');
     expect(html).not.toContain('Media departament');
-    expect(html).toContain('Profit total');
+    expect(html).toContain('Profit contracte (CTR)');
     expect(html).toContain('Realizare target');
     expect(html).toContain('Curse livrate principal');
     expect(html).toContain('Profitabilitate (%)');
@@ -305,8 +351,8 @@ describe('Monthly employee email', () => {
     expect(tableStartB).toBeGreaterThan(0);
     const tableA = htmlA.slice(tableStartA, htmlA.indexOf('</table>') + 8);
     const tableB = htmlB.slice(tableStartB, htmlB.indexOf('</table>') + 8);
-    expect(tableA).toContain('Profit total');
-    expect(tableB).toContain('Profit total');
+    expect(tableA).toContain('Profit contracte (CTR)');
+    expect(tableB).toContain('Profit contracte (CTR)');
     expect(tableA).toContain('Realizare target');
     expect(tableB).toContain('Realizare target');
     expect(tableA).toContain('Profitabilitate (%)');
@@ -456,6 +502,142 @@ describe('Monthly management email', () => {
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
     expect(html).toContain('&quot;');
+  });
+
+  it('department email Analiză Operațional does not contain procentProfitPrincipal or procentProfitSecundar', () => {
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      llmSections: mockDepartmentLlmSections,
+    });
+    expect(html).not.toContain('procentProfitPrincipal');
+    expect(html).not.toContain('procentProfitSecundar');
+  });
+
+  it('department email HTML contains human labels (Luna curentă, Profit realizat, Procent profit din target)', () => {
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: mockDepartmentLlmSections,
+    });
+    expect(html).toContain('Luna curentă');
+    expect(html).toContain('Profit realizat');
+    expect(html).toContain('Procent profit din target');
+    expect(html).toContain('Evoluție vs luna anterioară');
+    expect(html).toContain('Profit total');
+  });
+
+  it('department email HTML does not contain technical labels (lunaCurenta, realizat, CurseCtr, %Tgt)', () => {
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: mockDepartmentLlmSections,
+    });
+    expect(html).not.toContain('lunaCurenta');
+    expect(html).not.toMatch(/>realizat</);
+    expect(html).not.toContain('CurseCtr');
+    expect(html).not.toContain('%Tgt');
+  });
+
+  it('department email tabelAngajati headers are normalized to human labels when LLM sends old headers', () => {
+    const oldHeadersTable = '| # | Angajat | CurseCtr | ProfitCtr(EUR) | Target(EUR) | %Tgt | Burse |\n|---|---|---|---|---|---|---|\n| 1 | Ion Pop | 10 | 500 | 400 | 125% | 2 |';
+    const withOldHeaders = {
+      ...mockDepartmentLlmSections,
+      sectiunea_2_analiza_vanzari: {
+        ...mockDepartmentLlmSections.sectiunea_2_analiza_vanzari,
+        tabelAngajati: oldHeadersTable,
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: withOldHeaders,
+    });
+    expect(html).toContain('Nr.');
+    expect(html).toContain('Nume angajat');
+    expect(html).toContain('Curse');
+    expect(html).toContain('Profit (EUR)');
+    expect(html).toContain('Procent profit din target');
+    expect(html).toContain('Curse din burse');
+    expect(html).not.toContain('CurseCtr');
+    expect(html).not.toContain('%Tgt');
+  });
+
+  it('Excel export files are untouched (weeklyReportWorkbook, xlsx)', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __dirname = path.dirname(fileURLToPath(import.meta.url));
+    const wbPath = path.join(__dirname, '..', 'export', 'weeklyReportWorkbook.js');
+    const xlsxPath = path.join(__dirname, '..', 'export', 'xlsx.js');
+    if (fs.existsSync(wbPath)) {
+      const wb = fs.readFileSync(wbPath, 'utf8');
+      expect(wb).not.toContain('toHumanLabel');
+      expect(wb).not.toContain('Luna curentă');
+    }
+    if (fs.existsSync(xlsxPath)) {
+      const xlsx = fs.readFileSync(xlsxPath, 'utf8');
+      expect(xlsx).not.toContain('toHumanLabel');
+    }
+  });
+
+  it('department email numarCurseTotal: backend override replaces "Nu pot determina" with CTR values', () => {
+    const llmWithNuPotDetermina = {
+      ...mockDepartmentLlmSections,
+      sectiunea_4_comparatie_departamente: {
+        ...mockDepartmentLlmSections.sectiunea_4_comparatie_departamente,
+        tabelComparativ: {
+          ...mockDepartmentLlmSections.sectiunea_4_comparatie_departamente.tabelComparativ,
+          numarCurseTotal: {
+            vanzari: 'Nu pot determina din datele disponibile.',
+            operational: 'Nu pot determina din datele disponibile.',
+            diferenta: 'N/A',
+          },
+        },
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      meta: mockMeta,
+      llmSections: llmWithNuPotDetermina,
+    });
+    expect(html).toContain('42');
+    expect(html).toContain('58');
+    expect(html).toContain('Număr total curse');
+    expect(html).not.toContain('Nu pot determina din datele disponibile');
+  });
+
+  it('department email defensive: strips procentProfitPrincipal/Secundar from old llmSections', () => {
+    const oldLlmSections = {
+      ...mockDepartmentLlmSections,
+      sectiunea_3_analiza_operational: {
+        ...mockDepartmentLlmSections.sectiunea_3_analiza_operational,
+        metriciMediiPerAngajat: {
+          profitMediu: '1',
+          curseMedii: '2',
+          curseMediiBurse: '3',
+          procentProfitPrincipal: '40',
+          procentProfitSecundar: '60',
+        },
+      },
+    };
+    const html = buildMonthlyDepartmentEmailHtml({
+      periodStart: '2026-01-01',
+      reportSummary: mockReportSummary,
+      report: null,
+      llmSections: oldLlmSections,
+    });
+    expect(html).not.toContain('procentProfitPrincipal');
+    expect(html).not.toContain('procentProfitSecundar');
   });
 
   it('department email does not contain KPI-uri deterministe block or Rezumat Executiv section', () => {

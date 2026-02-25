@@ -207,13 +207,11 @@
         "metriciMediiPerAngajat": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["profitMediu", "curseMedii", "curseMediiBurse", "procentProfitPrincipal", "procentProfitSecundar"],
+          "required": ["profitMediu", "curseMedii", "curseMediiBurse"],
           "properties": {
             "profitMediu": { "type": "string", "minLength": 1 },
             "curseMedii": { "type": "string", "minLength": 1 },
-            "curseMediiBurse": { "type": "string", "minLength": 1 },
-            "procentProfitPrincipal": { "type": "string", "minLength": 1 },
-            "procentProfitSecundar": { "type": "string", "minLength": 1 }
+            "curseMediiBurse": { "type": "string", "minLength": 1 }
           }
         },
         "tabelAngajati": { "type": "string", "minLength": 1 },

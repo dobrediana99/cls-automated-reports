@@ -48,9 +48,11 @@ export function employeeToSemanticPayload(llmSections, person = null) {
   const inc = llmSections.incheiere ?? {};
 
   const rol = s4?.actiuni_specifice_per_rol;
-  const ff = toStrArray(rol?.freight_forwarder);
-  const sfa = toStrArray(rol?.sales_freight_agent);
-  const actiuni = [...ff, ...sfa];
+  const toNonEmpty = (arr) =>
+    Array.isArray(arr) ? arr.map((x) => (typeof x === 'string' ? x.trim() : x != null ? String(x).trim() : '')).filter(Boolean) : [];
+  const ff = toNonEmpty(rol?.freight_forwarder);
+  const sfa = toNonEmpty(rol?.sales_freight_agent);
+  const actiuni = ff.length > 0 || sfa.length > 0 ? [...ff, ...sfa] : DEFAULT_ACTIUNI;
 
   const fmt = s5?.format ?? {};
   const semn = inc.semnatura && typeof inc.semnatura === 'object' ? inc.semnatura : {};
@@ -122,7 +124,12 @@ export function departmentToSemanticPayload(llmSections) {
     analizaOperational: {
       performantaVsIstoric: s3.performantaVsIstoric && typeof s3.performantaVsIstoric === 'object' ? s3.performantaVsIstoric : {},
       targetDepartamental: s3.targetDepartamental && typeof s3.targetDepartamental === 'object' ? s3.targetDepartamental : {},
-      metriciMediiPerAngajat: s3.metriciMediiPerAngajat && typeof s3.metriciMediiPerAngajat === 'object' ? s3.metriciMediiPerAngajat : {},
+      metriciMediiPerAngajat: (() => {
+        const m = s3.metriciMediiPerAngajat && typeof s3.metriciMediiPerAngajat === 'object' ? { ...s3.metriciMediiPerAngajat } : {};
+        delete m.procentProfitPrincipal;
+        delete m.procentProfitSecundar;
+        return m;
+      })(),
       tabelAngajati: typeof s3.tabelAngajati === 'string' ? s3.tabelAngajati : '',
       problemeIdentificateAngajati: Array.isArray(s3.problemeIdentificateAngajati) ? s3.problemeIdentificateAngajati : [],
       highPerformers: Array.isArray(s3.highPerformers) ? s3.highPerformers : [],
