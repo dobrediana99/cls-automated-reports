@@ -35,7 +35,6 @@ import {
   buildReportKpi,
   countWorkingDays,
   round2,
-  totalProfitEur,
   calcTargetAchievementPct,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
@@ -47,6 +46,16 @@ import { sanitizeEmailForFilename } from '../utils/sanitizeEmailForFilename.js';
 function safeNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function sumProfitAllEur(row) {
+  if (!row || typeof row !== 'object') return 0;
+  return (
+    safeNumber(row.ctr_principalProfitEur) +
+    safeNumber(row.ctr_secondaryProfitEur) +
+    safeNumber(row.livr_principalProfitEur) +
+    safeNumber(row.livr_secondaryProfitEur)
+  );
 }
 
 /**
@@ -74,7 +83,7 @@ function computeDepartmentEmployeeAverages(rows, workingDaysInPeriod) {
   const enriched = list.map((row) => {
     const tripsCtr = safeNumber(row?.ctr_principalCount) + safeNumber(row?.ctr_secondaryCount);
     const profitCtr = safeNumber(row?.ctr_principalProfitEur) + safeNumber(row?.ctr_secondaryProfitEur);
-    const profitAll = totalProfitEur(row);
+    const profitAll = sumProfitAllEur(row);
     const active = tripsCtr > 0 || profitAll !== 0;
     return { row, tripsCtr, profitCtr, active };
   });
@@ -129,7 +138,7 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
   const deptPrev = deptAverages3Months?.prev;
 
   const empCur = {
-    profitTotalEur: round2(totalProfitEur(cur)),
+    profitTotalEur: round2(sumProfitAllEur(cur)),
     realizareTargetPct: calcTargetAchievementPct(cur),
     apeluriMediiZiLucratoare: calcCallsPerWorkingDay(cur?.callsCount, workingDaysInPeriod),
     conversieProspectarePct: calcProspectingConversionPct(cur?.contactat, cur?.calificat),
@@ -139,7 +148,7 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
     target: cur?.target ?? null,
   };
   const empPrev = {
-    profitTotalEur: round2(totalProfitEur(prev)),
+    profitTotalEur: round2(sumProfitAllEur(prev)),
     realizareTargetPct: calcTargetAchievementPct(prev),
     apeluriMediiZiLucratoare: calcCallsPerWorkingDay(prev?.callsCount, workingDaysInPeriod),
     conversieProspectarePct: calcProspectingConversionPct(prev?.contactat, prev?.calificat),
