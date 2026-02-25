@@ -13,24 +13,19 @@ function safeNumber(v) {
 function computeEmployeeKpis(row) {
   const totalTripsCtr = safeNumber(row.ctr_principalCount) + safeNumber(row.ctr_secondaryCount);
   const totalProfitCtr = safeNumber(row.ctr_principalProfitEur) + safeNumber(row.ctr_secondaryProfitEur);
-  const totalProfitAll =
-    totalProfitCtr + safeNumber(row.livr_principalProfitEur) + safeNumber(row.livr_secondaryProfitEur);
   const target = safeNumber(row.target);
-  const pctTarget = target > 0 ? totalProfitAll / target : null;
-  const active = totalTripsCtr > 0 || totalProfitAll !== 0;
+  const pctTarget = target > 0 ? totalProfitCtr / target : null;
+  const active = totalTripsCtr > 0 || totalProfitCtr !== 0;
   const burseCount = safeNumber(row.burseCount);
   const burseCountCtrPrincipal = safeNumber(row.burseCountCtrPrincipal);
   const burseCountCtrSecondary = safeNumber(row.burseCountCtrSecondary);
   const burseCountLivrPrincipal = safeNumber(row.burseCountLivrPrincipal);
   const burseCountLivrSecondary = safeNumber(row.burseCountLivrSecondary);
 
-  const profitPrincipalTotal =
-    safeNumber(row.ctr_principalProfitEur) + safeNumber(row.livr_principalProfitEur);
-  const profitSecondaryTotal =
-    safeNumber(row.ctr_secondaryProfitEur) + safeNumber(row.livr_secondaryProfitEur);
-  const profitPrincipalSecondaryTotal = profitPrincipalTotal + profitSecondaryTotal;
-  const principalShare =
-    profitPrincipalSecondaryTotal > 0 ? profitPrincipalTotal / profitPrincipalSecondaryTotal : null;
+  const profitPrincipalCtr = safeNumber(row.ctr_principalProfitEur);
+  const profitSecondaryCtr = safeNumber(row.ctr_secondaryProfitEur);
+  const profitPrincipalSecondaryTotal = profitPrincipalCtr + profitSecondaryCtr;
+  const principalShare = profitPrincipalSecondaryTotal > 0 ? profitPrincipalCtr / profitPrincipalSecondaryTotal : null;
 
   const sumProfitability = safeNumber(row.sumProfitability);
   const countProfitability = safeNumber(row.countProfitability);
@@ -42,7 +37,7 @@ function computeEmployeeKpis(row) {
   return {
     totalTripsCtr,
     totalProfitCtr,
-    totalProfitAll,
+    totalProfitAll: totalProfitCtr,
     target,
     pctTarget,
     active,
@@ -53,8 +48,8 @@ function computeEmployeeKpis(row) {
       burseCountLivrPrincipal,
       burseCountLivrSecondary,
     },
-    profitPrincipalTotal,
-    profitSecondaryTotal,
+    profitPrincipalTotal: profitPrincipalCtr,
+    profitSecondaryTotal: profitSecondaryCtr,
     principalShare,
     profitabilityPct,
     avgClientTerm,
@@ -97,11 +92,15 @@ function analyseEmployeeIssues(row, kpis, departmentKey) {
 
     if (kpis.principalShare !== null) {
       const sharePct = Math.round(kpis.principalShare * 100);
-      if (kpis.principalShare > 0.7 || kpis.principalShare < 0.3) {
+      if (kpis.principalShare < 0.3) {
         issues.push(
-          `Dezechilibru principal/secundar: ${sharePct}% din profit dintr-o singură parte (principal vs secundar).`,
+          `Problema critică: peste 70% din profit din Secundar (${sharePct}% principal) – necesită focus pe achiziție clienți proprii și ofertare burse.`,
         );
         flags.imbalancePrincipalSecondary = true;
+      } else if (kpis.principalShare > 0.7) {
+        issues.push(
+          `Recomandare: intensifică colaborarea cu Vânzări (${sharePct}% din profit din Principal).`,
+        );
       }
     }
 

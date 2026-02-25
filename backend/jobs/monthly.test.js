@@ -64,7 +64,7 @@ const {
       titlu: 'Operațional',
       performantaVsIstoric: { lunaCurenta: '1', lunaAnterioara: '2', trend: '3' },
       targetDepartamental: { target: '1', realizat: '2', procentAtingere: '3', status: '4' },
-      metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3', procentProfitPrincipal: '4', procentProfitSecundar: '5' },
+      metriciMediiPerAngajat: { profitMediu: '1', curseMedii: '2', curseMediiBurse: '3' },
       tabelAngajati: 'Tabel',
       problemeIdentificateAngajati: [{ nume: 'A', probleme: ['P1'] }],
       highPerformers: [],
@@ -594,10 +594,11 @@ describe('runMonthly', () => {
     expect(calculated.period.workingDaysInPeriod).toBe(21);
     expect(calculated.period.periodStart).toBe('2026-02-01');
     expect(calculated.period.periodEnd).toBe('2026-02-28');
-    expect(calculated.employee.current.realizareTargetPct).toBe(80);
+    // Email pipeline: profit KPI = CTR only (10000/25000=40%, profit 10000)
+    expect(calculated.employee.current.realizareTargetPct).toBe(40);
     expect(calculated.employee.current.apeluriMediiZiLucratoare).toBe(28.81);
     expect(calculated.employee.current.conversieProspectarePct).toBe(18.86);
-    expect(calculated.employee.current.profitTotalEur).toBe(20000);
+    expect(calculated.employee.current.profitTotalEur).toBe(10000);
     expect(calculated.department.current.realizareTargetPct).toBe(83.33);
   });
 });
