@@ -268,6 +268,8 @@ describe('Monthly employee email', () => {
     expect(html).not.toContain('Media departament');
     expect(html).toContain('Profit total');
     expect(html).toContain('Realizare target');
+    expect(html).toContain('Curse livrate principal');
+    expect(html).toContain('Profitabilitate (%)');
     expect(html).not.toMatch(/COMENZI\s+DUPĂ|===\s*.+\s*===/);
   });
 
@@ -300,6 +302,8 @@ describe('Monthly employee email', () => {
     expect(tableB).toContain('Profit total');
     expect(tableA).toContain('Realizare target');
     expect(tableB).toContain('Realizare target');
+    expect(tableA).toContain('Profitabilitate (%)');
+    expect(tableB).toContain('Profitabilitate (%)');
   });
 
   it('Acțiuni prioritare section renders single list of actions (no role titles Freight Forwarder / Sales & Freight Agent)', () => {
