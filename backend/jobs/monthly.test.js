@@ -582,22 +582,20 @@ describe('runMonthly', () => {
     };
     const deptAverages3Months = {
       current: {
-        profitTotal: 50000,
-        targetTotal: 60000,
-        totalCurseCtr: 300,
-        callsCount: 1200,
-        contactat: 1000,
-        calificat: 200,
-        headcount: 5,
+        avgProfitCtrEur: 5000,
+        avgTargetEur: 6000,
+        avgCallsCount: 120,
+        avgContactat: 100,
+        avgCalificat: 20,
+        activeEmployees: 7,
       },
       prev: {
-        profitTotal: 45000,
-        targetTotal: 55000,
-        totalCurseCtr: 270,
-        callsCount: 1100,
-        contactat: 900,
-        calificat: 180,
-        headcount: 5,
+        avgProfitCtrEur: 4500,
+        avgTargetEur: 5500,
+        avgCallsCount: 110,
+        avgContactat: 90,
+        avgCalificat: 18,
+        activeEmployees: 7,
       },
     };
     const calculated = buildEmployeeInputCalculated(
@@ -616,8 +614,6 @@ describe('runMonthly', () => {
     expect(calculated.employee.current.conversieProspectarePct).toBe(18.86);
     expect(calculated.employee.current.profitTotalEur).toBe(10000);
     expect(calculated.department.current.realizareTargetPct).toBe(83.33);
-    expect(calculated.department.current.deptHeadcount).toBe(5);
-    expect(calculated.department.current.deptProfitMediuPerAngajatEur).toBe(10000);
-    expect(calculated.department.current.deptCurseMediiPerAngajatCtr).toBe(60);
+    expect(calculated.department.current.activeEmployees).toBe(7);
   });
 });
