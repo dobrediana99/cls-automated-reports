@@ -35,6 +35,7 @@ import {
   buildReportKpi,
   countWorkingDays,
   round2,
+  calcTargetAchievementPct,
   totalProfitCtr,
   calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
@@ -47,6 +48,16 @@ import { sanitizeEmailForFilename } from '../utils/sanitizeEmailForFilename.js';
 function safeNumber(v) {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function sumProfitAllEur(row) {
+  if (!row || typeof row !== 'object') return 0;
+  return (
+    safeNumber(row.ctr_principalProfitEur) +
+    safeNumber(row.ctr_secondaryProfitEur) +
+    safeNumber(row.livr_principalProfitEur) +
+    safeNumber(row.livr_secondaryProfitEur)
+  );
 }
 
 /**
@@ -74,7 +85,7 @@ function computeDepartmentEmployeeAverages(rows, workingDaysInPeriod) {
   const enriched = list.map((row) => {
     const tripsCtr = safeNumber(row?.ctr_principalCount) + safeNumber(row?.ctr_secondaryCount);
     const profitCtr = safeNumber(row?.ctr_principalProfitEur) + safeNumber(row?.ctr_secondaryProfitEur);
-    const profitAll = totalProfitEur(row);
+    const profitAll = sumProfitAllEur(row);
     const active = tripsCtr > 0 || profitAll !== 0;
     return { row, tripsCtr, profitCtr, active };
   });
