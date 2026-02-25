@@ -5,11 +5,73 @@
 
 import {
   round2,
-  totalProfitEur,
-  calcTargetAchievementPct,
+  totalProfitCtr,
+  totalCurseCtrCount,
+  calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
 } from '../utils/kpiCalc.js';
+
+/** Mapping: camelCase/abbrev -> human label for key-value tables in department email */
+export const KEY_VALUE_LABEL_MAP = {
+  lunaCurenta: 'Luna curentă',
+  lunaAnterioara: 'Luna anterioară',
+  trend: 'Evoluție vs luna anterioară',
+  target: 'Target lunar',
+  realizat: 'Profit realizat',
+  procentAtingere: 'Procent profit din target',
+  status: 'Status performanță',
+  profitMediu: 'Profit mediu per angajat',
+  curseMedii: 'Curse medii per angajat',
+  apeluriMediiZi: 'Apeluri medii pe zi lucrătoare',
+  conversieMedieClienti: 'Conversie medie clienți',
+  curseMediiBurse: 'Curse medii din burse per angajat',
+  diferenta: 'Diferență',
+  profitTotal: 'Profit total',
+  numarCurseTotal: 'Număr total curse',
+  procentTargetDepartamental: 'Procent profit din target',
+  profitMediuAngajat: 'Profit mediu per angajat',
+  trendVsLunaAnterioara: 'Evoluție vs luna anterioară',
+};
+
+/** Mapping: table header text (LLM/old) -> human label for tabelAngajati */
+export const TABLE_HEADER_LABEL_MAP = {
+  '#': 'Nr.',
+  Angajat: 'Nume angajat',
+  CurseCtr: 'Curse',
+  'CtrC': 'Curse',
+  'ProfitCtr(EUR)': 'Profit (EUR)',
+  'CtrP(EUR)': 'Profit (EUR)',
+  'Target(EUR)': 'Target (EUR)',
+  'Tgt(EUR)': 'Target (EUR)',
+  '%Tgt': 'Procent profit din target',
+  Burse: 'Curse din burse',
+  PrShare: 'Pondere profit principal',
+  'Profitab%': 'Profitabilitate (%)',
+  'Profit%': 'Profitabilitate (%)',
+  AvgTermCl: 'Termen mediu plată client (zile)',
+  AvgTerm: 'Termen mediu plată client (zile)',
+  Ovd: 'Întârzieri >15 zile',
+  'F<30': 'Furnizori <30 zile',
+  'F>30': 'Furnizori ≥30 zile',
+  'ProfitAll EUR': 'Profit total (EUR)',
+  'TotP(EUR)': 'Profit total (EUR)',
+};
+
+/** @param {string} key - camelCase/abbrev key from JSON */
+export function toHumanLabel(key) {
+  if (key == null || typeof key !== 'string') return String(key ?? '');
+  const trimmed = key.trim();
+  return KEY_VALUE_LABEL_MAP[trimmed] ?? trimmed;
+}
+
+/** @param {string} header - raw header cell text from markdown table */
+export function toTableHeaderLabel(header) {
+  if (header == null || typeof header !== 'string') return String(header ?? '');
+  const trimmed = header.trim();
+  return TABLE_HEADER_LABEL_MAP[trimmed] ?? trimmed;
+}
+
 
 /**
  * Escape HTML entities to prevent injection. Replaces &, <, >, ", '.
@@ -115,9 +177,10 @@ export function renderKpiCards(cards, columns = 2) {
  * Parse a markdown-style table string (lines with pipes) into HTML table.
  * First line = header row; line with only |-| or similar = separator (skip); rest = body rows.
  * @param {string} markdownString
+ * @param {{ normalizeTableHeaders?: (h: string) => string }} [options] - if normalizeTableHeaders provided, each header cell is mapped through it
  * @returns {string} HTML table or empty string; on parse failure returns <pre> with escaped content
  */
-export function parseMarkdownTableToHtml(markdownString) {
+export function parseMarkdownTableToHtml(markdownString, options = {}) {
   if (markdownString == null || typeof markdownString !== 'string') return '';
   const trimmed = markdownString.trim();
   if (!trimmed) return '';
@@ -140,9 +203,14 @@ export function parseMarkdownTableToHtml(markdownString) {
     return parts;
   };
 
-  const headers = parseRow(headerLine);
+  let headers = parseRow(headerLine);
   if (headers.length === 0) {
     return `<pre style="font-family:Arial,sans-serif;font-size:13px;white-space:pre-wrap;margin:0 0 10px 0;">${escapeHtml(trimmed)}</pre>`;
+  }
+
+  const normalizer = options?.normalizeTableHeaders;
+  if (typeof normalizer === 'function') {
+    headers = headers.map((h) => normalizer(h));
   }
 
   const thead = '<thead><tr>' + headers.map((h) => `<th style="${TH_STYLE}">${escapeHtml(h)}</th>`).join('') + '</tr></thead>';
@@ -369,10 +437,12 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
     return website > 0 ? 100 : null;
   };
 
-  const curProfit = round2(totalProfitEur(cur));
-  const prevProfit = round2(totalProfitEur(prev));
-  const curTargetPct = calcTargetAchievementPct(cur);
-  const prevTargetPct = calcTargetAchievementPct(prev);
+  const curProfit = round2(totalProfitCtr(cur));
+  const prevProfit = round2(totalProfitCtr(prev));
+  const curTargetPct = calcTargetAchievementPctCtr(cur);
+  const prevTargetPct = calcTargetAchievementPctCtr(prev);
+  const curCurseCtr = totalCurseCtrCount(cur);
+  const prevCurseCtr = totalCurseCtrCount(prev);
   const curApeluri = wd != null ? calcCallsPerWorkingDay(cur?.callsCount, wd) : null;
   const prevApeluri = wd != null ? calcCallsPerWorkingDay(prev?.callsCount, wd) : null;
   const curConv = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
@@ -425,8 +495,9 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prevCallsCount = n(prev, 'callsCount');
 
   const rows = [
-    ['Profit total', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
+    ['Profit contracte (CTR)', fmtEur(curProfit), fmtEur(prevProfit), deltaPct(curProfit, prevProfit)],
     ['Realizare target', fmtPct(curTargetPct), fmtPct(prevTargetPct), deltaPct(curTargetPct, prevTargetPct)],
+    ['Curse contracte (CTR)', fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? curCurseCtr : null), fmtNum(curCurseCtr > 0 || prevCurseCtr > 0 ? prevCurseCtr : null), deltaPct(curCurseCtr, prevCurseCtr)],
     ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri)],
     ['Conversie prospectare', fmtPct(curConv), fmtPct(prevConv), deltaPct(curConv, prevConv)],
     ['Clienți contactați telefonic', fmtInt(curContactat), fmtInt(prevContactat), deltaPct(curContactat, prevContactat)],

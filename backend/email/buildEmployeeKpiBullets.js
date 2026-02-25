@@ -6,8 +6,8 @@
 
 import {
   round2,
-  totalProfitEur,
-  calcTargetAchievementPct,
+  totalProfitCtr,
+  calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
 } from '../utils/kpiCalc.js';
@@ -21,14 +21,14 @@ import {
  * @returns {string[]} Array of 5 lines (no "Nu pot determina…")
  */
 export function buildEmployeeKpiBullets(cur, prev, workingDaysInPeriod, meta) {
-  const targetPctCur = calcTargetAchievementPct(cur);
-  const targetPctPrev = calcTargetAchievementPct(prev);
+  const targetPctCur = calcTargetAchievementPctCtr(cur);
+  const targetPctPrev = calcTargetAchievementPctCtr(prev);
   const callsDayCur = calcCallsPerWorkingDay(cur?.callsCount, workingDaysInPeriod);
   const callsDayPrev = calcCallsPerWorkingDay(prev?.callsCount, workingDaysInPeriod);
   const convPctCur = calcProspectingConversionPct(cur?.contactat, cur?.calificat);
   const convPctPrev = calcProspectingConversionPct(prev?.contactat, prev?.calificat);
-  const profitCur = round2(totalProfitEur(cur));
-  const profitPrev = round2(totalProfitEur(prev));
+  const profitCur = round2(totalProfitCtr(cur));
+  const profitPrev = round2(totalProfitCtr(prev));
 
   const periodStartStr = meta?.periodStart != null ? String(meta.periodStart).slice(0, 10) : '';
   const periodEndStr = meta?.periodEnd != null ? String(meta.periodEnd).slice(0, 10) : '';

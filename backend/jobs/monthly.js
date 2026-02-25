@@ -36,6 +36,8 @@ import {
   countWorkingDays,
   round2,
   calcTargetAchievementPct,
+  totalProfitCtr,
+  calcTargetAchievementPctCtr,
   calcCallsPerWorkingDay,
   calcProspectingConversionPct,
 } from '../utils/kpiCalc.js';
@@ -138,8 +140,8 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
   const deptPrev = deptAverages3Months?.prev;
 
   const empCur = {
-    profitTotalEur: round2(sumProfitAllEur(cur)),
-    realizareTargetPct: calcTargetAchievementPct(cur),
+    profitTotalEur: round2(totalProfitCtr(cur)),
+    realizareTargetPct: calcTargetAchievementPctCtr(cur),
     apeluriMediiZiLucratoare: calcCallsPerWorkingDay(cur?.callsCount, workingDaysInPeriod),
     conversieProspectarePct: calcProspectingConversionPct(cur?.contactat, cur?.calificat),
     callsCount: cur?.callsCount ?? null,
@@ -148,8 +150,8 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
     target: cur?.target ?? null,
   };
   const empPrev = {
-    profitTotalEur: round2(sumProfitAllEur(prev)),
-    realizareTargetPct: calcTargetAchievementPct(prev),
+    profitTotalEur: round2(totalProfitCtr(prev)),
+    realizareTargetPct: calcTargetAchievementPctCtr(prev),
     apeluriMediiZiLucratoare: calcCallsPerWorkingDay(prev?.callsCount, workingDaysInPeriod),
     conversieProspectarePct: calcProspectingConversionPct(prev?.contactat, prev?.calificat),
     callsCount: prev?.callsCount ?? null,
@@ -234,6 +236,23 @@ function departmentToSummaryKey(department) {
   if (department === DEPARTMENTS.SALES) return 'sales';
   if (department === DEPARTMENTS.MANAGEMENT) return 'management';
   return 'operational';
+}
+
+function getDeptHeadcount(report, deptKey) {
+  if (!report || typeof report !== 'object') return null;
+  if (deptKey === 'operational') {
+    const n = report?.opsStats?.length;
+    return typeof n === 'number' && n >= 0 ? n : null;
+  }
+  if (deptKey === 'sales') {
+    const n = report?.salesStats?.length;
+    return typeof n === 'number' && n >= 0 ? n : null;
+  }
+  if (deptKey === 'management') {
+    const n = report?.mgmtStats?.length;
+    return typeof n === 'number' && n >= 0 ? n : null;
+  }
+  return null;
 }
 
 /**
@@ -426,17 +445,14 @@ export async function runMonthly(opts = {}) {
     },
   };
 
-  /** performancePct = (totalProfit / target) * 100 for check-in rule; null if unknown. */
+  /** performancePct = (totalProfitCtr / target) * 100 for check-in rule; null if unknown. Email KPI = DOAR CTR. */
   function getPerformancePct(monthData) {
     if (!monthData || typeof monthData !== 'object') return null;
     const target = Number(monthData.target);
     if (!target || target <= 0) return null;
-    const totalProfit =
-      Number(monthData.ctr_principalProfitEur ?? 0) +
-      Number(monthData.ctr_secondaryProfitEur ?? 0) +
-      Number(monthData.livr_principalProfitEur ?? 0) +
-      Number(monthData.livr_secondaryProfitEur ?? 0);
-    return (totalProfit / target) * 100;
+    const totalProfitCtr =
+      Number(monthData.ctr_principalProfitEur ?? 0) + Number(monthData.ctr_secondaryProfitEur ?? 0);
+    return (totalProfitCtr / target) * 100;
   }
 
   if (process.env.DRY_RUN === '1') {
@@ -448,6 +464,8 @@ export async function runMonthly(opts = {}) {
         prev: getPersonRow(reports[1], person),
       };
       const deptKey = departmentToSummaryKey(person.department);
+      const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
+      const deptPrevRaw = reportSummaries[1]?.departments?.[deptKey] ?? null;
       const deptAverages3Months = {
         current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
         prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
@@ -660,6 +678,8 @@ export async function runMonthly(opts = {}) {
       prev: getPersonRow(reports[1], person),
     };
     const deptKey = departmentToSummaryKey(person.department);
+    const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
+    const deptPrevRaw = reportSummaries[1]?.departments?.[deptKey] ?? null;
     const deptAverages3Months = {
       current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
       prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,

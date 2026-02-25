@@ -88,6 +88,50 @@ describe('buildDepartmentAnalytics', () => {
     expect(lowNames).toContain('B');
   });
 
+  it('CTR-only: pctTarget ignores livr_* when livr has large values', () => {
+    const baseRow = (overrides) => ({
+      id: overrides.id,
+      name: overrides.name,
+      mondayId: overrides.id,
+      target: overrides.target ?? 1000,
+      ctr_principalCount: overrides.ctr_principalCount ?? 0,
+      ctr_secondaryCount: 0,
+      ctr_principalProfitEur: overrides.ctr_principalProfitEur ?? 0,
+      ctr_secondaryProfitEur: 0,
+      livr_principalProfitEur: overrides.livr_principalProfitEur ?? 0,
+      livr_secondaryProfitEur: 0,
+      burseCount: 0,
+      burseCountCtrPrincipal: 0,
+      burseCountCtrSecondary: 0,
+      burseCountLivrPrincipal: 0,
+      burseCountLivrSecondary: 0,
+      sumClientTerms: 0,
+      countClientTerms: 0,
+      overdueInvoicesCount: 0,
+      supplierTermsUnder30: 0,
+      supplierTermsOver30: 0,
+      sumProfitability: 0,
+      countProfitability: 0,
+    });
+    const analytics = buildDepartmentAnalytics({
+      current: {
+        rows: {
+          operational: [
+            baseRow({ id: 'X', name: 'X', ctr_principalProfitEur: 500, livr_principalProfitEur: 95000, target: 1000 }),
+          ],
+          sales: [],
+        },
+        summary: null,
+      },
+      prev1: { rows: { operational: [], sales: [] }, summary: null },
+      periodStart: '2026-01-01',
+    });
+    const emp = analytics.operational.employeeIssues[0];
+    expect(emp.kpis.pctTarget).toBe(0.5);
+    expect(emp.kpis.totalProfitCtr).toBe(500);
+    expect(emp.kpis.totalProfitAll).toBe(500);
+  });
+
   it('buildDepartmentAnalytics accepts only current, prev1, periodStart (2 luni, fără prev2)', () => {
     const analytics = buildDepartmentAnalytics({
       current: { rows: { operational: [], sales: [] }, summary: null },
