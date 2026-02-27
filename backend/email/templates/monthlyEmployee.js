@@ -1,8 +1,12 @@
 /**
  * Monthly employee email template. Builds HTML from full validated LLM output (antet, sectiuni, incheiere).
  * Single source of truth: prompt from backend/prompts/monthlyEmployeePrompt.md.
+ * Final signature is always from backend/email/signature-rafael.html (overrides LLM incheiere.semnatura).
  */
 
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { loadMonthlyEmployeePrompt } from '../../prompts/loadPrompts.js';
 import { getMonthlyEmployeeSubject, getMonthlySalutation } from '../content/monthlyTexts.js';
 import {
@@ -57,6 +61,27 @@ const INNER_TABLE_STYLE = 'width:100%;max-width:680px;margin:0 auto;padding:20px
 const SECTION_STYLE = 'margin:1em 0 0 0;';
 const BOX_STYLE = 'border:1px solid #e0e0e0;background:#fafafa;padding:10px 12px;margin:8px 0;';
 const WARNING_BOX_STYLE = 'border:1px solid #e6c200;background:#fffde7;padding:12px;margin:12px 0;';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const SIGNATURE_PATH = path.join(__dirname, '..', 'signature-rafael.html');
+
+let cachedSignatureHtml = null;
+
+/**
+ * Load fixed signature HTML for monthly employee emails (Rafael). Overrides any LLM-generated sign-off.
+ * @returns {string}
+ */
+function getMonthlyEmployeeSignatureHtml() {
+  if (cachedSignatureHtml !== null) return cachedSignatureHtml;
+  try {
+    const raw = fs.readFileSync(SIGNATURE_PATH, 'utf8');
+    cachedSignatureHtml = sanitizeReportHtml(raw.trim());
+  } catch (err) {
+    console.error('[monthlyEmployee] Failed to load signature-rafael.html', err?.message);
+    cachedSignatureHtml = '';
+  }
+  return cachedSignatureHtml;
+}
 
 const REQUIRED_TOP_KEYS = [
   'antet',
@@ -156,11 +181,8 @@ export function buildMonthlyEmployeeEmailHtml({
   const mesaj = showCheckIn
     ? (payload.incheiere.mesajSub80 ? escapeHtml(payload.incheiere.mesajSub80) : '')
     : (payload.incheiere.mesajPeste80 ? escapeHtml(payload.incheiere.mesajPeste80) : '');
-  const semn = payload.incheiere.semnatura;
-  const semnaturaHtml =
-    semn && typeof semn === 'object'
-      ? `<p style="margin:1em 0 0 0;">${escapeHtml(String(semn.nume ?? ''))}<br/>${escapeHtml(String(semn.functie ?? ''))}<br/>${escapeHtml(String(semn.companie ?? ''))}</p>`
-      : '';
+  // Fixed signature from file (overrides LLM incheiere.semnatura)
+  const semnaturaHtml = getMonthlyEmployeeSignatureHtml();
 
   const title = escapeHtml(getMonthlyEmployeeSubject(person?.name, periodStart));
   const bodyInner =

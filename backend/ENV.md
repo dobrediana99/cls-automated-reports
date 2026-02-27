@@ -20,6 +20,8 @@
 
 **Monthly email send (retry):** `EMAIL_SEND_MAX_ATTEMPTS` (default `3`), `EMAIL_SEND_BACKOFF_MS` (default `1000`). Transient SMTP/network errors are retried with exponential backoff; permanent auth errors fail fast. Logs: `[email][retry]` with attempt/max and reason (no secrets).
 
+**Monthly individual (employee) emails – optional sender:** `MONTHLY_EMPLOYEE_FROM_EMAIL` and `MONTHLY_EMPLOYEE_APP_PASSWORD`. When both are set, monthly **employee** emails are sent from this address (e.g. CEO) using this Gmail app password; department email still uses `GMAIL_USER` / `GMAIL_APP_PASSWORD`. If either is unset, employee emails use `GMAIL_USER` / `GMAIL_APP_PASSWORD` like today.
+
 Logs (including production) include **LLM audit** lines: `requestedModel`, `returnedModel`, `requestId`, token usage, and prompt hashes (no secrets, no full prompt text).
 
 ## Monthly snapshot and cache (GCS)

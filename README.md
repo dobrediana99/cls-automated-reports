@@ -115,6 +115,19 @@ Instrucțiunile pentru emailurile lunare (angajați + management) sunt **înghe�
 - **Trimitere reală (NON-DRY_RUN):** Job-ul trimite emailuri cu Nodemailer (GMAIL_USER, GMAIL_APP_PASSWORD). În `SEND_MODE=test` toate emailurile merg la `TEST_EMAILS`. Idempotency marchează sent **doar** după ce toate emailurile au fost trimise cu succes.
 - **DRY_RUN=1:** Nu trimite emailuri; salvează în `out/` HTML-urile generate și XLSX-ul lunii.
 
+**Configurare Google Cloud Scheduler (doar zile lucrătoare):**
+
+- **Raport săptămânal:** trimis **Luni la 08:00** (Europe/Bucharest), doar în zile lucrătoare. Luni este zi lucrătoare, deci un singur cron este suficient.
+  - **Cron:** `0 8 * * 1`
+  - **Timezone:** `Europe/Bucharest`
+  - **Target:** POST `https://<CLOUD_RUN_URL>/run/weekly` cu OIDC (Bearer token).
+
+- **Raport lunar:** trimis **în ziua 5 la 08:00**, dar doar dacă 5 este zi lucrătoare; altfel **prima zi lucrătoare după 5** (ex.: dacă 5 e sâmbătă → luni 7; dacă 5 e duminică → luni 6).
+  - **Cron:** `0 8 5,6,7 * *` (8:00 în zilele 5, 6 și 7 ale lunii, acoperă toate cazurile).
+  - **Timezone:** `Europe/Bucharest`
+  - **Target:** POST `https://<CLOUD_RUN_URL>/run/monthly` cu OIDC.
+  - Backend-ul verifică automat: dacă azi **nu** este „ziua de trimitere lunară” (prima zi lucrătoare ≥ 5), răspunde cu `200` și `skipped: true, reason: 'not_monthly_send_day'` fără a rula job-ul. Pentru rulare manuală în orice zi (ex. teste), folosește `?force=1`.
+
 **Comenzi curl:** Endpoint-urile `/run/weekly` și `/run/monthly` cer **Authorization: Bearer &lt;id_token&gt;** (OIDC). Cloud Scheduler poate fi configurat cu OIDC target; token-ul trebuie să aibă audience = URL-ul serviciului Cloud Run (OIDC_AUDIENCE). Pentru test local cu token obținut din gcloud sau din altă sursă:
 
 ```bash

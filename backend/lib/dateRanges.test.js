@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { DateTime } from 'luxon';
-import { getPreviousCalendarWeekRange, getPreviousCalendarMonthRange, getMonthRangeOffset } from './dateRanges.js';
+import {
+  getPreviousCalendarWeekRange,
+  getPreviousCalendarMonthRange,
+  getMonthRangeOffset,
+  getMonthlyReportSendDay,
+  isMonthlyReportSendDay,
+} from './dateRanges.js';
 
 const TZ = 'Europe/Bucharest';
 
@@ -97,5 +103,61 @@ describe('getMonthRangeOffset', () => {
     expect(off0.label).toContain('2025-12');
     expect(off1.label).toContain('2025-11');
     expect(off2.label).toContain('2025-10');
+  });
+});
+
+describe('getMonthlyReportSendDay', () => {
+  it('returns 5th when 5th is a weekday (e.g. Wed 2026-02-05)', () => {
+    const feb5 = new Date('2026-02-05T08:00:00+02:00');
+    expect(getMonthlyReportSendDay(feb5, TZ)).toBe('2026-02-05');
+  });
+
+  it('returns 6th when 5th is Sunday (e.g. March 2026: 5 = Thu, so 5; Oct 2026: 5 = Mon, so 5)', () => {
+    const mar5 = new Date('2026-03-05T08:00:00+02:00');
+    expect(getMonthlyReportSendDay(mar5, TZ)).toBe('2026-03-05');
+    const oct5 = new Date('2026-10-05T08:00:00+03:00');
+    expect(getMonthlyReportSendDay(oct5, TZ)).toBe('2026-10-05');
+  });
+
+  it('returns 7th when 5th is Saturday (e.g. Sept 2026: 5 = Sat → 7 = Mon)', () => {
+    const sep5 = new Date('2026-09-05T08:00:00+03:00');
+    expect(getMonthlyReportSendDay(sep5, TZ)).toBe('2026-09-07');
+  });
+
+  it('returns 6th when 5th is Sunday (e.g. June 2026: 5 = Fri → 5)', () => {
+    const jun5 = new Date('2026-06-05T08:00:00+03:00');
+    expect(getMonthlyReportSendDay(jun5, TZ)).toBe('2026-06-05');
+  });
+
+  it('July 2026: 5 = Sun → first WD after is 6 (Mon)', () => {
+    const jul5 = new Date('2026-07-05T08:00:00+03:00');
+    expect(getMonthlyReportSendDay(jul5, TZ)).toBe('2026-07-06');
+  });
+});
+
+describe('isMonthlyReportSendDay', () => {
+  it('returns true on the 5th when 5th is a weekday', () => {
+    const feb5 = new Date('2026-02-05T08:00:00+02:00');
+    expect(isMonthlyReportSendDay(feb5, TZ)).toBe(true);
+  });
+
+  it('returns false on the 4th', () => {
+    const feb4 = new Date('2026-02-04T08:00:00+02:00');
+    expect(isMonthlyReportSendDay(feb4, TZ)).toBe(false);
+  });
+
+  it('returns false on the 6th when 5th was a weekday (send day was 5)', () => {
+    const feb6 = new Date('2026-02-06T08:00:00+02:00');
+    expect(isMonthlyReportSendDay(feb6, TZ)).toBe(false);
+  });
+
+  it('returns true on 7th when 5th was Saturday (Sept 2026)', () => {
+    const sep7 = new Date('2026-09-07T08:00:00+03:00');
+    expect(isMonthlyReportSendDay(sep7, TZ)).toBe(true);
+  });
+
+  it('returns true on 6th when 5th was Sunday (July 2026)', () => {
+    const jul6 = new Date('2026-07-06T08:00:00+03:00');
+    expect(isMonthlyReportSendDay(jul6, TZ)).toBe(true);
   });
 });

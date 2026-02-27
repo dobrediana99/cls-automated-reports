@@ -534,6 +534,10 @@ export async function runMonthly(opts = {}) {
   // GMAIL + TEST_EMAILS (when SEND_MODE=test) already validated by validateMonthlyRuntimeConfig.
   const gmailUser = process.env.GMAIL_USER;
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
+  const monthlyEmployeeFrom = process.env.MONTHLY_EMPLOYEE_FROM_EMAIL?.trim() || null;
+  const monthlyEmployeeAppPassword = process.env.MONTHLY_EMPLOYEE_APP_PASSWORD?.trim() || null;
+  const useEmployeeSender =
+    monthlyEmployeeFrom && monthlyEmployeeAppPassword;
 
   let runState;
   try {
@@ -569,6 +573,15 @@ export async function runMonthly(opts = {}) {
     secure: false,
     auth: { user: gmailUser, pass: gmailAppPassword },
   });
+
+  const transporterEmployee = useEmployeeSender
+    ? nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: { user: monthlyEmployeeFrom, pass: monthlyEmployeeAppPassword },
+      })
+    : null;
 
   const jobStartMs = Date.now();
   let totalPromptTokens = 0;
@@ -765,10 +778,12 @@ export async function runMonthly(opts = {}) {
       });
       const toList = resolveRecipients([person.email]);
       logSendRecipients(1, toList);
+      const empTransporter = transporterEmployee ?? transporter;
+      const empFrom = useEmployeeSender ? monthlyEmployeeFrom : gmailUser;
       await sendWithRetry(
-        transporter,
+        empTransporter,
         {
-          from: gmailUser,
+          from: empFrom,
           to: toList.join(', '),
           subject: resolveSubject(subject),
           html,

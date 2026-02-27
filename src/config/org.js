@@ -43,15 +43,6 @@ export const ORG = [
 
   // ───────────────────────── Vanzari
   {
-    name: "Alexandru Paraschiv",
-    email: "alexandru.p@crystal-logistics-services.com",
-    mondayUserId: 74108550,
-    department: DEPARTMENTS.SALES,
-    role: "employee",
-    target: 3300,
-    isActive: true,
-  },
-  {
     name: "Denisa Ionescu",
     email: "denisa.i@crystal-logistics-services.com",
     mondayUserId: 74108553,
@@ -88,15 +79,6 @@ export const ORG = [
     isActive: true,
   },
   {
-    name: "Eduard Grigore",
-    email: "eduard.g@crystal-logistics-services.com",
-    mondayUserId: 96568397,
-    department: DEPARTMENTS.SALES,
-    role: "employee",
-    target: 2100,
-    isActive: true,
-  },
-  {
     name: "George Rafte",
     email: "george.r@crystal-logistics-services.com",
     mondayUserId: 98357010,
@@ -113,7 +95,7 @@ export const ORG = [
     mondayUserId: 74695692,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 3485,
+    target: 4004,
     isActive: true,
   },
   {

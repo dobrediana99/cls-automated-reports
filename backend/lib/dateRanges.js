@@ -69,3 +69,35 @@ export function getWorkingDaysInPeriod(periodStart, periodEnd) {
   }
   return count;
 }
+
+/**
+ * First calendar day of the month that is a working day (Mon–Fri) and >= 5th.
+ * Used for "monthly report send day": 5th if weekday, else next Monday (6th or 7th).
+ * @param {Date} [now=new Date()] - Reference instant
+ * @param {string} [timezone='Europe/Bucharest'] - IANA timezone
+ * @returns {string} ISO date YYYY-MM-DD of that day
+ */
+export function getMonthlyReportSendDay(now = new Date(), timezone = TZ) {
+  const dt = DateTime.fromJSDate(now, { zone: timezone });
+  const year = dt.year;
+  const month = dt.month;
+  for (let day = 5; day <= 8; day++) {
+    const d = DateTime.fromObject({ year, month, day }, { zone: timezone });
+    if (d.weekday >= 1 && d.weekday <= 5) return d.toISODate();
+  }
+  return `${year}-${String(month).padStart(2, '0')}-05`;
+}
+
+/**
+ * True if today (in timezone) is the day when the monthly report should be sent:
+ * first working day on or after the 5th of the current month.
+ * @param {Date} [now=new Date()] - Reference instant
+ * @param {string} [timezone='Europe/Bucharest'] - IANA timezone
+ * @returns {boolean}
+ */
+export function isMonthlyReportSendDay(now = new Date(), timezone = TZ) {
+  const dt = DateTime.fromJSDate(now, { zone: timezone });
+  const today = dt.toISODate();
+  const sendDay = getMonthlyReportSendDay(now, timezone);
+  return today === sendDay;
+}

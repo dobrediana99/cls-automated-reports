@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { getPreviousCalendarWeekRange } from './lib/dateRanges.js';
+import { getPreviousCalendarWeekRange, isMonthlyReportSendDay } from './lib/dateRanges.js';
 import { getPreviousCalendarMonthRange } from './lib/dateRanges.js';
 import { runWeekly } from './jobs/weekly.js';
 import { runMonthly } from './jobs/monthly.js';
@@ -163,6 +163,14 @@ app.post('/run/weekly', oidcAuth, async (_req, res) => {
 
 app.post('/run/monthly', oidcAuth, async (req, res) => {
   try {
+    const force = req.query?.force === '1' || req.query?.force === true || req.body?.force === true || req.body?.force === 1;
+    if (!force && !isMonthlyReportSendDay()) {
+      return res.status(200).json({
+        skipped: true,
+        reason: 'not_monthly_send_day',
+        message: 'Monthly report runs only on the first working day on or after the 5th (Europe/Bucharest). Use ?force=1 to run anyway.',
+      });
+    }
     const refresh = req.query?.refresh === '1' || req.query?.refresh === true || req.body?.refresh === true || req.body?.refresh === 1;
     const result = await runJobWithIdempotency('monthly', getPreviousCalendarMonthRange, () => runMonthly({ refresh }));
     if (result.skipped) {
