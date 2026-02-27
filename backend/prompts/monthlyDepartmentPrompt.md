@@ -247,8 +247,8 @@ Structura Raport Departamental:
   "incheiere": {
     "urmatorulRaport": "Perioada [lună următoare] - Livrare [dată aproximativă]",
     "semnatura": {
-  	"functie": "Performance Manager",
-  	"companie": "Crystal Logistics Services"
+	"nume" "Dobre Diana"
+  	"functie": "Software Engineer",
     }
   }
 }
