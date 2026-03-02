@@ -264,6 +264,21 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Concluzii');
   });
 
+  it('fixed signature keeps image tags and CTA button styling', () => {
+    const html = buildMonthlyEmployeeEmailHtml({
+      personName: 'Alexandru Pop',
+      stats: mockReport.opsStats[0],
+      department: 'Operatiuni',
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
+      llmSections: mockEmployeeLlmSections,
+    });
+    expect(html).toContain('src="https://www.dropbox.com/scl/fi/fxt9wpcgu3uxpmkjutzaa/poza_rafael.png');
+    expect(html).toContain('src="https://i.imgur.com/nddbxDI.png"');
+    expect(html).toContain('Request a Quote');
+    expect(html).toContain('background-color: #eac31f;');
+  });
+
   it('buildMonthlyEmployeeEmail throws when llmSections is missing', () => {
     expect(() =>
       buildMonthlyEmployeeEmail({

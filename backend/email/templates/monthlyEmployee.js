@@ -75,7 +75,9 @@ function getMonthlyEmployeeSignatureHtml() {
   if (cachedSignatureHtml !== null) return cachedSignatureHtml;
   try {
     const raw = fs.readFileSync(SIGNATURE_PATH, 'utf8');
-    cachedSignatureHtml = sanitizeReportHtml(raw.trim());
+    // Trusted static file from repository: keep full markup (images + button styles).
+    // sanitizeReportHtml is intentionally strict for LLM output and strips <img>/<a style>.
+    cachedSignatureHtml = raw.trim();
   } catch (err) {
     console.error('[monthlyEmployee] Failed to load signature-rafael.html', err?.message);
     cachedSignatureHtml = '';
