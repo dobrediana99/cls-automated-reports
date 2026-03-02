@@ -395,18 +395,13 @@
     },
     "incheiere": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["urmatorulRaport", "semnatura"],
+      "additionalProperties": true,
+      "required": ["urmatorulRaport"],
       "properties": {
         "urmatorulRaport": { "type": "string", "minLength": 1 },
         "semnatura": {
           "type": "object",
-          "additionalProperties": false,
-          "required": ["functie", "companie"],
-          "properties": {
-            "functie": { "type": "string", "minLength": 1 },
-            "companie": { "type": "string", "minLength": 1 }
-          }
+          "additionalProperties": true
         }
       }
     }
