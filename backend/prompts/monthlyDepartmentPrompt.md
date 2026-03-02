@@ -246,9 +246,5 @@ Structura Raport Departamental:
   },
   "incheiere": {
     "urmatorulRaport": "Perioada [lună următoare] - Livrare [dată aproximativă]",
-    "semnatura": {
-	"nume" "Dobre Diana"
-  	"functie": "Software Engineer",
-    }
   }
 }
