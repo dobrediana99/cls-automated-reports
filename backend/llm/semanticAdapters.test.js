@@ -112,6 +112,20 @@ describe('employeeToSemanticPayload', () => {
     expect(payload.actiuni.join(' | ')).toContain('Crește volumul de apeluri');
     expect(payload.actiuni.join(' | ')).toContain('Follow-up zilnic pe ofertele deschise');
   });
+
+  it('collapses duplicate "De stabilit" across both roles', () => {
+    const bothDefault = {
+      ...minimalEmployeeSections,
+      sectiunea_4_actiuni_prioritare: {
+        actiuni_specifice_per_rol: {
+          freight_forwarder: ['De stabilit'],
+          sales_freight_agent: ['De stabilit'],
+        },
+      },
+    };
+    const payload = employeeToSemanticPayload(bothDefault);
+    expect(payload.actiuni).toEqual(['De stabilit']);
+  });
 });
 
 describe('departmentToSemanticPayload', () => {
