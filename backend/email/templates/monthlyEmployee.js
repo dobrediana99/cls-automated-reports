@@ -61,6 +61,7 @@ const INNER_TABLE_STYLE = 'width:100%;max-width:680px;margin:0 auto;padding:20px
 const SECTION_STYLE = 'margin:1em 0 0 0;';
 const BOX_STYLE = 'border:1px solid #e0e0e0;background:#fafafa;padding:10px 12px;margin:8px 0;';
 const WARNING_BOX_STYLE = 'border:1px solid #e6c200;background:#fffde7;padding:12px;margin:12px 0;';
+const ACTION_PLACEHOLDERS = new Set(['de stabilit', '[object object]']);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SIGNATURE_PATH = path.join(__dirname, '..', 'signature-rafael.html');
@@ -162,9 +163,13 @@ export function buildMonthlyEmployeeEmailHtml({
     `<div style="${BOX_STYLE}"><strong>Ce nu merge / necesită intervenție</strong><p style="margin:6px 0 0 0;">${ceNuMerge}</p></div>` +
     `<div style="${BOX_STYLE}"><strong>Focus luna următoare</strong><p style="margin:6px 0 0 0;">${focus}</p></div>`;
 
-  const actiuniList = payload.actiuni.map((a) => `<li>${escapeHtml(String(a))}</li>`).join('');
-  const actiuniBlock = actiuniList ? `<ul style="margin:4px 0 0 0;">${actiuniList}</ul>` : '';
-  const sect4Html = renderSectionTitle('Acțiuni prioritare', 2) + (actiuniBlock || '');
+  const validActions = (Array.isArray(payload.actiuni) ? payload.actiuni : [])
+    .map((a) => String(a ?? '').trim())
+    .filter((a) => a.length > 0 && !ACTION_PLACEHOLDERS.has(a.toLowerCase()));
+  const actiuniList = validActions.map((a) => `<li>${escapeHtml(a)}</li>`).join('');
+  const sect4Html = actiuniList
+    ? renderSectionTitle('Acțiuni prioritare', 2) + `<ul style="margin:4px 0 0 0;">${actiuniList}</ul>`
+    : '';
 
   const planRows = [
     ['Săptămâna 1', payload.plan.saptamana_1],
@@ -195,9 +200,7 @@ export function buildMonthlyEmployeeEmailHtml({
     sect2Html +
     renderHr() +
     sect3Html +
-    renderHr() +
-    sect4Html +
-    renderHr() +
+    (sect4Html ? renderHr() + sect4Html : '') +
     sect5Html +
     (sect6Html ? renderHr() + sect6Html + renderHr() : '') +
     (raportUrmator ? `<p style="${SECTION_STYLE}"><strong>Raport următor:</strong> ${raportUrmator}</p>` : '') +
