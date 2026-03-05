@@ -115,6 +115,13 @@ export function employeeToSemanticPayload(llmSections, person = null) {
   const ff = toActionTextArray(rol?.freight_forwarder);
   const sfa = toActionTextArray(rol?.sales_freight_agent);
   let combined = [...ff, ...sfa];
+  const seenActions = new Set();
+  combined = combined.filter((item) => {
+    const key = String(item).toLowerCase();
+    if (seenActions.has(key)) return false;
+    seenActions.add(key);
+    return true;
+  });
   if (combined.some((a) => a && a !== DEFAULT_ACTIUNI[0])) {
     combined = combined.filter((a) => a !== DEFAULT_ACTIUNI[0]);
   }

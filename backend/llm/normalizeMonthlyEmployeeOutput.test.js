@@ -82,6 +82,28 @@ describe('normalizeMonthlyEmployeeOutput', () => {
     });
   });
 
+  it('sectiunea_4 object actions are converted to readable strings (no [object Object])', () => {
+    const o = fullValidEmployee();
+    o.sectiunea_4_actiuni_prioritare.actiuni_specifice_per_rol = {
+      freight_forwarder: [
+        {
+          ce: 'Crește volumul de apeluri',
+          de_ce: 'pentru mai multe oportunități',
+          masurabil: '10 apeluri/zi',
+          deadline: 'vineri',
+        },
+      ],
+      sales_freight_agent: [{ action: 'Follow-up zilnic pe ofertele active' }],
+    };
+    normalizeMonthlyEmployeeOutput(o);
+    const ff = o.sectiunea_4_actiuni_prioritare.actiuni_specifice_per_rol.freight_forwarder[0];
+    const sfa = o.sectiunea_4_actiuni_prioritare.actiuni_specifice_per_rol.sales_freight_agent[0];
+    expect(ff).toContain('Crește volumul de apeluri');
+    expect(ff).not.toContain('[object Object]');
+    expect(sfa).toContain('Follow-up zilnic pe ofertele active');
+    expect(sfa).not.toContain('[object Object]');
+  });
+
   it('after normalization, validateEmployeeOutput passes (performancePct 85)', () => {
     const o = fullValidEmployee();
     o.sectiunea_1_tabel_date_performanta.continut = ['  only row  ', ''];

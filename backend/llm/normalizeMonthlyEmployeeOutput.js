@@ -84,6 +84,70 @@ function toNonEmptyStringArray(arr, defaultItem = DEFAULT_ACTIUNI[0]) {
   return out.length > 0 ? out : [defaultItem];
 }
 
+function firstNonEmptyString(obj, keys) {
+  if (!obj || typeof obj !== 'object') return '';
+  for (const key of keys) {
+    const value = obj[key];
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
+}
+
+function actionItemToText(value, depth = 0) {
+  if (value == null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value).trim();
+  if (Array.isArray(value)) {
+    const nested = value.map((item) => actionItemToText(item, depth + 1)).filter(Boolean);
+    return nested.join(' | ');
+  }
+  if (typeof value === 'object') {
+    const action = firstNonEmptyString(value, [
+      'actiune',
+      'action',
+      'ce',
+      'task',
+      'text',
+      'descriere',
+      'description',
+      'title',
+    ]);
+    const reason = firstNonEmptyString(value, ['de_ce', 'why', 'motiv', 'rationale']);
+    const measurable = firstNonEmptyString(value, ['masurabil', 'kpi', 'metric', 'measure']);
+    const deadline = firstNonEmptyString(value, ['deadline', 'termen', 'due_date', 'dueDate']);
+    if (action) {
+      const extra = [];
+      if (reason) extra.push(`de ce: ${reason}`);
+      if (measurable) extra.push(`măsurabil: ${measurable}`);
+      if (deadline) extra.push(`deadline: ${deadline}`);
+      return extra.length > 0 ? `${action} (${extra.join('; ')})` : action;
+    }
+    if (depth >= 2) return '';
+    const fallback = Object.values(value)
+      .map((item) => actionItemToText(item, depth + 1))
+      .filter(Boolean);
+    return fallback.join(' | ');
+  }
+  return '';
+}
+
+function toActionTextArray(arr, defaultItem = DEFAULT_ACTIUNI[0]) {
+  if (!Array.isArray(arr)) return [defaultItem];
+  const seen = new Set();
+  const out = [];
+  for (const item of arr) {
+    const text = actionItemToText(item).trim();
+    if (!text) continue;
+    const key = text.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(text);
+  }
+  return out.length > 0 ? out : [defaultItem];
+}
+
 /**
  * Pick first existing key from object from a list of candidate keys (case-sensitive).
  * @param {object} obj
@@ -152,8 +216,8 @@ export function normalizeMonthlyEmployeeOutput(o, opts = {}) {
     const ff = pickFirst(obj, FREIGHT_FORWARDER_KEYS);
     const sfa = pickFirst(obj, SALES_FREIGHT_AGENT_KEYS);
     s4.actiuni_specifice_per_rol = {
-      freight_forwarder: toNonEmptyStringArray(ff),
-      sales_freight_agent: toNonEmptyStringArray(sfa),
+      freight_forwarder: toActionTextArray(ff),
+      sales_freight_agent: toActionTextArray(sfa),
     };
   }
 
