@@ -89,6 +89,29 @@ describe('employeeToSemanticPayload', () => {
     const payloadEmpty = employeeToSemanticPayload(bothEmpty);
     expect(payloadEmpty.actiuni).toEqual(['De stabilit']);
   });
+
+  it('normalizes object actions to readable text (no [object Object])', () => {
+    const withObjectActions = {
+      ...minimalEmployeeSections,
+      sectiunea_4_actiuni_prioritare: {
+        actiuni_specifice_per_rol: {
+          freight_forwarder: [
+            {
+              ce: 'Crește volumul de apeluri',
+              de_ce: 'pentru mai multe lead-uri',
+              masurabil: '10 apeluri/zi',
+              deadline: 'vineri',
+            },
+          ],
+          sales_freight_agent: [{ action: 'Follow-up zilnic pe ofertele deschise' }],
+        },
+      },
+    };
+    const payload = employeeToSemanticPayload(withObjectActions);
+    expect(payload.actiuni.some((x) => x.includes('[object Object]'))).toBe(false);
+    expect(payload.actiuni.join(' | ')).toContain('Crește volumul de apeluri');
+    expect(payload.actiuni.join(' | ')).toContain('Follow-up zilnic pe ofertele deschise');
+  });
 });
 
 describe('departmentToSemanticPayload', () => {

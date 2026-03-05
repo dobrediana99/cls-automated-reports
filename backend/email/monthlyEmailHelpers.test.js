@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { buildDeterministicPerformanceTable } from './monthlyEmailHelpers.js';
 
 describe('buildDeterministicPerformanceTable', () => {
-  it('CTR-only: when livr_* has large values, profit and % target use only CTR', () => {
+  it('omits CTR summary rows requested by business', () => {
     const data3Months = {
       current: {
         target: 10000,
@@ -21,9 +21,9 @@ describe('buildDeterministicPerformanceTable', () => {
       prev: { target: 5000, ctr_principalProfitEur: 400, livr_principalProfitEur: 80000 },
     };
     const html = buildDeterministicPerformanceTable(data3Months, null, 20);
-    expect(html).toContain('1000 EUR');
-    expect(html).toContain('10%');
-    expect(html).toContain('400 EUR');
-    expect(html).toContain('8%');
+    expect(html).not.toContain('Profit contracte (CTR)');
+    expect(html).not.toContain('Realizare target');
+    expect(html).not.toContain('Curse contracte (CTR)');
+    expect(html).toContain('Curse livrate principal');
   });
 });
