@@ -230,6 +230,26 @@ function buildEmployeeInputCalculated(data3Months, deptAverages3Months, workingD
 
 const JOB_TYPE = 'monthly';
 const TIMEZONE = 'Europe/Bucharest';
+const MONTHLY_DEPARTMENT_EXTRA_RECIPIENTS = [
+  'beatrice.s@crystal-logistics-services.com',
+  'narcisa.g@crystal-logistics-services.com',
+  'ana-maria.t@crystal-logistics-services.com',
+  'bianca.o@crystal-logistics-services.com',
+];
+
+function dedupeEmails(emails) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of Array.isArray(emails) ? emails : []) {
+    const email = typeof raw === 'string' ? raw.trim() : '';
+    if (!email) continue;
+    const key = email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(email);
+  }
+  return out;
+}
 
 function departmentToSummaryKey(department) {
   if (department === DEPARTMENTS.OPERATIONS) return 'operational';
@@ -651,7 +671,11 @@ export async function runMonthly(opts = {}) {
     });
 
     const managerEmails = MANAGERS.filter((m) => m.isActive).map((m) => m.email);
-    const deptToList = resolveRecipients(managerEmails);
+    const departmentRecipientList = dedupeEmails([
+      ...managerEmails,
+      ...MONTHLY_DEPARTMENT_EXTRA_RECIPIENTS,
+    ]);
+    const deptToList = resolveRecipients(departmentRecipientList);
     logSendRecipients(deptToList.length, deptToList);
     try {
       await sendWithRetry(

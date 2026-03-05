@@ -266,6 +266,12 @@ describe('runMonthly', () => {
     const calls = sendMailMock.mock.calls;
     const activeManagers = MANAGERS.filter((m) => m.isActive);
     const activeManagerEmails = activeManagers.map((m) => m.email);
+    const extraDepartmentRecipients = [
+      'beatrice.s@crystal-logistics-services.com',
+      'narcisa.g@crystal-logistics-services.com',
+      'ana-maria.t@crystal-logistics-services.com',
+      'bianca.o@crystal-logistics-services.com',
+    ];
     const activePeopleCount = ORG.filter((p) => p.isActive).length;
 
     expect(sendMailMock).toHaveBeenCalled();
@@ -274,6 +280,9 @@ describe('runMonthly', () => {
     expect(firstCall.attachments).toBeDefined();
     expect(Array.isArray(firstCall.attachments)).toBe(true);
     activeManagerEmails.forEach((email) => {
+      expect(firstCall.to).toContain(email);
+    });
+    extraDepartmentRecipients.forEach((email) => {
       expect(firstCall.to).toContain(email);
     });
     for (let i = 1; i < calls.length; i++) {

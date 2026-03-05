@@ -222,7 +222,7 @@ describe('Monthly employee email', () => {
     expect(resultOk.html).not.toContain('Check-in intermediar');
   });
 
-  it('CTR-only: buildMonthlyEmployeeEmail shows profit and % target from CTR when livr_* is large', () => {
+  it('section 1 omits CTR summary rows (Profit contracte / Realizare target / Curse contracte)', () => {
     const data3Months = {
       current: {
         target: 10000,
@@ -244,10 +244,10 @@ describe('Monthly employee email', () => {
       workingDaysInPeriod: 20,
       llmSections: mockEmployeeLlmSections,
     });
-    expect(result.html).toContain('1000');
-    expect(result.html).toContain('10%');
-    expect(result.html).toContain('400');
-    expect(result.html).toContain('8%');
+    expect(result.html).not.toContain('Profit contracte (CTR)');
+    expect(result.html).not.toContain('Realizare target');
+    expect(result.html).not.toContain('Curse contracte (CTR)');
+    expect(result.html).toContain('Curse livrate principal');
   });
 
   it('buildMonthlyEmployeeEmailHtml uses prompt (loads and does not throw)', () => {
@@ -327,8 +327,9 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Luna curentă');
     expect(html).toContain('Luna anterioară');
     expect(html).not.toContain('Media departament');
-    expect(html).toContain('Profit contracte (CTR)');
-    expect(html).toContain('Realizare target');
+    expect(html).not.toContain('Profit contracte (CTR)');
+    expect(html).not.toContain('Realizare target');
+    expect(html).not.toContain('Curse contracte (CTR)');
     expect(html).toContain('Curse livrate principal');
     expect(html).toContain('Profitabilitate (%)');
     expect(html).not.toContain('Conversie prospectare');
@@ -367,10 +368,10 @@ describe('Monthly employee email', () => {
     expect(tableStartB).toBeGreaterThan(0);
     const tableA = htmlA.slice(tableStartA, htmlA.indexOf('</table>') + 8);
     const tableB = htmlB.slice(tableStartB, htmlB.indexOf('</table>') + 8);
-    expect(tableA).toContain('Profit contracte (CTR)');
-    expect(tableB).toContain('Profit contracte (CTR)');
-    expect(tableA).toContain('Realizare target');
-    expect(tableB).toContain('Realizare target');
+    expect(tableA).toContain('Apeluri medii/zi');
+    expect(tableB).toContain('Apeluri medii/zi');
+    expect(tableA).toContain('Curse livrate principal');
+    expect(tableB).toContain('Curse livrate principal');
     expect(tableA).toContain('Profitabilitate (%)');
     expect(tableB).toContain('Profitabilitate (%)');
   });
@@ -395,6 +396,42 @@ describe('Monthly employee email', () => {
     expect(html).not.toMatch(/<td[^>]*>\s*De ce\s*<\/td>/);
     expect(html).not.toMatch(/<td[^>]*>\s*Măsurabil\s*<\/td>/);
     expect(html).not.toMatch(/<td[^>]*>\s*Deadline\s*<\/td>/);
+  });
+
+  it('Acțiuni prioritare does not render [object Object] when actions contain objects', () => {
+    const llmWithObjectActions = {
+      ...mockEmployeeLlmSections,
+      sectiunea_4_actiuni_prioritare: {
+        ...mockEmployeeLlmSections.sectiunea_4_actiuni_prioritare,
+        actiuni_specifice_per_rol: {
+          freight_forwarder: [
+            {
+              ce: 'Crește ritmul de prospectare',
+              de_ce: 'pentru mai multe oportunități calificate',
+              masurabil: '10 apeluri/zi',
+              deadline: 'final de lună',
+            },
+          ],
+          sales_freight_agent: [
+            {
+              action: 'Follow-up zilnic pe ofertele active',
+            },
+          ],
+        },
+      },
+    };
+    const html = buildMonthlyEmployeeEmailHtml({
+      person: mockPerson,
+      department: mockPerson.department,
+      data3Months: { current: mockReport.opsStats[0] },
+      deptAverages3Months: null,
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
+      llmSections: llmWithObjectActions,
+    });
+    expect(html).not.toContain('[object Object]');
+    expect(html).toContain('Crește ritmul de prospectare');
+    expect(html).toContain('Follow-up zilnic pe ofertele active');
   });
 });
 
