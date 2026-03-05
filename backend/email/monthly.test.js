@@ -433,6 +433,30 @@ describe('Monthly employee email', () => {
     expect(html).toContain('Crește ritmul de prospectare');
     expect(html).toContain('Follow-up zilnic pe ofertele active');
   });
+
+  it('hides Acțiuni prioritare section when only placeholder actions are present', () => {
+    const llmWithPlaceholderActions = {
+      ...mockEmployeeLlmSections,
+      sectiunea_4_actiuni_prioritare: {
+        ...mockEmployeeLlmSections.sectiunea_4_actiuni_prioritare,
+        actiuni_specifice_per_rol: {
+          freight_forwarder: ['De stabilit'],
+          sales_freight_agent: ['De stabilit'],
+        },
+      },
+    };
+    const html = buildMonthlyEmployeeEmailHtml({
+      person: mockPerson,
+      department: mockPerson.department,
+      data3Months: { current: mockReport.opsStats[0] },
+      deptAverages3Months: null,
+      periodStart: '2026-01-01',
+      workingDaysInPeriod: 22,
+      llmSections: llmWithPlaceholderActions,
+    });
+    expect(html).not.toContain('Acțiuni prioritare');
+    expect(html).not.toContain('<li>De stabilit</li>');
+  });
 });
 
 describe('Monthly management email', () => {
