@@ -248,6 +248,10 @@ describe('buildReport bursă metrics', () => {
     expect(principal.livr_sumClientTerms).toBe(0);
     expect(principal.livr_countClientTerms).toBe(1);
     expect(principal.livr_overdueInvoicesCount).toBe(1);
+    expect(principal.livr_sumSupplierTerms).toBe(45);
+    expect(principal.livr_countSupplierTerms).toBe(1);
+    expect(principal.livr_supplierTermsUnder30).toBe(0);
+    expect(principal.livr_supplierTermsOver30).toBe(1);
 
     expect(secondary.livr_sumSupplierTerms).toBe(45);
     expect(secondary.livr_countSupplierTerms).toBe(1);
@@ -255,6 +259,61 @@ describe('buildReport bursă metrics', () => {
     expect(secondary.livr_supplierTermsOver30).toBe(1);
 
     expect(principal.livr_burseCount).toBe(0);
+  });
+
+  it('counts supplier terms for principal even when secondary exists (CTR)', () => {
+    const COLS_COMENZI = COLS.COMENZI;
+    const id1 = '74695692';
+    const id2 = '74668675';
+
+    const comenziCtr = {
+      items_page: {
+        items: [
+          {
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.SURSA, text: 'Website' },
+              { id: COLS_COMENZI.PROFIT_PRINCIPAL, value: JSON.stringify(120) },
+              { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(60) },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(180) },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id1) },
+              { id: COLS_COMENZI.SECUNDAR, ...makePersonValue(id2) },
+              { id: COLS_COMENZI.TERMEN_PLATA_FURNIZOR, value: JSON.stringify(25), text: '25' },
+            ],
+          },
+        ],
+      },
+    };
+
+    const raw = {
+      comenziCtr,
+      comenziLivr: null,
+      solicitari: null,
+      leadsContact: null,
+      leadsQualified: null,
+      furnizori: null,
+      activities: null,
+      COLS_COMENZI,
+      dynamicCols: null,
+    };
+
+    const { opsStats } = buildReport(raw);
+    const principal = opsStats.find((e) => String(e.mondayId) === id1);
+    const secondary = opsStats.find((e) => String(e.mondayId) === id2);
+    expect(principal).toBeDefined();
+    expect(secondary).toBeDefined();
+
+    expect(principal.sumSupplierTerms).toBe(25);
+    expect(principal.countSupplierTerms).toBe(1);
+    expect(principal.supplierTermsUnder30).toBe(1);
+    expect(principal.supplierTermsOver30).toBe(0);
+
+    expect(secondary.sumSupplierTerms).toBe(25);
+    expect(secondary.countSupplierTerms).toBe(1);
+    expect(secondary.supplierTermsUnder30).toBe(1);
+    expect(secondary.supplierTermsOver30).toBe(0);
   });
 });
 
