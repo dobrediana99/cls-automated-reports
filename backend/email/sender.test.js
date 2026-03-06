@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { resolveRecipients, resolveSubject, getSendMode, getTestEmails } from './sender.js';
+import { resolveRecipients, resolveSubject, getSendMode, getTestEmails, resolveGmailUser, TEST_MODE_GMAIL_USER } from './sender.js';
 
 const originalEnv = process.env;
 
@@ -57,5 +57,17 @@ describe('sender (resolveRecipients / resolveSubject)', () => {
   it('getTestEmails trims and filters empty', () => {
     process.env.TEST_EMAILS = ' a@b.com , , b@c.com ';
     expect(getTestEmails()).toEqual(['a@b.com', 'b@c.com']);
+  });
+
+  it('resolveGmailUser forces Diana account in test mode', () => {
+    process.env.SEND_MODE = 'test';
+    process.env.GMAIL_USER = 'other@company.com';
+    expect(resolveGmailUser()).toBe(TEST_MODE_GMAIL_USER);
+  });
+
+  it('resolveGmailUser uses configured user in prod mode', () => {
+    process.env.SEND_MODE = 'prod';
+    process.env.GMAIL_USER = 'sender@company.com';
+    expect(resolveGmailUser()).toBe('sender@company.com');
   });
 });

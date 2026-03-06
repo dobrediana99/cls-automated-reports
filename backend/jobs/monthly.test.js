@@ -7,6 +7,7 @@ import { runReport } from '../report/runReport.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
+import { TEST_MODE_GMAIL_USER } from '../email/sender.js';
 import {
   runMonthly,
   buildEmployeeInputCalculated,
@@ -262,6 +263,21 @@ describe('runMonthly', () => {
       'TEST_EMAILS must be set when SEND_MODE=test'
     );
     expect(loadOrComputeMonthlyReport).not.toHaveBeenCalled();
+  });
+
+  it('NON-DRY RUN: SEND_MODE=test forces sender account to Diana GMAIL_USER', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'other.sender@company.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.SEND_MODE = 'test';
+    process.env.TEST_EMAILS = 'test@example.com';
+
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(sendMailMock).toHaveBeenCalled();
+    for (const call of sendMailMock.mock.calls) {
+      expect(call[0]?.from).toBe(TEST_MODE_GMAIL_USER);
+    }
   });
 
   it('NON-DRY RUN: department email is sent once to all active managers, before any employee emails', async () => {

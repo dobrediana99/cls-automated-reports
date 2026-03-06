@@ -86,8 +86,8 @@ export function validateMonthlyRuntimeConfig(opts = {}) {
   if (!dryRun) {
     const gmailUser = getEnv(env, 'GMAIL_USER');
     const gmailAppPassword = getEnv(env, 'GMAIL_APP_PASSWORD');
-    if (!gmailUser) {
-      throw new Error('GMAIL_USER must be set for monthly email send (non-DRY_RUN).');
+    if (sendMode === 'prod' && !gmailUser) {
+      throw new Error('GMAIL_USER must be set for monthly email send in SEND_MODE=prod (non-DRY_RUN).');
     }
     if (!gmailAppPassword) {
       throw new Error('GMAIL_APP_PASSWORD must be set for monthly email send (non-DRY_RUN).');

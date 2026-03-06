@@ -4,12 +4,25 @@
  */
 
 const TEST_PREFIX = '[TEST] ';
+export const TEST_MODE_GMAIL_USER = 'diana.d@crystal-logistics-services.com';
 
 /**
  * @returns {'test'|'prod'} Default: 'test'.
  */
 export function getSendMode() {
   return process.env.SEND_MODE === 'prod' ? 'prod' : 'test';
+}
+
+/**
+ * Resolve SMTP sender user.
+ * In test mode, user is forced to Diana account to avoid accidental sends from other identities.
+ * In prod mode, use configured GMAIL_USER.
+ * @param {string|undefined|null} [rawUser]
+ * @returns {string}
+ */
+export function resolveGmailUser(rawUser = process.env.GMAIL_USER) {
+  if (getSendMode() === 'test') return TEST_MODE_GMAIL_USER;
+  return String(rawUser ?? '').trim();
 }
 
 /**
@@ -59,7 +72,9 @@ export function logSenderConfig() {
   const mode = getSendMode();
   const testEmails = getTestEmails();
   const configured = testEmails.length > 0;
+  const effectiveGmailUser = resolveGmailUser();
   console.log('[email] SEND_MODE:', mode);
+  console.log('[email] effective GMAIL_USER:', effectiveGmailUser || '(missing)');
   if (mode === 'test') {
     console.log('[email] TEST_EMAILS configured:', configured, configured ? `(${testEmails.length} address(es))` : '');
     if (configured && process.env.NODE_ENV !== 'production') {

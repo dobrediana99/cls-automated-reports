@@ -60,6 +60,12 @@ describe('validateMonthlyRuntimeConfig', () => {
       .toThrow('GMAIL_USER must be set');
   });
 
+  it('does not require GMAIL_USER in SEND_MODE=test (non-DRY_RUN)', () => {
+    const env = { ...minimalMonthlyEnv(), SEND_MODE: 'test' };
+    delete env.GMAIL_USER;
+    expect(() => validateMonthlyRuntimeConfig({ dryRun: false, sendMode: 'test', env })).not.toThrow();
+  });
+
   it('throws when dryRun=false and GMAIL_APP_PASSWORD missing', () => {
     const env = { ...minimalMonthlyEnv(), GMAIL_APP_PASSWORD: '' };
     delete env.GMAIL_APP_PASSWORD;
