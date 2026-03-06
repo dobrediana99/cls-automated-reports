@@ -50,6 +50,34 @@ function safeNumber(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+export function resolveMonthlySendScope(raw = process.env.MONTHLY_SEND_SCOPE) {
+  const normalized = String(raw ?? '').trim().toLowerCase();
+  if (!normalized || normalized === 'all') return 'all';
+  if (normalized === 'department_only' || normalized === 'department-only' || normalized === 'department') {
+    return 'department_only';
+  }
+  throw new Error('MONTHLY_SEND_SCOPE must be "all" or "department_only".');
+}
+
+export function resolveMonthlyRunSlot(raw = process.env.MONTHLY_RUN_SLOT) {
+  const normalized = String(raw ?? '').trim();
+  if (!normalized) return null;
+  if (!/^\d{1,2}$/.test(normalized)) {
+    throw new Error('MONTHLY_RUN_SLOT must be a day of month 1..31 (example: "05" or "15").');
+  }
+  const n = Number(normalized);
+  if (!Number.isInteger(n) || n < 1 || n > 31) {
+    throw new Error('MONTHLY_RUN_SLOT must be a day of month 1..31 (example: "05" or "15").');
+  }
+  return String(n).padStart(2, '0');
+}
+
+export function applyMonthlyRunSlotToLabel(label, runSlot) {
+  const base = String(label ?? '').trim();
+  if (!runSlot) return base;
+  return `${base}__slot_${runSlot}`;
+}
+
 function sumProfitAllEur(row) {
   if (!row || typeof row !== 'object') return 0;
   return (
@@ -320,6 +348,10 @@ function getDeptHeadcount(report, deptKey) {
  * @returns {Promise<{ payload: object, dryRunPath?: string }>}
  */
 export async function runMonthly(opts = {}) {
+  const sendScope = resolveMonthlySendScope(opts.sendScope ?? process.env.MONTHLY_SEND_SCOPE);
+  const runSlot = resolveMonthlyRunSlot(opts.runSlot ?? process.env.MONTHLY_RUN_SLOT);
+  const departmentOnly = sendScope === 'department_only';
+
   console.log('[MONTHLY] START', {
     service: process.env.K_SERVICE || null,
     revision: process.env.K_REVISION || null,
@@ -329,6 +361,8 @@ export async function runMonthly(opts = {}) {
     hasMondayToken: Boolean(process.env.MONDAY_API_TOKEN),
     dryRun: process.env.DRY_RUN || null,
     sendMode: process.env.SEND_MODE || null,
+    sendScope,
+    runSlot,
     timestamp: new Date().toISOString(),
   });
 
@@ -375,7 +409,7 @@ export async function runMonthly(opts = {}) {
     result0 = results[0];
     result1 = results[1];
     result2 = results[2];
-    runLabelForManifest = results[0]?.meta?.label ?? periods[0].label;
+    runLabelForManifest = applyMonthlyRunSlotToLabel(results[0]?.meta?.label ?? periods[0].label, runSlot);
     await writeMonthlyRunManifestToGCS({
       jobType: JOB_TYPE,
       label: runLabelForManifest,
@@ -410,6 +444,7 @@ export async function runMonthly(opts = {}) {
   };
   const payload = { meta: meta0, reportSummary: result0.reportSummary };
   const label = metas[0].label;
+  const runStateLabel = applyMonthlyRunSlotToLabel(label, runSlot);
 
   const xlsxBuffer = await buildMonthlyXlsx(reports[0], metas[0]);
   const xlsxFilename = `Raport_lunar_${metas[0].periodStart.slice(0, 7)}.xlsx`;
@@ -512,51 +547,55 @@ export async function runMonthly(opts = {}) {
   if (process.env.DRY_RUN === '1') {
     const outDir = getOutDir({ dryRun: true });
     ensureOutDir(outDir);
-    for (const person of activePeople) {
-      const data3Months = {
-        current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
-        prev: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[1], person)),
-      };
-      const deptKey = departmentToSummaryKey(person.department);
-      const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
-      const deptPrevRaw = reportSummaries[1]?.departments?.[deptKey] ?? null;
-      const deptAverages3Months = {
-        current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
-        prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
-      };
-      const calculated = buildEmployeeInputCalculated(
-        data3Months,
-        deptAverages3Months,
-        workingDaysInPeriod,
-        periodStart,
-        periodEnd,
-      );
-      const inputJson = {
-        person: { name: person.name, department: person.department },
-        data3Months,
-        deptAverages3Months,
-        periodStart,
-        periodEnd,
-        workingDaysInPeriod,
-        calculated,
-      };
-      const performancePct = getPerformancePct(data3Months.current);
-      const raw = await generateMonthlySections({
-        systemPrompt: employeePrompt,
-        inputJson,
-        performancePct,
-      });
-      const llmSections = raw?.sections ?? raw;
-      const { html } = buildMonthlyEmployeeEmail({
-        person,
-        data3Months,
-        deptAverages3Months,
-        periodStart: metas[0].periodStart,
-        workingDaysInPeriod,
-        llmSections,
-      });
-      const safeEmail = sanitizeEmailForFilename(person.email);
-      fs.writeFileSync(path.join(outDir, `monthly_employee_${safeEmail}_${label}.html`), html, 'utf8');
+    if (!departmentOnly) {
+      for (const person of activePeople) {
+        const data3Months = {
+          current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
+          prev: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[1], person)),
+        };
+        const deptKey = departmentToSummaryKey(person.department);
+        const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
+        const deptPrevRaw = reportSummaries[1]?.departments?.[deptKey] ?? null;
+        const deptAverages3Months = {
+          current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
+          prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
+        };
+        const calculated = buildEmployeeInputCalculated(
+          data3Months,
+          deptAverages3Months,
+          workingDaysInPeriod,
+          periodStart,
+          periodEnd,
+        );
+        const inputJson = {
+          person: { name: person.name, department: person.department },
+          data3Months,
+          deptAverages3Months,
+          periodStart,
+          periodEnd,
+          workingDaysInPeriod,
+          calculated,
+        };
+        const performancePct = getPerformancePct(data3Months.current);
+        const raw = await generateMonthlySections({
+          systemPrompt: employeePrompt,
+          inputJson,
+          performancePct,
+        });
+        const llmSections = raw?.sections ?? raw;
+        const { html } = buildMonthlyEmployeeEmail({
+          person,
+          data3Months,
+          deptAverages3Months,
+          periodStart: metas[0].periodStart,
+          workingDaysInPeriod,
+          llmSections,
+        });
+        const safeEmail = sanitizeEmailForFilename(person.email);
+        fs.writeFileSync(path.join(outDir, `monthly_employee_${safeEmail}_${label}.html`), html, 'utf8');
+      }
+    } else {
+      console.log('[monthly] DRY_RUN scope=department_only -> skipping individual email generation');
     }
     const deptRaw = await generateMonthlyDepartmentSections({
       systemPrompt: departmentPrompt,
@@ -595,29 +634,29 @@ export async function runMonthly(opts = {}) {
 
   let runState;
   try {
-    runState = await loadMonthlyRunState(label);
+    runState = await loadMonthlyRunState(runStateLabel);
   } catch (loadErr) {
     const code = loadErr?.code ?? 'RUN_STATE_UNAVAILABLE';
     const message = loadErr?.message ?? String(loadErr);
-    console.error('[monthly][run-state] load failed, aborting to avoid duplicate sends', { label, code, message });
+    console.error('[monthly][run-state] load failed, aborting to avoid duplicate sends', { label: runStateLabel, code, message });
     throw new Error(
-      'Monthly run-state unavailable/corrupt for ' + label + '; aborting to avoid duplicate sends.'
+      'Monthly run-state unavailable/corrupt for ' + runStateLabel + '; aborting to avoid duplicate sends.'
     );
   }
   if (!runState) {
-    runState = createInitialState({ label, periodStart, periodEnd });
-    await saveMonthlyRunState(label, runState);
-    console.log('[monthly][resume] state created (new run)', { label });
+    runState = createInitialState({ label: runStateLabel, periodStart, periodEnd });
+    await saveMonthlyRunState(runStateLabel, runState);
+    console.log('[monthly][resume] state created (new run)', { label: runStateLabel });
   } else {
-    console.log('[monthly][resume] state loaded', { label, completed: runState.completed });
+    console.log('[monthly][resume] state loaded', { label: runStateLabel, completed: runState.completed });
   }
 
   if (runState.completed) {
-    console.log('[monthly][resume] run already completed, no-op (idempotent)', { label });
+    console.log('[monthly][resume] run already completed, no-op (idempotent)', { label: runStateLabel });
     return { payload };
   }
 
-  const save = (s) => saveMonthlyRunState(label, s);
+  const save = (s) => saveMonthlyRunState(runStateLabel, s);
   await markCollectOk(runState, save);
   console.log('[monthly][checkpoint] stage collect=ok');
 
@@ -737,137 +776,141 @@ export async function runMonthly(opts = {}) {
   }
 
   // 2) Employee emails: skip if send already ok; else LLM (only if llm != ok) then send; checkpoint each.
-  for (const person of activePeople) {
-    ensureEmployeeEntry(runState, person.email, person.name);
-    if (runState.stages.employees[person.email]?.send?.status === 'ok') {
-      console.log('[monthly][resume] skip employee send already completed', { email: person.email });
-      continue;
-    }
+  if (!departmentOnly) {
+    for (const person of activePeople) {
+      ensureEmployeeEntry(runState, person.email, person.name);
+      if (runState.stages.employees[person.email]?.send?.status === 'ok') {
+        console.log('[monthly][resume] skip employee send already completed', { email: person.email });
+        continue;
+      }
 
-    const data3Months = {
-      current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
-      prev: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[1], person)),
-    };
-    const deptKey = departmentToSummaryKey(person.department);
-    const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
-    const deptPrevRaw = reportSummaries[1]?.departments?.[deptKey] ?? null;
-    const deptAverages3Months = {
-      current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
-      prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
-    };
-    const calculated = buildEmployeeInputCalculated(
-      data3Months,
-      deptAverages3Months,
-      workingDaysInPeriod,
-      periodStart,
-      periodEnd,
-    );
-    const inputJson = {
-      person: { name: person.name, department: person.department },
-      data3Months,
-      deptAverages3Months,
-      periodStart,
-      periodEnd,
-      workingDaysInPeriod,
-      calculated,
-    };
+      const data3Months = {
+        current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
+        prev: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[1], person)),
+      };
+      const deptKey = departmentToSummaryKey(person.department);
+      const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
+      const deptPrevRaw = reportSummaries[1]?.departments?.[deptKey] ?? null;
+      const deptAverages3Months = {
+        current: departmentAveragesByMonth[0]?.[deptKey] ?? null,
+        prev: departmentAveragesByMonth[1]?.[deptKey] ?? null,
+      };
+      const calculated = buildEmployeeInputCalculated(
+        data3Months,
+        deptAverages3Months,
+        workingDaysInPeriod,
+        periodStart,
+        periodEnd,
+      );
+      const inputJson = {
+        person: { name: person.name, department: person.department },
+        data3Months,
+        deptAverages3Months,
+        periodStart,
+        periodEnd,
+        workingDaysInPeriod,
+        calculated,
+      };
 
-    console.log('[monthly] employee_start', person.name, person.email);
-    let llmSections = runState.stages.employees[person.email]?.llmSections ?? null;
-    const needEmpLlm = runState.stages.employees[person.email]?.llm?.status !== 'ok' || !llmSections;
-    if (needEmpLlm) {
-      const performancePct = getPerformancePct(data3Months.current);
-      try {
-        const raw = await generateMonthlySections({
-          systemPrompt: employeePrompt,
-          inputJson,
-          performancePct,
-        });
-        llmSections = raw?.sections ?? raw;
-        const usage = raw?.usage;
-        if (usage) {
-          const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
-          const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
-          totalPromptTokens += pt;
-          totalCompletionTokens += ct;
-          if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
-          console.log('[monthly] employee_llm_success', person.name, person.email, {
-            prompt_tokens: pt,
-            completion_tokens: ct,
-            cost: usage.cost ?? null,
+      console.log('[monthly] employee_start', person.name, person.email);
+      let llmSections = runState.stages.employees[person.email]?.llmSections ?? null;
+      const needEmpLlm = runState.stages.employees[person.email]?.llm?.status !== 'ok' || !llmSections;
+      if (needEmpLlm) {
+        const performancePct = getPerformancePct(data3Months.current);
+        try {
+          const raw = await generateMonthlySections({
+            systemPrompt: employeePrompt,
+            inputJson,
+            performancePct,
           });
-        } else {
-          console.log('[monthly] employee_llm_success', person.name, person.email);
+          llmSections = raw?.sections ?? raw;
+          const usage = raw?.usage;
+          if (usage) {
+            const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+            const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
+            totalPromptTokens += pt;
+            totalCompletionTokens += ct;
+            if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
+            console.log('[monthly] employee_llm_success', person.name, person.email, {
+              prompt_tokens: pt,
+              completion_tokens: ct,
+              cost: usage.cost ?? null,
+            });
+          } else {
+            console.log('[monthly] employee_llm_success', person.name, person.email);
+          }
+          await markEmployeeLlmOk(runState, person.email, llmSections, save);
+          console.log('[monthly][checkpoint] stage employee llm=ok', { email: person.email });
+        } catch (err) {
+          const reason = err?.reason ?? err?.llmMeta?.reason ?? null;
+          const requestId = err?.requestId ?? err?.llmMeta?.requestId ?? null;
+          const repairRequestId =
+            err?.repairRequestId ?? err?.llmMeta?.repairRequestId ?? null;
+          console.error('[monthly] employee_failed', {
+            label,
+            email: person.email,
+            name: person.name,
+            stage: 'emp_llm',
+            attempt: 1,
+            reason,
+            requestId,
+            repairRequestId,
+            message: err?.message ?? String(err),
+          });
+          await markEmployeeLlmFailed(runState, person.email, err, save, person.name);
+          throw err;
         }
-        await markEmployeeLlmOk(runState, person.email, llmSections, save);
-        console.log('[monthly][checkpoint] stage employee llm=ok', { email: person.email });
+      }
+      if (!llmSections) {
+        llmSections = runState.stages.employees[person.email]?.llmSections ?? null;
+      }
+
+      try {
+        const { subject, html } = buildMonthlyEmployeeEmail({
+          person,
+          data3Months,
+          deptAverages3Months,
+          periodStart: metas[0].periodStart,
+          workingDaysInPeriod,
+          llmSections,
+        });
+        const toList = resolveRecipients([person.email]);
+        logSendRecipients(1, toList);
+        const empTransporter = transporterEmployee ?? transporter;
+        const empFrom = useEmployeeSender ? monthlyEmployeeFrom : gmailUser;
+        await sendWithRetry(
+          empTransporter,
+          {
+            from: empFrom,
+            to: toList.join(', '),
+            subject: resolveSubject(subject),
+            html,
+          },
+          { context: 'employee' }
+        );
+        await markEmployeeSend(runState, person.email, 'ok', null, save);
+        console.log('[monthly] employee_email_sent', person.name, person.email);
+        console.log('[monthly][checkpoint] stage employee send=ok', { email: person.email });
       } catch (err) {
-        const reason = err?.reason ?? err?.llmMeta?.reason ?? null;
-        const requestId = err?.requestId ?? err?.llmMeta?.requestId ?? null;
-        const repairRequestId =
-          err?.repairRequestId ?? err?.llmMeta?.repairRequestId ?? null;
         console.error('[monthly] employee_failed', {
           label,
           email: person.email,
           name: person.name,
-          stage: 'emp_llm',
-          attempt: 1,
-          reason,
-          requestId,
-          repairRequestId,
+          stage: 'emp_send',
           message: err?.message ?? String(err),
         });
-        await markEmployeeLlmFailed(runState, person.email, err, save, person.name);
+        await markEmployeeSend(runState, person.email, 'failed', err, save);
         throw err;
       }
     }
-    if (!llmSections) {
-      llmSections = runState.stages.employees[person.email]?.llmSections ?? null;
-    }
-
-    try {
-      const { subject, html } = buildMonthlyEmployeeEmail({
-        person,
-        data3Months,
-        deptAverages3Months,
-        periodStart: metas[0].periodStart,
-        workingDaysInPeriod,
-        llmSections,
-      });
-      const toList = resolveRecipients([person.email]);
-      logSendRecipients(1, toList);
-      const empTransporter = transporterEmployee ?? transporter;
-      const empFrom = useEmployeeSender ? monthlyEmployeeFrom : gmailUser;
-      await sendWithRetry(
-        empTransporter,
-        {
-          from: empFrom,
-          to: toList.join(', '),
-          subject: resolveSubject(subject),
-          html,
-        },
-        { context: 'employee' }
-      );
-      await markEmployeeSend(runState, person.email, 'ok', null, save);
-      console.log('[monthly] employee_email_sent', person.name, person.email);
-      console.log('[monthly][checkpoint] stage employee send=ok', { email: person.email });
-    } catch (err) {
-      console.error('[monthly] employee_failed', {
-        label,
-        email: person.email,
-        name: person.name,
-        stage: 'emp_send',
-        message: err?.message ?? String(err),
-      });
-      await markEmployeeSend(runState, person.email, 'failed', err, save);
-      throw err;
-    }
+  } else {
+    console.log('[monthly] scope=department_only -> skipping individual employee stage');
   }
 
   await markCompleted(runState, save);
   console.log('[monthly][checkpoint] run completed', { label });
 
-  const employeesSent = activePeople.length;
+  const employeesSent = departmentOnly ? 0 : activePeople.length;
   const durationMs = Date.now() - jobStartMs;
   const totalTokens = totalPromptTokens + totalCompletionTokens;
   console.log('[monthly] job_summary', {
@@ -881,4 +924,10 @@ export async function runMonthly(opts = {}) {
   return { payload };
 }
 
-export { buildEmployeeInputCalculated, toMonthlyEmployeeDeliveryRow };
+export {
+  buildEmployeeInputCalculated,
+  toMonthlyEmployeeDeliveryRow,
+  resolveMonthlySendScope,
+  resolveMonthlyRunSlot,
+  applyMonthlyRunSlotToLabel,
+};
