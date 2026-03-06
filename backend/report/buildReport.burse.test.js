@@ -84,5 +84,110 @@ describe('buildReport bursă metrics', () => {
     expect(emp1.burseCount).toBe(1);
     expect(emp2.burseCount).toBe(0);
   });
+
+  it('ignores boolean formula_result for PROFIT_PRINCIPAL (true must not become 1)', () => {
+    const COLS_COMENZI = COLS.COMENZI;
+    const id1 = '74695692';
+
+    const comenziCtr = {
+      items_page: {
+        items: [
+          {
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.SURSA, text: 'Website' },
+              { id: COLS_COMENZI.PROFIT_PRINCIPAL, value: JSON.stringify({ formula_result: true }) },
+              { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(0) },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(0) },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id1) },
+            ],
+          },
+        ],
+      },
+    };
+
+    const raw = {
+      comenziCtr,
+      comenziLivr: null,
+      solicitari: null,
+      leadsContact: null,
+      leadsQualified: null,
+      furnizori: null,
+      activities: null,
+      COLS_COMENZI,
+      dynamicCols: null,
+    };
+
+    const { opsStats } = buildReport(raw);
+    const emp1 = opsStats.find((e) => String(e.mondayId) === id1);
+    expect(emp1).toBeDefined();
+    expect(emp1.ctr_principalCount).toBe(1);
+    expect(emp1.ctr_principalProfitEur).toBe(0);
+  });
+
+  it('includes explicit 0 values in average term sums/counts', () => {
+    const COLS_COMENZI = COLS.COMENZI;
+    const id1 = '74695692';
+
+    const comenziCtr = {
+      items_page: {
+        items: [
+          {
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.SURSA, text: 'Website' },
+              { id: COLS_COMENZI.PROFIT_PRINCIPAL, value: JSON.stringify(100) },
+              { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(0) },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(100) },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id1) },
+              { id: COLS_COMENZI.TERMEN_PLATA_CLIENT, value: JSON.stringify(0), text: '0' },
+              { id: COLS_COMENZI.TERMEN_PLATA_FURNIZOR, value: JSON.stringify(0), text: '0' },
+            ],
+          },
+          {
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.SURSA, text: 'Website' },
+              { id: COLS_COMENZI.PROFIT_PRINCIPAL, value: JSON.stringify(100) },
+              { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(0) },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(100) },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id1) },
+              { id: COLS_COMENZI.TERMEN_PLATA_CLIENT, value: JSON.stringify(30), text: '30' },
+              { id: COLS_COMENZI.TERMEN_PLATA_FURNIZOR, value: JSON.stringify(45), text: '45' },
+            ],
+          },
+        ],
+      },
+    };
+
+    const raw = {
+      comenziCtr,
+      comenziLivr: null,
+      solicitari: null,
+      leadsContact: null,
+      leadsQualified: null,
+      furnizori: null,
+      activities: null,
+      COLS_COMENZI,
+      dynamicCols: null,
+    };
+
+    const { opsStats } = buildReport(raw);
+    const emp1 = opsStats.find((e) => String(e.mondayId) === id1);
+    expect(emp1).toBeDefined();
+
+    expect(emp1.sumClientTerms).toBe(30);
+    expect(emp1.countClientTerms).toBe(2);
+    expect(emp1.sumSupplierTerms).toBe(45);
+    expect(emp1.countSupplierTerms).toBe(2);
+    expect(emp1.supplierTermsUnder30).toBe(1);
+    expect(emp1.supplierTermsOver30).toBe(1);
+  });
 });
 

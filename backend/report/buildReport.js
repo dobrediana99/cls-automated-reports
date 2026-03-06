@@ -7,31 +7,66 @@ function safeVal(v) {
   return typeof v === 'number' && !isNaN(v) ? v : 0;
 }
 
-function extractNumericValue(columnValue) {
-  if (!columnValue) return 0;
-  let valStr = '';
-  if (columnValue.value) {
-    try {
-      const parsed = JSON.parse(columnValue.value);
-      if (typeof parsed === 'number') return parsed;
-      if (parsed.formula_result !== undefined) return Number(parsed.formula_result);
-      if (parsed?.value !== undefined) {
-        if (typeof parsed.value === 'number') return parsed.value;
-        valStr = String(parsed.value);
-      }
-    } catch (_) {}
-  }
-  if (!valStr && columnValue.display_value) valStr = String(columnValue.display_value);
-  if (!valStr && columnValue.text) valStr = String(columnValue.text);
-  if (!valStr || valStr === 'null') return 0;
+function parseNumericString(raw) {
+  let valStr = String(raw ?? '').trim();
+  if (!valStr) return null;
+  const lowered = valStr.toLowerCase();
+  if (lowered === 'null' || lowered === 'true' || lowered === 'false') return null;
   if (valStr.includes('(') && valStr.includes(')')) valStr = '-' + valStr.replace(/[()]/g, '');
   let clean = valStr.replace(/\s+/g, '').replace(/[^0-9.,-]/g, '');
-  if (!clean) return 0;
+  if (!clean) return null;
   if (clean.includes('.') && clean.includes(',')) {
     clean = clean.indexOf('.') < clean.indexOf(',') ? clean.replace(/\./g, '').replace(',', '.') : clean.replace(/,/g, '');
   } else if (clean.includes(',')) clean = clean.replace(',', '.');
   const n = parseFloat(clean);
-  return isNaN(n) ? 0 : n;
+  return Number.isFinite(n) ? n : null;
+}
+
+function coerceNumeric(raw) {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  if (typeof raw === 'boolean') return null;
+  if (typeof raw === 'string') return parseNumericString(raw);
+  return null;
+}
+
+function extractNumericValueWithPresence(columnValue) {
+  if (!columnValue) return { value: 0, hasNumeric: false };
+  let valStr = '';
+
+  if (columnValue.value !== undefined && columnValue.value !== null && String(columnValue.value).trim() !== '') {
+    try {
+      const parsed = JSON.parse(columnValue.value);
+
+      const directParsedNumber = coerceNumeric(parsed);
+      if (directParsedNumber !== null) return { value: directParsedNumber, hasNumeric: true };
+
+      if (parsed && typeof parsed === 'object') {
+        const formulaResultNumber = coerceNumeric(parsed.formula_result);
+        if (formulaResultNumber !== null) return { value: formulaResultNumber, hasNumeric: true };
+
+        const nestedValueNumber = coerceNumeric(parsed.value);
+        if (nestedValueNumber !== null) return { value: nestedValueNumber, hasNumeric: true };
+
+        if (parsed.value !== undefined && parsed.value !== null) {
+          valStr = String(parsed.value);
+        }
+      }
+    } catch (_) {
+      valStr = String(columnValue.value);
+    }
+  }
+
+  if (!valStr && columnValue.display_value) valStr = String(columnValue.display_value);
+  if (!valStr && columnValue.text) valStr = String(columnValue.text);
+  const parsedFallback = coerceNumeric(valStr);
+  if (parsedFallback !== null) return { value: parsedFallback, hasNumeric: true };
+  return { value: 0, hasNumeric: false };
+}
+
+function extractNumericValue(columnValue) {
+  const parsed = extractNumericValueWithPresence(columnValue);
+  return parsed.hasNumeric ? parsed.value : 0;
 }
 
 function getPersonIds(columnValue) {
@@ -149,8 +184,10 @@ export function buildReport(raw) {
       const sursaVal = (getCol(COLS_COMENZI.SURSA)?.text || '').trim().toLowerCase();
       const isWebsite = sursaVal === 'website' || sursaVal === 'telefon / whatsapp fix' || sursaVal === 'fix';
       const isBurse = /timocom|trans\.eu|cargopedia/.test(sursaVal);
-      const clientTerm = extractNumericValue(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
-      const supplierTerm = extractNumericValue(getCol(COLS_COMENZI.TERMEN_PLATA_FURNIZOR));
+      const clientTermMeta = extractNumericValueWithPresence(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
+      const supplierTermMeta = extractNumericValueWithPresence(getCol(COLS_COMENZI.TERMEN_PLATA_FURNIZOR));
+      const clientTerm = clientTermMeta.value;
+      const supplierTerm = supplierTermMeta.value;
       let isOverdue = false;
       const scadentaClientText = getCol(COLS_COMENZI.DATA_SCADENTA_CLIENT)?.text;
       const statusPlataClient = (getCol(COLS_COMENZI.STATUS_PLATA_CLIENT)?.text || '').toLowerCase();
@@ -201,7 +238,7 @@ export function buildReport(raw) {
               emp.sumProfitability += safeVal(profitabilityVal);
               emp.countProfitability++;
             }
-            if (clientTerm > 0) {
+            if (clientTermMeta.hasNumeric && clientTerm >= 0) {
               emp.sumClientTerms += clientTerm;
               emp.countClientTerms++;
             }
@@ -224,7 +261,7 @@ export function buildReport(raw) {
             }
           }
           if (isSecondary || (isPrincipal && !hadSecondary)) {
-            if (supplierTerm > 0) {
+            if (supplierTermMeta.hasNumeric && supplierTerm >= 0) {
               emp.sumSupplierTerms += supplierTerm;
               emp.countSupplierTerms++;
               if (supplierTerm < 30) emp.supplierTermsUnder30++;
