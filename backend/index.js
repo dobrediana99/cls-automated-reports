@@ -4,8 +4,12 @@ import { OAuth2Client } from 'google-auth-library';
 import { getPreviousCalendarWeekRange, isMonthlyReportSendDay } from './lib/dateRanges.js';
 import { getPreviousCalendarMonthRange } from './lib/dateRanges.js';
 import { runWeekly } from './jobs/weekly.js';
-import { runMonthly } from './jobs/monthly.js';
-import * as idempotency from './idempotency/localFileStore.js';
+import {
+  runMonthly,
+  resolveMonthlySendScope,
+  resolveMonthlyRunSlot,
+  applyMonthlyRunSlotToLabel,
+} from './jobs/monthly.js';
 import { logSenderConfig } from './email/sender.js';
 import { getModel } from './llm/openrouterClient.js';
 import {
@@ -122,25 +126,18 @@ export async function runJobWithIdempotency(jobType, getRange, runJob) {
   const isDryRun = process.env.DRY_RUN === '1';
 
   if (isDryRun) {
-    // DRY_RUN=1: never block on idempotency, run job, never mark as sent
+    // DRY_RUN=1: run job directly
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[idempotency] DRY_RUN=1 -> skip idempotency check and mark');
+      console.log('[idempotency] DRY_RUN=1 -> execute run directly');
     }
     return await runJob();
   }
 
-  if (idempotency.wasAlreadySent(jobType, label)) {
-    console.log('[idempotency] already sent -> skip', jobType, label);
-    return { skipped: true, reason: 'already_sent', jobType, label };
-  }
-
+  // Resend policy: do not block by historical ".sent" markers and do not mark as sent.
+  // The same period can be re-sent multiple times intentionally.
   try {
-    const result = await runJob();
-    idempotency.markAsSent(jobType, label);
-    console.log('[idempotency] marked sent ->', jobType, label);
-    return result;
+    return await runJob();
   } catch (err) {
-    // Do not mark as sent on failure
     throw err;
   }
 }
@@ -163,6 +160,17 @@ app.post('/run/weekly', oidcAuth, async (_req, res) => {
 
 app.post('/run/monthly', oidcAuth, async (req, res) => {
   try {
+    const sendScopeRaw = req.query?.scope ?? req.body?.scope ?? process.env.MONTHLY_SEND_SCOPE;
+    const runSlotRaw = req.query?.slot ?? req.body?.slot ?? process.env.MONTHLY_RUN_SLOT;
+    let sendScope;
+    let runSlot;
+    try {
+      sendScope = resolveMonthlySendScope(sendScopeRaw);
+      runSlot = resolveMonthlyRunSlot(runSlotRaw);
+    } catch (err) {
+      return res.status(400).json({ error: err?.message ?? 'Invalid monthly options' });
+    }
+
     const force = req.query?.force === '1' || req.query?.force === true || req.body?.force === true || req.body?.force === 1;
     if (!force && !isMonthlyReportSendDay()) {
       return res.status(200).json({
@@ -172,7 +180,11 @@ app.post('/run/monthly', oidcAuth, async (req, res) => {
       });
     }
     const refresh = req.query?.refresh === '1' || req.query?.refresh === true || req.body?.refresh === true || req.body?.refresh === 1;
-    const result = await runJobWithIdempotency('monthly', getPreviousCalendarMonthRange, () => runMonthly({ refresh }));
+    const getRangeWithSlot = () => {
+      const range = getPreviousCalendarMonthRange();
+      return { ...range, label: applyMonthlyRunSlotToLabel(range.label, runSlot) };
+    };
+    const result = await runJobWithIdempotency('monthly', getRangeWithSlot, () => runMonthly({ refresh, sendScope, runSlot }));
     if (result.skipped) {
       return res.status(200).json({ skipped: true, reason: result.reason, jobType: result.jobType, label: result.label });
     }

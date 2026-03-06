@@ -7,7 +7,14 @@ import { runReport } from '../report/runReport.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
-import { runMonthly, buildEmployeeInputCalculated } from './monthly.js';
+import {
+  runMonthly,
+  buildEmployeeInputCalculated,
+  toMonthlyEmployeeDeliveryRow,
+  resolveMonthlySendScope,
+  resolveMonthlyRunSlot,
+  applyMonthlyRunSlotToLabel,
+} from './monthly.js';
 import { createInitialState, RUN_STATE_UNAVAILABLE } from '../store/monthlyRunState.js';
 import * as emailMonthly from '../email/monthly.js';
 
@@ -167,6 +174,8 @@ describe('runMonthly', () => {
   beforeEach(() => {
     delete process.env.DRY_RUN;
     delete process.env.OPENROUTER_TIMEOUT_MS;
+    delete process.env.MONTHLY_SEND_SCOPE;
+    delete process.env.MONTHLY_RUN_SLOT;
     process.env.MONDAY_API_TOKEN = 'test-token';
     process.env.OPENROUTER_API_KEY = 'test-key';
     sendMailMock.mockClear();
@@ -288,6 +297,41 @@ describe('runMonthly', () => {
     for (let i = 1; i < calls.length; i++) {
       expect(calls[i][0].attachments).toBeUndefined();
     }
+  });
+
+  it('NON-DRY RUN: MONTHLY_SEND_SCOPE=department_only sends only department email', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.SEND_MODE = 'prod';
+    process.env.MONTHLY_SEND_SCOPE = 'department_only';
+
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(generateMonthlyDepartmentSections).toHaveBeenCalledTimes(1);
+    expect(generateMonthlySections).not.toHaveBeenCalled();
+    expect(sendMailMock).toHaveBeenCalledTimes(1);
+    const onlyCall = sendMailMock.mock.calls[0][0];
+    expect(Array.isArray(onlyCall.attachments)).toBe(true);
+    expect(onlyCall.attachments.length).toBeGreaterThan(0);
+  });
+
+  it('NON-DRY RUN: MONTHLY_RUN_SLOT suffixes run-state label', async () => {
+    process.env.DRY_RUN = '0';
+    process.env.GMAIL_USER = 'test@example.com';
+    process.env.GMAIL_APP_PASSWORD = 'secret';
+    process.env.SEND_MODE = 'prod';
+    process.env.MONTHLY_SEND_SCOPE = 'department_only';
+    process.env.MONTHLY_RUN_SLOT = '15';
+
+    await runMonthly({ now: new Date('2026-01-15T09:30:00') });
+
+    expect(loadMonthlyRunStateMock).toHaveBeenCalled();
+    const loadedLabel = loadMonthlyRunStateMock.mock.calls[0]?.[0];
+    expect(loadedLabel).toContain('__slot_15');
+    expect(saveMonthlyRunStateMock).toHaveBeenCalled();
+    const savedLabel = saveMonthlyRunStateMock.mock.calls[0]?.[0];
+    expect(savedLabel).toContain('__slot_15');
   });
 
   it('NON-DRY RUN: if department sendMail fails, job throws and no employee emails sent', async () => {
@@ -447,7 +491,7 @@ describe('runMonthly', () => {
     expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
   });
 
-  it('NON-DRY RUN: partial success then failure – first run sends department + one employee, then fails on next employee', async () => {
+  it('NON-DRY RUN: partial success then failure does not persist send checkpoint statuses', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -464,13 +508,13 @@ describe('runMonthly', () => {
     expect(sendMailMock).toHaveBeenCalledTimes(3); // dept + emp1 + fail on emp2
     const lastSavedState = saveMonthlyRunStateMock.mock.calls[saveMonthlyRunStateMock.mock.calls.length - 1]?.[1];
     expect(lastSavedState).toBeDefined();
-    expect(lastSavedState.stages.department.send.status).toBe('ok');
+    expect(lastSavedState.stages.department.send.status).toBe('pending');
     const firstEmployeeEmail = activePeople[0].email;
-    expect(lastSavedState.stages.employees[firstEmployeeEmail].send.status).toBe('ok');
+    expect(lastSavedState.stages.employees[firstEmployeeEmail].send.status).toBe('pending');
     expect(lastSavedState.completed).toBe(false);
   });
 
-  it('NON-DRY RUN: resume run does NOT resend department or already-sent employee, continues with remaining only', async () => {
+  it('NON-DRY RUN: resume run resends department and all employees', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -498,12 +542,12 @@ describe('runMonthly', () => {
 
     expect(sendMailMock).toHaveBeenCalled();
     const deptCalls = sendMailMock.mock.calls.filter((c) => c[0].attachments?.length > 0);
-    expect(deptCalls.length).toBe(0);
+    expect(deptCalls.length).toBe(1);
     const employeeCalls = sendMailMock.mock.calls.filter((c) => !c[0].attachments?.length);
-    expect(employeeCalls.length).toBe(activePeople.length - 1);
+    expect(employeeCalls.length).toBe(activePeople.length);
   });
 
-  it('NON-DRY RUN: completed run rerun is no-op, no sendMail calls', async () => {
+  it('NON-DRY RUN: completed run rerun still sends emails again', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -523,7 +567,7 @@ describe('runMonthly', () => {
     const result = await runMonthly({ now: new Date('2026-01-15T09:30:00') });
 
     expect(result).toEqual({ payload: expect.any(Object) });
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(sendMailMock).toHaveBeenCalled();
   });
 
   it('NON-DRY RUN: transient send error then success retries and succeeds', async () => {
@@ -558,7 +602,7 @@ describe('runMonthly', () => {
     expect(sendMailMock).toHaveBeenCalledTimes(1);
   });
 
-  it('NON-DRY RUN: retries exhausted throws and checkpoint remains failed', async () => {
+  it('NON-DRY RUN: retries exhausted throws and send checkpoint remains pending', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -573,7 +617,7 @@ describe('runMonthly', () => {
     expect(sendMailMock).toHaveBeenCalledTimes(3);
     const lastSavedState = saveMonthlyRunStateMock.mock.calls[saveMonthlyRunStateMock.mock.calls.length - 1]?.[1];
     expect(lastSavedState).toBeDefined();
-    expect(lastSavedState.stages.department.send.status).toBe('failed');
+    expect(lastSavedState.stages.department.send.status).toBe('pending');
     expect(lastSavedState.completed).toBe(false);
   });
 
@@ -624,5 +668,82 @@ describe('runMonthly', () => {
     expect(calculated.employee.current.profitTotalEur).toBe(10000);
     expect(calculated.department.current.realizareTargetPct).toBe(83.33);
     expect(calculated.department.current.activeEmployees).toBe(7);
+  });
+
+  it('toMonthlyEmployeeDeliveryRow remaps employee KPIs to livrare basis', () => {
+    const row = {
+      ctr_principalCount: 99,
+      ctr_secondaryCount: 88,
+      ctr_principalProfitEur: 777,
+      ctr_secondaryProfitEur: 666,
+      sumProfitability: 55,
+      countProfitability: 5,
+      websiteCount: 10,
+      websiteProfit: 1000,
+      websiteCountSec: 9,
+      websiteProfitSec: 900,
+      burseCount: 8,
+      sumClientTerms: 70,
+      countClientTerms: 7,
+      sumSupplierTerms: 90,
+      countSupplierTerms: 9,
+      overdueInvoicesCount: 4,
+      supplierTermsUnder30: 3,
+      supplierTermsOver30: 2,
+      livr_principalCount: 3,
+      livr_secondaryCount: 2,
+      livr_principalProfitEur: 300,
+      livr_secondaryProfitEur: 120,
+      livr_sumProfitability: 40,
+      livr_countProfitability: 2,
+      livr_websiteCount: 1,
+      livr_websiteProfit: 300,
+      livr_websiteCountSec: 1,
+      livr_websiteProfitSec: 120,
+      livr_burseCount: 5,
+      livr_sumClientTerms: 30,
+      livr_countClientTerms: 2,
+      livr_sumSupplierTerms: 45,
+      livr_countSupplierTerms: 1,
+      livr_overdueInvoicesCount: 1,
+      livr_supplierTermsUnder30: 0,
+      livr_supplierTermsOver30: 1,
+    };
+
+    const remapped = toMonthlyEmployeeDeliveryRow(row);
+    expect(remapped.ctr_principalCount).toBe(3);
+    expect(remapped.ctr_secondaryCount).toBe(2);
+    expect(remapped.ctr_principalProfitEur).toBe(300);
+    expect(remapped.ctr_secondaryProfitEur).toBe(120);
+    expect(remapped.sumProfitability).toBe(40);
+    expect(remapped.countProfitability).toBe(2);
+    expect(remapped.websiteCount).toBe(1);
+    expect(remapped.websiteProfit).toBe(300);
+    expect(remapped.websiteCountSec).toBe(1);
+    expect(remapped.websiteProfitSec).toBe(120);
+    expect(remapped.burseCount).toBe(5);
+    expect(remapped.sumClientTerms).toBe(30);
+    expect(remapped.countClientTerms).toBe(2);
+    expect(remapped.sumSupplierTerms).toBe(45);
+    expect(remapped.countSupplierTerms).toBe(1);
+    expect(remapped.overdueInvoicesCount).toBe(1);
+    expect(remapped.supplierTermsUnder30).toBe(0);
+    expect(remapped.supplierTermsOver30).toBe(1);
+  });
+
+  it('monthly scope/slot helpers normalize and validate values', () => {
+    expect(resolveMonthlySendScope(undefined)).toBe('all');
+    expect(resolveMonthlySendScope('department_only')).toBe('department_only');
+    expect(resolveMonthlySendScope('department')).toBe('department_only');
+    expect(() => resolveMonthlySendScope('invalid')).toThrow('MONTHLY_SEND_SCOPE');
+
+    expect(resolveMonthlyRunSlot(undefined)).toBe(null);
+    expect(resolveMonthlyRunSlot('5')).toBe('05');
+    expect(resolveMonthlyRunSlot('15')).toBe('15');
+    expect(() => resolveMonthlyRunSlot('32')).toThrow('MONTHLY_RUN_SLOT');
+    expect(() => resolveMonthlyRunSlot('abc')).toThrow('MONTHLY_RUN_SLOT');
+
+    expect(applyMonthlyRunSlotToLabel('2026-02-01..2026-02-28', null)).toBe('2026-02-01..2026-02-28');
+    expect(applyMonthlyRunSlotToLabel('2026-02-01..2026-02-28', '15')).toContain('__slot_15');
   });
 });
