@@ -232,7 +232,6 @@ export function buildReport(raw) {
       }
       let principalIds = getPersonIds(getCol(COLS_COMENZI.PRINCIPAL));
       let secondaryIds = getPersonIds(getCol(COLS_COMENZI.SECUNDAR));
-      const hadSecondary = secondaryIds.length > 0;
       if (secondaryIds.length === 0 && valSecundar !== 0) secondaryIds.push(RAFAEL_ID);
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
@@ -291,7 +290,7 @@ export function buildReport(raw) {
               emp.burseCountCtrSecondary++;
             }
           }
-          if (isSecondary || (isPrincipal && !hadSecondary)) {
+          if (isSecondary || isPrincipal) {
             if (supplierTermMeta.hasNumeric && supplierTerm >= 0) {
               emp.sumSupplierTerms += supplierTerm;
               emp.countSupplierTerms++;
@@ -342,7 +341,6 @@ export function buildReport(raw) {
       }
       let principalIds = getPersonIds(getCol(COLS_COMENZI.PRINCIPAL));
       let secondaryIds = getPersonIds(getCol(COLS_COMENZI.SECUNDAR));
-      const hadSecondary = secondaryIds.length > 0;
       if (secondaryIds.length === 0 && valSecundar !== 0) secondaryIds.push(RAFAEL_ID);
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
@@ -400,7 +398,7 @@ export function buildReport(raw) {
               emp.livr_burseCount++;
             }
           }
-          if (isSecondary || (isPrincipal && !hadSecondary)) {
+          if (isSecondary || isPrincipal) {
             if (supplierTermMeta.hasNumeric && supplierTerm >= 0) {
               emp.livr_sumSupplierTerms += supplierTerm;
               emp.livr_countSupplierTerms++;
