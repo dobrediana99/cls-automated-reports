@@ -79,6 +79,23 @@ function getPersonIds(columnValue) {
   }
 }
 
+function normalizeLabel(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isWebSolicitareSource(value) {
+  const normalized = normalizeLabel(value);
+  return (
+    normalized === 'website' ||
+    normalized === 'newsletter' ||
+    normalized === 'telefon / whatsapp fix' ||
+    normalized === 'telefon/whatsapp fix'
+  );
+}
+
 function generateStats(employees) {
   return employees.map((emp) => ({
     id: emp.id,
@@ -335,8 +352,8 @@ export function buildReport(raw) {
   if (solicitari?.items_page?.items) {
     for (const item of solicitari.items_page.items) {
       const getCol = (id) => item.column_values?.find((c) => c.id === id);
-      const sursaVal = (getCol(COLS.SOLICITARI.SURSA)?.text || '').trim().toLowerCase();
-      if (sursaVal !== 'website' && sursaVal !== 'telefon / whatsapp fix') continue;
+      const sursaVal = getCol(COLS.SOLICITARI.SURSA)?.text || '';
+      if (!isWebSolicitareSource(sursaVal)) continue;
       const principalIds = getPersonIds(getCol(COLS.SOLICITARI.PRINCIPAL));
       applyToAllStats((statsList) => {
         statsList.forEach((emp) => {
