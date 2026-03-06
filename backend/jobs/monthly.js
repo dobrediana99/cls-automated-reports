@@ -22,7 +22,7 @@ import {
   ensureEmployeeEntry,
 } from '../store/monthlyRunState.js';
 import { buildMonthlyEmployeeEmail, getPersonRow, buildMonthlyDepartmentEmail } from '../email/monthly.js';
-import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
+import { resolveRecipients, resolveSubject, logSendRecipients, resolveGmailUser } from '../email/sender.js';
 import { sendWithRetry } from '../email/sendWithRetry.js';
 import { buildMonthlyXlsx } from '../export/xlsx.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
@@ -622,12 +622,12 @@ export async function runMonthly(opts = {}) {
 
   // NON-DRY RUN: load/create run state; checkpoint collect → department → employees; skip already-completed units.
   // GMAIL + TEST_EMAILS (when SEND_MODE=test) already validated by validateMonthlyRuntimeConfig.
-  const gmailUser = process.env.GMAIL_USER;
+  const gmailUser = resolveGmailUser(process.env.GMAIL_USER);
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
   const monthlyEmployeeFrom = process.env.MONTHLY_EMPLOYEE_FROM_EMAIL?.trim() || null;
   const monthlyEmployeeAppPassword = process.env.MONTHLY_EMPLOYEE_APP_PASSWORD?.trim() || null;
   const useEmployeeSender =
-    monthlyEmployeeFrom && monthlyEmployeeAppPassword;
+    sendMode === 'prod' && monthlyEmployeeFrom && monthlyEmployeeAppPassword;
 
   let runState;
   try {

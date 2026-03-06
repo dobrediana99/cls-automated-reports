@@ -7,7 +7,7 @@ import { getOutDir, ensureOutDir } from '../utils/outDir.js';
 import { runReport } from '../report/runReport.js';
 import { renderWeeklyEmployeeEmail, renderWeeklyManagerEmail } from '../email/weekly.js';
 import { getWeeklySubject } from '../email/content/weeklyTexts.js';
-import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
+import { resolveRecipients, resolveSubject, logSendRecipients, resolveGmailUser } from '../email/sender.js';
 import { buildWeeklyXlsx } from '../export/xlsx.js';
 import { formatRaportFilename } from '../export/weeklyReportWorkbook.js';
 import { ORG } from '../config/org.js';
@@ -70,7 +70,7 @@ export async function runWeekly(now = new Date()) {
   }
 
   // Real send: Nodemailer Gmail SMTP
-  const gmailUser = process.env.GMAIL_USER;
+  const gmailUser = resolveGmailUser(process.env.GMAIL_USER);
   const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
   if (!gmailUser || !gmailAppPassword) {
     throw new Error('GMAIL_USER and GMAIL_APP_PASSWORD must be set for weekly email send');
