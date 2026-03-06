@@ -904,7 +904,4 @@ export async function runMonthly(opts = {}) {
 export {
   buildEmployeeInputCalculated,
   toMonthlyEmployeeDeliveryRow,
-  resolveMonthlySendScope,
-  resolveMonthlyRunSlot,
-  applyMonthlyRunSlotToLabel,
 };
