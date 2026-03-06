@@ -114,6 +114,8 @@ function generateStats(employees) {
     profitRonRaw: 0,
     websiteCount: 0,
     websiteProfit: 0,
+    livr_websiteCount: 0,
+    livr_websiteProfit: 0,
     solicitariCount: 0,
     contactat: 0,
     calificat: 0,
@@ -121,15 +123,26 @@ function generateStats(employees) {
     callsCount: 0,
     sumClientTerms: 0,
     countClientTerms: 0,
+    livr_sumClientTerms: 0,
+    livr_countClientTerms: 0,
     sumSupplierTerms: 0,
     countSupplierTerms: 0,
+    livr_sumSupplierTerms: 0,
+    livr_countSupplierTerms: 0,
     overdueInvoicesCount: 0,
+    livr_overdueInvoicesCount: 0,
     supplierTermsUnder30: 0,
     supplierTermsOver30: 0,
+    livr_supplierTermsUnder30: 0,
+    livr_supplierTermsOver30: 0,
     sumProfitability: 0,
     countProfitability: 0,
+    livr_sumProfitability: 0,
+    livr_countProfitability: 0,
     websiteCountSec: 0,
     websiteProfitSec: 0,
+    livr_websiteCountSec: 0,
+    livr_websiteProfitSec: 0,
     // Curse burse detaliate pe rol și tip comandă.
     // Notă business: bursele relevante pentru Operațional includ:
     // - CTR: principal + secundar
@@ -139,6 +152,7 @@ function generateStats(employees) {
     burseCountCtrSecondary: 0,
     burseCountLivrPrincipal: 0,
     burseCountLivrSecondary: 0,
+    livr_burseCount: 0,
     burseCount: 0,
   }));
 }
@@ -299,13 +313,36 @@ export function buildReport(raw) {
 
       const valPrincipal = extractNumericValue(getCol(COLS_COMENZI.PROFIT_PRINCIPAL));
       const valSecundar = extractNumericValue(getCol(COLS_COMENZI.PROFIT_SECUNDAR));
+      const colProfitability = getCol(COLS_COMENZI.PROFITABILITATE);
+      let profitabilityVal = 0;
+      let hasProfitability = false;
+      if (colProfitability?.display_value && colProfitability.display_value !== 'null') {
+        profitabilityVal = parseFloat(colProfitability.display_value);
+        if (!isNaN(profitabilityVal)) hasProfitability = true;
+      }
       const currencyVal = (getCol(COLS_COMENZI.MONEDA)?.text || '').toUpperCase();
       const isRon = currencyVal.includes('RON') || currencyVal.includes('LEI');
       const sursaVal = (getCol(COLS_COMENZI.SURSA)?.text || '').trim().toLowerCase();
       const isWebsite = sursaVal === 'website' || sursaVal === 'telefon / whatsapp fix' || sursaVal === 'fix';
       const isBurse = /timocom|trans\.eu|cargopedia/.test(sursaVal);
+      const clientTermMeta = extractNumericValueWithPresence(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
+      const supplierTermMeta = extractNumericValueWithPresence(getCol(COLS_COMENZI.TERMEN_PLATA_FURNIZOR));
+      const clientTerm = clientTermMeta.value;
+      const supplierTerm = supplierTermMeta.value;
+      let isOverdue = false;
+      const scadentaClientText = getCol(COLS_COMENZI.DATA_SCADENTA_CLIENT)?.text;
+      const statusPlataClient = (getCol(COLS_COMENZI.STATUS_PLATA_CLIENT)?.text || '').toLowerCase();
+      if (scadentaClientText && !statusPlataClient.includes('incasata') && !statusPlataClient.includes('încasată')) {
+        const scadentaDate = new Date(scadentaClientText);
+        if (!isNaN(scadentaDate.getTime())) {
+          const today = new Date();
+          const diffDays = Math.ceil(Math.abs(today - scadentaDate) / (1000 * 60 * 60 * 24));
+          if (scadentaDate < today && diffDays > 15) isOverdue = true;
+        }
+      }
       let principalIds = getPersonIds(getCol(COLS_COMENZI.PRINCIPAL));
       let secondaryIds = getPersonIds(getCol(COLS_COMENZI.SECUNDAR));
+      const hadSecondary = secondaryIds.length > 0;
       if (secondaryIds.length === 0 && valSecundar !== 0) secondaryIds.push(RAFAEL_ID);
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
@@ -333,15 +370,42 @@ export function buildReport(raw) {
           if (isPrincipal) {
             emp.livr_principalCount++;
             emp.livr_principalProfitEur += safeVal(profitToAddP);
+            if (isWebsite) {
+              emp.livr_websiteCount++;
+              emp.livr_websiteProfit += safeVal(profitToAddP);
+            }
+            if (hasProfitability) {
+              emp.livr_sumProfitability += safeVal(profitabilityVal);
+              emp.livr_countProfitability++;
+            }
+            if (clientTermMeta.hasNumeric && clientTerm >= 0) {
+              emp.livr_sumClientTerms += clientTerm;
+              emp.livr_countClientTerms++;
+            }
+            if (isOverdue) emp.livr_overdueInvoicesCount++;
             if (isBurse) {
               emp.burseCountLivrPrincipal++;
+              emp.livr_burseCount++;
             }
           }
           if (isSecondary) {
             emp.livr_secondaryCount++;
             emp.livr_secondaryProfitEur += safeVal(profitToAddS);
+            if (isWebsite) {
+              emp.livr_websiteCountSec++;
+              emp.livr_websiteProfitSec += safeVal(profitToAddS);
+            }
             if (isBurse) {
               emp.burseCountLivrSecondary++;
+              emp.livr_burseCount++;
+            }
+          }
+          if (isSecondary || (isPrincipal && !hadSecondary)) {
+            if (supplierTermMeta.hasNumeric && supplierTerm >= 0) {
+              emp.livr_sumSupplierTerms += supplierTerm;
+              emp.livr_countSupplierTerms++;
+              if (supplierTerm < 30) emp.livr_supplierTermsUnder30++;
+              else emp.livr_supplierTermsOver30++;
             }
           }
         });

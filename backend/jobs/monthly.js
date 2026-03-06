@@ -61,6 +61,40 @@ function sumProfitAllEur(row) {
 }
 
 /**
+ * Individual monthly emails must use delivery-date-based KPIs.
+ * We keep department aggregates unchanged and remap only employee rows used
+ * in the individual flow.
+ */
+function toMonthlyEmployeeDeliveryRow(row) {
+  if (!row || typeof row !== 'object') return row ?? null;
+  const livrBurseCount =
+    safeNumber(row.livr_burseCount) ||
+    (safeNumber(row.burseCountLivrPrincipal) + safeNumber(row.burseCountLivrSecondary));
+  return {
+    ...row,
+    // Keep existing KPI helpers (CTR-based formulas) but feed them livrare values.
+    ctr_principalCount: safeNumber(row.livr_principalCount),
+    ctr_secondaryCount: safeNumber(row.livr_secondaryCount),
+    ctr_principalProfitEur: safeNumber(row.livr_principalProfitEur),
+    ctr_secondaryProfitEur: safeNumber(row.livr_secondaryProfitEur),
+    sumProfitability: safeNumber(row.livr_sumProfitability),
+    countProfitability: safeNumber(row.livr_countProfitability),
+    websiteCount: safeNumber(row.livr_websiteCount),
+    websiteProfit: safeNumber(row.livr_websiteProfit),
+    websiteCountSec: safeNumber(row.livr_websiteCountSec),
+    websiteProfitSec: safeNumber(row.livr_websiteProfitSec),
+    burseCount: livrBurseCount,
+    sumClientTerms: safeNumber(row.livr_sumClientTerms),
+    countClientTerms: safeNumber(row.livr_countClientTerms),
+    sumSupplierTerms: safeNumber(row.livr_sumSupplierTerms),
+    countSupplierTerms: safeNumber(row.livr_countSupplierTerms),
+    overdueInvoicesCount: safeNumber(row.livr_overdueInvoicesCount),
+    supplierTermsUnder30: safeNumber(row.livr_supplierTermsUnder30),
+    supplierTermsOver30: safeNumber(row.livr_supplierTermsOver30),
+  };
+}
+
+/**
  * Build department averages per active employee for employee-monthly LLM input.
  * This avoids confusing totals with "media departamentului" in narrative sections.
  */
@@ -480,8 +514,8 @@ export async function runMonthly(opts = {}) {
     ensureOutDir(outDir);
     for (const person of activePeople) {
       const data3Months = {
-        current: getPersonRow(reports[0], person),
-        prev: getPersonRow(reports[1], person),
+        current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
+        prev: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[1], person)),
       };
       const deptKey = departmentToSummaryKey(person.department);
       const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
@@ -711,8 +745,8 @@ export async function runMonthly(opts = {}) {
     }
 
     const data3Months = {
-      current: getPersonRow(reports[0], person),
-      prev: getPersonRow(reports[1], person),
+      current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
+      prev: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[1], person)),
     };
     const deptKey = departmentToSummaryKey(person.department);
     const deptCurRaw = reportSummaries[0]?.departments?.[deptKey] ?? null;
@@ -847,4 +881,4 @@ export async function runMonthly(opts = {}) {
   return { payload };
 }
 
-export { buildEmployeeInputCalculated };
+export { buildEmployeeInputCalculated, toMonthlyEmployeeDeliveryRow };

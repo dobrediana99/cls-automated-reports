@@ -189,5 +189,72 @@ describe('buildReport bursă metrics', () => {
     expect(emp1.supplierTermsUnder30).toBe(1);
     expect(emp1.supplierTermsOver30).toBe(1);
   });
+
+  it('tracks LIVR-specific metrics for individual delivery-basis remap', () => {
+    const COLS_COMENZI = COLS.COMENZI;
+    const id1 = '74695692';
+    const id2 = '74668675';
+
+    const comenziLivr = {
+      items_page: {
+        items: [
+          {
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.SURSA, text: 'Website' },
+              { id: COLS_COMENZI.PROFIT_PRINCIPAL, value: JSON.stringify(200) },
+              { id: COLS_COMENZI.PROFIT_SECUNDAR, value: JSON.stringify(100) },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(300) },
+              { id: COLS_COMENZI.PROFITABILITATE, display_value: '25' },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PRINCIPAL, ...makePersonValue(id1) },
+              { id: COLS_COMENZI.SECUNDAR, ...makePersonValue(id2) },
+              { id: COLS_COMENZI.TERMEN_PLATA_CLIENT, value: JSON.stringify(0), text: '0' },
+              { id: COLS_COMENZI.TERMEN_PLATA_FURNIZOR, value: JSON.stringify(45), text: '45' },
+              { id: COLS_COMENZI.DATA_SCADENTA_CLIENT, text: '2025-01-01' },
+              { id: COLS_COMENZI.STATUS_PLATA_CLIENT, text: 'Neplatita' },
+            ],
+          },
+        ],
+      },
+    };
+
+    const raw = {
+      comenziCtr: null,
+      comenziLivr,
+      solicitari: null,
+      leadsContact: null,
+      leadsQualified: null,
+      furnizori: null,
+      activities: null,
+      COLS_COMENZI,
+      dynamicCols: null,
+    };
+
+    const { opsStats } = buildReport(raw);
+    const principal = opsStats.find((e) => String(e.mondayId) === id1);
+    const secondary = opsStats.find((e) => String(e.mondayId) === id2);
+    expect(principal).toBeDefined();
+    expect(secondary).toBeDefined();
+
+    expect(principal.livr_websiteCount).toBe(1);
+    expect(principal.livr_websiteProfit).toBe(200);
+    expect(secondary.livr_websiteCountSec).toBe(1);
+    expect(secondary.livr_websiteProfitSec).toBe(100);
+
+    expect(principal.livr_sumProfitability).toBe(25);
+    expect(principal.livr_countProfitability).toBe(1);
+    expect(principal.livr_sumClientTerms).toBe(0);
+    expect(principal.livr_countClientTerms).toBe(1);
+    expect(principal.livr_overdueInvoicesCount).toBe(1);
+
+    expect(secondary.livr_sumSupplierTerms).toBe(45);
+    expect(secondary.livr_countSupplierTerms).toBe(1);
+    expect(secondary.livr_supplierTermsUnder30).toBe(0);
+    expect(secondary.livr_supplierTermsOver30).toBe(1);
+
+    expect(principal.livr_burseCount).toBe(0);
+  });
 });
 

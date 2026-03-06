@@ -7,7 +7,7 @@ import { runReport } from '../report/runReport.js';
 import { requireOpenRouter, generateMonthlySections, generateMonthlyDepartmentSections } from '../llm/openrouterClient.js';
 import { loadOrComputeMonthlyReport } from '../report/runMonthlyPeriods.js';
 import { MANAGERS, ORG } from '../config/org.js';
-import { runMonthly, buildEmployeeInputCalculated } from './monthly.js';
+import { runMonthly, buildEmployeeInputCalculated, toMonthlyEmployeeDeliveryRow } from './monthly.js';
 import { createInitialState, RUN_STATE_UNAVAILABLE } from '../store/monthlyRunState.js';
 import * as emailMonthly from '../email/monthly.js';
 
@@ -624,5 +624,66 @@ describe('runMonthly', () => {
     expect(calculated.employee.current.profitTotalEur).toBe(10000);
     expect(calculated.department.current.realizareTargetPct).toBe(83.33);
     expect(calculated.department.current.activeEmployees).toBe(7);
+  });
+
+  it('toMonthlyEmployeeDeliveryRow remaps employee KPIs to livrare basis', () => {
+    const row = {
+      ctr_principalCount: 99,
+      ctr_secondaryCount: 88,
+      ctr_principalProfitEur: 777,
+      ctr_secondaryProfitEur: 666,
+      sumProfitability: 55,
+      countProfitability: 5,
+      websiteCount: 10,
+      websiteProfit: 1000,
+      websiteCountSec: 9,
+      websiteProfitSec: 900,
+      burseCount: 8,
+      sumClientTerms: 70,
+      countClientTerms: 7,
+      sumSupplierTerms: 90,
+      countSupplierTerms: 9,
+      overdueInvoicesCount: 4,
+      supplierTermsUnder30: 3,
+      supplierTermsOver30: 2,
+      livr_principalCount: 3,
+      livr_secondaryCount: 2,
+      livr_principalProfitEur: 300,
+      livr_secondaryProfitEur: 120,
+      livr_sumProfitability: 40,
+      livr_countProfitability: 2,
+      livr_websiteCount: 1,
+      livr_websiteProfit: 300,
+      livr_websiteCountSec: 1,
+      livr_websiteProfitSec: 120,
+      livr_burseCount: 5,
+      livr_sumClientTerms: 30,
+      livr_countClientTerms: 2,
+      livr_sumSupplierTerms: 45,
+      livr_countSupplierTerms: 1,
+      livr_overdueInvoicesCount: 1,
+      livr_supplierTermsUnder30: 0,
+      livr_supplierTermsOver30: 1,
+    };
+
+    const remapped = toMonthlyEmployeeDeliveryRow(row);
+    expect(remapped.ctr_principalCount).toBe(3);
+    expect(remapped.ctr_secondaryCount).toBe(2);
+    expect(remapped.ctr_principalProfitEur).toBe(300);
+    expect(remapped.ctr_secondaryProfitEur).toBe(120);
+    expect(remapped.sumProfitability).toBe(40);
+    expect(remapped.countProfitability).toBe(2);
+    expect(remapped.websiteCount).toBe(1);
+    expect(remapped.websiteProfit).toBe(300);
+    expect(remapped.websiteCountSec).toBe(1);
+    expect(remapped.websiteProfitSec).toBe(120);
+    expect(remapped.burseCount).toBe(5);
+    expect(remapped.sumClientTerms).toBe(30);
+    expect(remapped.countClientTerms).toBe(2);
+    expect(remapped.sumSupplierTerms).toBe(45);
+    expect(remapped.countSupplierTerms).toBe(1);
+    expect(remapped.overdueInvoicesCount).toBe(1);
+    expect(remapped.supplierTermsUnder30).toBe(0);
+    expect(remapped.supplierTermsOver30).toBe(1);
   });
 });
