@@ -491,7 +491,7 @@ describe('runMonthly', () => {
     expect(saveMonthlyRunStateMock).not.toHaveBeenCalled();
   });
 
-  it('NON-DRY RUN: partial success then failure – first run sends department + one employee, then fails on next employee', async () => {
+  it('NON-DRY RUN: partial success then failure does not persist send checkpoint statuses', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -508,13 +508,13 @@ describe('runMonthly', () => {
     expect(sendMailMock).toHaveBeenCalledTimes(3); // dept + emp1 + fail on emp2
     const lastSavedState = saveMonthlyRunStateMock.mock.calls[saveMonthlyRunStateMock.mock.calls.length - 1]?.[1];
     expect(lastSavedState).toBeDefined();
-    expect(lastSavedState.stages.department.send.status).toBe('ok');
+    expect(lastSavedState.stages.department.send.status).toBe('pending');
     const firstEmployeeEmail = activePeople[0].email;
-    expect(lastSavedState.stages.employees[firstEmployeeEmail].send.status).toBe('ok');
+    expect(lastSavedState.stages.employees[firstEmployeeEmail].send.status).toBe('pending');
     expect(lastSavedState.completed).toBe(false);
   });
 
-  it('NON-DRY RUN: resume run does NOT resend department or already-sent employee, continues with remaining only', async () => {
+  it('NON-DRY RUN: resume run resends department and all employees', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -542,12 +542,12 @@ describe('runMonthly', () => {
 
     expect(sendMailMock).toHaveBeenCalled();
     const deptCalls = sendMailMock.mock.calls.filter((c) => c[0].attachments?.length > 0);
-    expect(deptCalls.length).toBe(0);
+    expect(deptCalls.length).toBe(1);
     const employeeCalls = sendMailMock.mock.calls.filter((c) => !c[0].attachments?.length);
-    expect(employeeCalls.length).toBe(activePeople.length - 1);
+    expect(employeeCalls.length).toBe(activePeople.length);
   });
 
-  it('NON-DRY RUN: completed run rerun is no-op, no sendMail calls', async () => {
+  it('NON-DRY RUN: completed run rerun still sends emails again', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -567,7 +567,7 @@ describe('runMonthly', () => {
     const result = await runMonthly({ now: new Date('2026-01-15T09:30:00') });
 
     expect(result).toEqual({ payload: expect.any(Object) });
-    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(sendMailMock).toHaveBeenCalled();
   });
 
   it('NON-DRY RUN: transient send error then success retries and succeeds', async () => {
@@ -602,7 +602,7 @@ describe('runMonthly', () => {
     expect(sendMailMock).toHaveBeenCalledTimes(1);
   });
 
-  it('NON-DRY RUN: retries exhausted throws and checkpoint remains failed', async () => {
+  it('NON-DRY RUN: retries exhausted throws and send checkpoint remains pending', async () => {
     process.env.DRY_RUN = '0';
     process.env.GMAIL_USER = 'test@example.com';
     process.env.GMAIL_APP_PASSWORD = 'secret';
@@ -617,7 +617,7 @@ describe('runMonthly', () => {
     expect(sendMailMock).toHaveBeenCalledTimes(3);
     const lastSavedState = saveMonthlyRunStateMock.mock.calls[saveMonthlyRunStateMock.mock.calls.length - 1]?.[1];
     expect(lastSavedState).toBeDefined();
-    expect(lastSavedState.stages.department.send.status).toBe('failed');
+    expect(lastSavedState.stages.department.send.status).toBe('pending');
     expect(lastSavedState.completed).toBe(false);
   });
 

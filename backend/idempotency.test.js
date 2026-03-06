@@ -25,7 +25,6 @@ const idempotency = await import('./idempotency/localFileStore.js');
 
 describe('runJobWithIdempotency', () => {
   const range = getPreviousCalendarWeekRange(new Date('2026-01-26T09:30:00'));
-  const label = range.label;
   const getRange = () => range;
 
   beforeEach(() => {
@@ -34,25 +33,25 @@ describe('runJobWithIdempotency', () => {
     delete process.env.DRY_RUN;
   });
 
-  it('returns skipped when run for jobType+label is already sent', async () => {
+  it('runs job even when previous sent marker exists', async () => {
     vi.mocked(idempotency.wasAlreadySent).mockReturnValue(true);
-    const runJob = vi.fn();
-
-    const result = await runJobWithIdempotency('weekly', getRange, runJob);
-
-    expect(result).toEqual({ skipped: true, reason: 'already_sent', jobType: 'weekly', label });
-    expect(runJob).not.toHaveBeenCalled();
-    expect(idempotency.markAsSent).not.toHaveBeenCalled();
-  });
-
-  it('runs job and marks sent when not already sent', async () => {
     const runJob = vi.fn().mockResolvedValue({ payload: { ok: true } });
 
     const result = await runJobWithIdempotency('weekly', getRange, runJob);
 
     expect(result).toEqual({ payload: { ok: true } });
     expect(runJob).toHaveBeenCalledTimes(1);
-    expect(idempotency.markAsSent).toHaveBeenCalledWith('weekly', label);
+    expect(idempotency.markAsSent).not.toHaveBeenCalled();
+  });
+
+  it('runs job without writing sent markers', async () => {
+    const runJob = vi.fn().mockResolvedValue({ payload: { ok: true } });
+
+    const result = await runJobWithIdempotency('weekly', getRange, runJob);
+
+    expect(result).toEqual({ payload: { ok: true } });
+    expect(runJob).toHaveBeenCalledTimes(1);
+    expect(idempotency.markAsSent).not.toHaveBeenCalled();
   });
 
   it('does not mark sent and rethrows when job throws', async () => {
@@ -63,7 +62,7 @@ describe('runJobWithIdempotency', () => {
     expect(idempotency.markAsSent).not.toHaveBeenCalled();
   });
 
-  it('does not mark sent when DRY_RUN=1', async () => {
+  it('does not write sent markers when DRY_RUN=1', async () => {
     process.env.DRY_RUN = '1';
     const runJob = vi.fn().mockResolvedValue({ payload: {} });
 
@@ -74,7 +73,7 @@ describe('runJobWithIdempotency', () => {
     expect(idempotency.markAsSent).not.toHaveBeenCalled();
   });
 
-  it('runs job when DRY_RUN=1 even if wasAlreadySent would return true (no skip, no mark)', async () => {
+  it('runs job when DRY_RUN=1 even if historical sent marker exists', async () => {
     process.env.DRY_RUN = '1';
     vi.mocked(idempotency.wasAlreadySent).mockReturnValue(true);
     const runJob = vi.fn().mockResolvedValue({ payload: {}, dryRunPath: '/out/weekly.json' });

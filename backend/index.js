@@ -10,7 +10,6 @@ import {
   resolveMonthlyRunSlot,
   applyMonthlyRunSlotToLabel,
 } from './jobs/monthly.js';
-import * as idempotency from './idempotency/localFileStore.js';
 import { logSenderConfig } from './email/sender.js';
 import { getModel } from './llm/openrouterClient.js';
 import {
@@ -127,25 +126,18 @@ export async function runJobWithIdempotency(jobType, getRange, runJob) {
   const isDryRun = process.env.DRY_RUN === '1';
 
   if (isDryRun) {
-    // DRY_RUN=1: never block on idempotency, run job, never mark as sent
+    // DRY_RUN=1: run job directly
     if (process.env.NODE_ENV !== 'production') {
-      console.log('[idempotency] DRY_RUN=1 -> skip idempotency check and mark');
+      console.log('[idempotency] DRY_RUN=1 -> execute run directly');
     }
     return await runJob();
   }
 
-  if (idempotency.wasAlreadySent(jobType, label)) {
-    console.log('[idempotency] already sent -> skip', jobType, label);
-    return { skipped: true, reason: 'already_sent', jobType, label };
-  }
-
+  // Resend policy: do not block by historical ".sent" markers and do not mark as sent.
+  // The same period can be re-sent multiple times intentionally.
   try {
-    const result = await runJob();
-    idempotency.markAsSent(jobType, label);
-    console.log('[idempotency] marked sent ->', jobType, label);
-    return result;
+    return await runJob();
   } catch (err) {
-    // Do not mark as sent on failure
     throw err;
   }
 }

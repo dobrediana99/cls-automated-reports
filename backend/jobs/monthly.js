@@ -17,12 +17,9 @@ import {
   markCollectOk,
   markDepartmentLlmOk,
   markDepartmentLlmFailed,
-  markDepartmentSend,
   markEmployeeLlmOk,
   markEmployeeLlmFailed,
-  markEmployeeSend,
   ensureEmployeeEntry,
-  markCompleted,
 } from '../store/monthlyRunState.js';
 import { buildMonthlyEmployeeEmail, getPersonRow, buildMonthlyDepartmentEmail } from '../email/monthly.js';
 import { resolveRecipients, resolveSubject, logSendRecipients } from '../email/sender.js';
@@ -651,11 +648,6 @@ export async function runMonthly(opts = {}) {
     console.log('[monthly][resume] state loaded', { label: runStateLabel, completed: runState.completed });
   }
 
-  if (runState.completed) {
-    console.log('[monthly][resume] run already completed, no-op (idempotent)', { label: runStateLabel });
-    return { payload };
-  }
-
   const save = (s) => saveMonthlyRunState(runStateLabel, s);
   await markCollectOk(runState, save);
   console.log('[monthly][checkpoint] stage collect=ok');
@@ -681,108 +673,97 @@ export async function runMonthly(opts = {}) {
   let totalCompletionTokens = 0;
   let totalCost = null;
 
-  // 1) Department: skip if send already ok; else LLM (only if llm != ok, use stored sections if present) then send.
-  const deptSendOk = runState.stages.department?.send?.status === 'ok';
-  if (deptSendOk) {
-    console.log('[monthly][resume] skip department send already completed');
-  } else {
-    let departmentLlmSections = runState.stages.department?.llmSections ?? null;
-    const needDeptLlm = runState.stages.department?.llm?.status !== 'ok' || !departmentLlmSections;
-    if (needDeptLlm) {
-      try {
-        const deptRaw = await generateMonthlyDepartmentSections({
-          systemPrompt: departmentPrompt,
-          inputJson: departmentInputJson,
-        });
-        departmentLlmSections = deptRaw?.sections ?? deptRaw;
-        const usage = deptRaw?.usage;
-        if (usage) {
-          const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
-          const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
-          totalPromptTokens += pt;
-          totalCompletionTokens += ct;
-          if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
-        }
-        await markDepartmentLlmOk(runState, departmentLlmSections, save);
-        console.log('[monthly][checkpoint] stage department llm=ok');
-      } catch (err) {
-        const reason = err?.reason ?? err?.llmMeta?.reason ?? null;
-        const requestId = err?.requestId ?? err?.llmMeta?.requestId ?? null;
-        const repairRequestId =
-          err?.repairRequestId ?? err?.llmMeta?.repairRequestId ?? null;
-        console.error('[monthly] department_failed', {
-          label,
-          stage: 'dept_llm',
-          attempt: 1,
-          reason,
-          requestId,
-          repairRequestId,
-          message: err?.message ?? String(err),
-        });
-        await markDepartmentLlmFailed(runState, err, save);
-        throw err;
-      }
-    }
-    if (!departmentLlmSections) {
-      departmentLlmSections = runState.stages.department?.llmSections ?? null;
-    }
-
-    if (result0.meta && result0.reportSummary?.departments) {
-      result0.report.kpi = buildReportKpi(
-        { ...result0.meta, workingDaysInPeriod },
-        result0.reportSummary.departments,
-      );
-    }
-    const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
-      periodStart: metas[0].periodStart,
-      meta: result0.meta,
-      reportSummary: result0.reportSummary,
-      reportSummaryPrev: result1.reportSummary,
-      report: result0.report,
-      monthExcelCurrent: xlsxBuffer,
-      llmSections: departmentLlmSections,
-    });
-
-    const managerEmails = MANAGERS.filter((m) => m.isActive).map((m) => m.email);
-    const departmentRecipientList = dedupeEmails([
-      ...managerEmails,
-      ...MONTHLY_DEPARTMENT_EXTRA_RECIPIENTS,
-    ]);
-    const deptToList = resolveRecipients(departmentRecipientList);
-    logSendRecipients(deptToList.length, deptToList);
+  // 1) Department: always send on every run (no persisted "sent" checkpointing).
+  let departmentLlmSections = runState.stages.department?.llmSections ?? null;
+  const needDeptLlm = runState.stages.department?.llm?.status !== 'ok' || !departmentLlmSections;
+  if (needDeptLlm) {
     try {
-      await sendWithRetry(
-        transporter,
-        {
-          from: gmailUser,
-          to: deptToList.join(', '),
-          subject: resolveSubject(deptSubject),
-          html: deptHtml,
-          attachments,
-        },
-        { context: 'department' }
-      );
-      await markDepartmentSend(runState, 'ok', null, save);
-      console.log('[monthly][checkpoint] stage department send=ok');
+      const deptRaw = await generateMonthlyDepartmentSections({
+        systemPrompt: departmentPrompt,
+        inputJson: departmentInputJson,
+      });
+      departmentLlmSections = deptRaw?.sections ?? deptRaw;
+      const usage = deptRaw?.usage;
+      if (usage) {
+        const pt = usage.prompt_tokens ?? usage.input_tokens ?? 0;
+        const ct = usage.completion_tokens ?? usage.output_tokens ?? 0;
+        totalPromptTokens += pt;
+        totalCompletionTokens += ct;
+        if (usage.cost != null) totalCost = (totalCost ?? 0) + usage.cost;
+      }
+      await markDepartmentLlmOk(runState, departmentLlmSections, save);
+      console.log('[monthly][checkpoint] stage department llm=ok');
     } catch (err) {
+      const reason = err?.reason ?? err?.llmMeta?.reason ?? null;
+      const requestId = err?.requestId ?? err?.llmMeta?.requestId ?? null;
+      const repairRequestId =
+        err?.repairRequestId ?? err?.llmMeta?.repairRequestId ?? null;
       console.error('[monthly] department_failed', {
         label,
-        stage: 'dept_send',
+        stage: 'dept_llm',
+        attempt: 1,
+        reason,
+        requestId,
+        repairRequestId,
         message: err?.message ?? String(err),
       });
-      await markDepartmentSend(runState, 'failed', err, save);
+      await markDepartmentLlmFailed(runState, err, save);
       throw err;
     }
   }
+  if (!departmentLlmSections) {
+    departmentLlmSections = runState.stages.department?.llmSections ?? null;
+  }
 
-  // 2) Employee emails: skip if send already ok; else LLM (only if llm != ok) then send; checkpoint each.
+  if (result0.meta && result0.reportSummary?.departments) {
+    result0.report.kpi = buildReportKpi(
+      { ...result0.meta, workingDaysInPeriod },
+      result0.reportSummary.departments,
+    );
+  }
+  const { subject: deptSubject, html: deptHtml, attachments } = buildMonthlyDepartmentEmail({
+    periodStart: metas[0].periodStart,
+    meta: result0.meta,
+    reportSummary: result0.reportSummary,
+    reportSummaryPrev: result1.reportSummary,
+    report: result0.report,
+    monthExcelCurrent: xlsxBuffer,
+    llmSections: departmentLlmSections,
+  });
+
+  const managerEmails = MANAGERS.filter((m) => m.isActive).map((m) => m.email);
+  const departmentRecipientList = dedupeEmails([
+    ...managerEmails,
+    ...MONTHLY_DEPARTMENT_EXTRA_RECIPIENTS,
+  ]);
+  const deptToList = resolveRecipients(departmentRecipientList);
+  logSendRecipients(deptToList.length, deptToList);
+  try {
+    await sendWithRetry(
+      transporter,
+      {
+        from: gmailUser,
+        to: deptToList.join(', '),
+        subject: resolveSubject(deptSubject),
+        html: deptHtml,
+        attachments,
+      },
+      { context: 'department' }
+    );
+    console.log('[monthly] department_email_sent');
+  } catch (err) {
+    console.error('[monthly] department_failed', {
+      label,
+      stage: 'dept_send',
+      message: err?.message ?? String(err),
+    });
+    throw err;
+  }
+
+  // 2) Employee emails: always send on every run (no persisted "sent" checkpointing).
   if (!departmentOnly) {
     for (const person of activePeople) {
       ensureEmployeeEntry(runState, person.email, person.name);
-      if (runState.stages.employees[person.email]?.send?.status === 'ok') {
-        console.log('[monthly][resume] skip employee send already completed', { email: person.email });
-        continue;
-      }
 
       const data3Months = {
         current: toMonthlyEmployeeDeliveryRow(getPersonRow(reports[0], person)),
@@ -888,9 +869,7 @@ export async function runMonthly(opts = {}) {
           },
           { context: 'employee' }
         );
-        await markEmployeeSend(runState, person.email, 'ok', null, save);
         console.log('[monthly] employee_email_sent', person.name, person.email);
-        console.log('[monthly][checkpoint] stage employee send=ok', { email: person.email });
       } catch (err) {
         console.error('[monthly] employee_failed', {
           label,
@@ -899,7 +878,6 @@ export async function runMonthly(opts = {}) {
           stage: 'emp_send',
           message: err?.message ?? String(err),
         });
-        await markEmployeeSend(runState, person.email, 'failed', err, save);
         throw err;
       }
     }
@@ -907,8 +885,7 @@ export async function runMonthly(opts = {}) {
     console.log('[monthly] scope=department_only -> skipping individual employee stage');
   }
 
-  await markCompleted(runState, save);
-  console.log('[monthly][checkpoint] run completed', { label });
+  console.log('[monthly] run completed', { label });
 
   const employeesSent = departmentOnly ? 0 : activePeople.length;
   const durationMs = Date.now() - jobStartMs;
