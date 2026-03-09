@@ -315,5 +315,71 @@ describe('buildReport bursă metrics', () => {
     expect(secondary.supplierTermsUnder30).toBe(1);
     expect(secondary.supplierTermsOver30).toBe(0);
   });
+
+  it('computes company turnover from client payment column with currency conversion and valid-course filter', () => {
+    const COLS_COMENZI = COLS.COMENZI;
+
+    const comenziCtr = {
+      items_page: {
+        items: [
+          {
+            // valid + RON => must be converted to EUR
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.MONEDA, text: 'RON' },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(510) },
+              { id: COLS_COMENZI.TERMEN_PLATA_CLIENT, value: JSON.stringify(510) },
+            ],
+          },
+          {
+            // canceled => must be ignored for both profit and turnover
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'Anulat' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'Anulat' },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(999) },
+              { id: COLS_COMENZI.TERMEN_PLATA_CLIENT, value: JSON.stringify(999) },
+            ],
+          },
+        ],
+      },
+    };
+
+    const comenziLivr = {
+      items_page: {
+        items: [
+          {
+            column_values: [
+              { id: COLS_COMENZI.STATUS_CTR, text: 'In derulare' },
+              { id: COLS_COMENZI.STATUS_TRANS, text: 'In derulare' },
+              { id: COLS_COMENZI.MONEDA, text: 'EUR' },
+              { id: COLS_COMENZI.PROFIT, value: JSON.stringify(200) },
+              { id: COLS_COMENZI.TERMEN_PLATA_CLIENT, value: JSON.stringify(200) },
+            ],
+          },
+        ],
+      },
+    };
+
+    const raw = {
+      comenziCtr,
+      comenziLivr,
+      solicitari: null,
+      leadsContact: null,
+      leadsQualified: null,
+      furnizori: null,
+      activities: null,
+      COLS_COMENZI,
+      dynamicCols: null,
+    };
+
+    const { companyStats } = buildReport(raw);
+
+    expect(companyStats.ctr.turnover).toBeCloseTo(100, 6);
+    expect(companyStats.livr.turnover).toBe(200);
+    expect(companyStats.ctr.profit).toBeCloseTo(100, 6);
+    expect(companyStats.livr.profit).toBe(200);
+  });
 });
 

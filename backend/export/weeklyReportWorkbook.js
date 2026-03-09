@@ -529,6 +529,7 @@ function addCompanyTable(sheet, ref, companyStats) {
   const livr = companyStats?.livr ?? {};
   addRow('Număr Total Curse', ctr.count ?? 0, livr.count ?? 0, true, null, 'E3F2FD');
   addRow('Profit Total (EUR)', ctr.profit ?? 0, livr.profit ?? 0, true, 'FF008000');
+  addRow('Cifra afaceri (EUR)', ctr.turnover ?? 0, livr.turnover ?? 0, true, 'FF0F766E');
   addRow('Website / Fix - Curse', ctr.websiteCount ?? 0, livr.websiteCount ?? 0);
   addRow('Website / Fix - Profit', ctr.websiteProfit ?? 0, livr.websiteProfit ?? 0);
   addRow('Burse - Curse', ctr.burseCount ?? 0, livr.burseCount ?? 0);
