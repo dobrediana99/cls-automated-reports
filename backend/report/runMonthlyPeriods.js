@@ -1,5 +1,5 @@
 /**
- * Monthly report for 3 periods (current month, month-1, month-2).
+ * Monthly report for 2 periods (report month + previous month).
  * Cache: GCS when REPORTS_BUCKET is set (gs://bucket/prefix/YYYY-MM.json), else disk (out/cache/monthly/).
  */
 
@@ -25,15 +25,14 @@ function getGcsCacheConfig() {
 }
 
 /**
- * Build the 3 period descriptors for monthly job: current (previous month), month-1, month-2.
+ * Build the 2 period descriptors for monthly job: report month + previous month.
  * @param {{ baseDate?: Date, timezone?: string }} opts - baseDate defaults to now; timezone for future use (Europe/Bucharest used in dateRanges)
- * @returns {{ yyyyMm: string, start: string, end: string, label: string }[]} periods[0]=current, [1]=prev1, [2]=prev2
+ * @returns {{ yyyyMm: string, start: string, end: string, label: string }[]} periods[0]=current, [1]=prev1
  */
 export function getMonthlyPeriods(opts = {}) {
   const baseDate = opts.baseDate ?? new Date();
   const range0 = getMonthRangeOffset(baseDate, 0);
   const range1 = getMonthRangeOffset(baseDate, -1);
-  const range2 = getMonthRangeOffset(baseDate, -2);
 
   const toPeriod = (range) => ({
     yyyyMm: range.periodStart.slice(0, 7),
@@ -42,7 +41,7 @@ export function getMonthlyPeriods(opts = {}) {
     label: range.label,
   });
 
-  return [toPeriod(range0), toPeriod(range1), toPeriod(range2)];
+  return [toPeriod(range0), toPeriod(range1)];
 }
 
 /**

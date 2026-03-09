@@ -336,7 +336,7 @@ function getDeptHeadcount(report, deptKey) {
 
 /**
  * Runs the monthly job.
- * Uses cache in out/cache/monthly/<YYYY-MM>.json; refresh forces recompute for all 3 months.
+ * Uses cache in out/cache/monthly/<YYYY-MM>.json; refresh forces recompute for both months.
  * Snapshots persist even if email fails (behavior A); job exits non-zero for alerting.
  * DRY_RUN=1: writes JSON + one HTML per person + department HTML + XLSX to ./out/.
  * Otherwise: sends personal monthly email to each active person; sends one department email to each manager (with XLSX attachment).
@@ -371,17 +371,18 @@ export async function runMonthly(opts = {}) {
   validateMonthlyRuntimeConfig({ dryRun, sendMode });
 
   if (refresh && process.env.NODE_ENV !== 'production') {
-    console.log('[monthly] refresh=1 -> regenerating all 3 snapshots');
+    console.log('[monthly] refresh=1 -> regenerating both monthly snapshots');
   }
 
   const periods = getMonthlyPeriods({ baseDate: now });
-  let result0;
-  let result1;
-  let result2;
+  if (!Array.isArray(periods) || periods.length < 2) {
+    throw new Error('[MONTHLY] getMonthlyPeriods must return at least 2 periods (current + prev1).');
+  }
+  let results = [];
   let runLabelForManifest = null;
 
   if (process.env.SNAPSHOT_BUCKET) {
-    const results = [];
+    results = [];
     const perMonth = {};
     for (const period of periods) {
       let snapshot = !refresh ? await readMonthlySnapshotFromGCS(period.yyyyMm) : null;
@@ -403,9 +404,6 @@ export async function runMonthly(opts = {}) {
         report: snapshot.derived.report,
       });
     }
-    result0 = results[0];
-    result1 = results[1];
-    result2 = results[2];
     runLabelForManifest = applyMonthlyRunSlotToLabel(results[0]?.meta?.label ?? periods[0].label, runSlot);
     await writeMonthlyRunManifestToGCS({
       jobType: JOB_TYPE,
@@ -414,14 +412,17 @@ export async function runMonthly(opts = {}) {
       perMonth,
     });
   } else {
-    result0 = await loadOrComputeMonthlyReport({ period: periods[0], refresh });
-    result1 = await loadOrComputeMonthlyReport({ period: periods[1], refresh });
-    result2 = await loadOrComputeMonthlyReport({ period: periods[2], refresh });
+    results = [];
+    for (const period of periods) {
+      const result = await loadOrComputeMonthlyReport({ period, refresh });
+      results.push(result);
+    }
   }
 
-  const reports = [result0.report, result1.report, result2.report];
-  const metas = [result0.meta, result1.meta, result2.meta];
-  const reportSummaries = [result0.reportSummary, result1.reportSummary, result2.reportSummary];
+  const [result0, result1] = results;
+  const reports = results.map((result) => result.report);
+  const metas = results.map((result) => result.meta);
+  const reportSummaries = results.map((result) => result.reportSummary);
 
   const periodStart = metas[0].periodStart;
   const periodEnd = metas[0].periodEnd;
