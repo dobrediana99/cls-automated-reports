@@ -134,6 +134,9 @@ describe('buildWeeklyXlsx', () => {
     expect(turnoverRow).not.toBeNull();
     expect(Number(sheet.getCell(turnoverRow, 2).value)).toBe(900);
     expect(Number(sheet.getCell(turnoverRow, 3).value)).toBe(600);
+    expect(String(sheet.getCell(turnoverRow + 1, 1).value ?? '').trim()).toBe('Profitabilitate (%)');
+    expect(String(sheet.getCell(turnoverRow + 1, 2).value ?? '').trim()).toBe('33.3%');
+    expect(String(sheet.getCell(turnoverRow + 1, 3).value ?? '').trim()).toBe('25.0%');
   });
 });
 
