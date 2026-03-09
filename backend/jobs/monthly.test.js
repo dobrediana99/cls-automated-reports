@@ -126,7 +126,6 @@ vi.mock('../report/runMonthlyPeriods.js', () => {
     getMonthlyPeriods: vi.fn().mockReturnValue([
       { yyyyMm: '2025-12', start: '2025-12-01', end: '2025-12-31', label: '2025-12-01..2025-12-31' },
       { yyyyMm: '2025-11', start: '2025-11-01', end: '2025-11-30', label: '2025-11-01..2025-11-30' },
-      { yyyyMm: '2025-10', start: '2025-10-01', end: '2025-10-31', label: '2025-10-01..2025-10-31' },
     ]),
     loadOrComputeMonthlyReport: vi.fn().mockResolvedValue(mockResult),
   };
@@ -196,14 +195,14 @@ describe('runMonthly', () => {
     });
   });
 
-  it('runs and returns dryRunPath when DRY_RUN=1 (loads or computes 3 months)', async () => {
+  it('runs and returns dryRunPath when DRY_RUN=1 (loads or computes 2 months)', async () => {
     process.env.DRY_RUN = '1';
 
     const result = await runMonthly({ now: new Date('2026-01-15T09:30:00') });
 
     expect(result).toHaveProperty('dryRunPath');
     expect(result.payload).toBeDefined();
-    expect(loadOrComputeMonthlyReport).toHaveBeenCalledTimes(3);
+    expect(loadOrComputeMonthlyReport).toHaveBeenCalledTimes(2);
   });
 
   it('when DRY_RUN != 1 throws if GMAIL credentials missing (runtime config validation)', async () => {
