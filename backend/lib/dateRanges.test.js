@@ -5,7 +5,9 @@ import {
   getPreviousCalendarMonthRange,
   getMonthRangeOffset,
   getMonthlyReportSendDay,
+  getMonthlyReportSendDayForWindow,
   isMonthlyReportSendDay,
+  isMonthlyReportSendDayForWindow,
 } from './dateRanges.js';
 
 const TZ = 'Europe/Bucharest';
@@ -159,5 +161,20 @@ describe('isMonthlyReportSendDay', () => {
   it('returns true on 6th when 5th was Sunday (July 2026)', () => {
     const jul6 = new Date('2026-07-06T08:00:00+03:00');
     expect(isMonthlyReportSendDay(jul6, TZ)).toBe(true);
+  });
+});
+
+describe('window-based monthly send day (5..7 / 15..17)', () => {
+  it('window 5..7: Sept 2026 has 5=Sat, 6=Sun, send day is 7', () => {
+    const ref = new Date('2026-09-01T08:00:00+03:00');
+    expect(getMonthlyReportSendDayForWindow(ref, TZ, 5, 3)).toBe('2026-09-07');
+    expect(isMonthlyReportSendDayForWindow(new Date('2026-09-07T08:00:00+03:00'), TZ, 5, 3)).toBe(true);
+  });
+
+  it('window 15..17: Aug 2026 has 15=Sat, 16=Sun, send day is 17', () => {
+    const ref = new Date('2026-08-01T08:00:00+03:00');
+    expect(getMonthlyReportSendDayForWindow(ref, TZ, 15, 3)).toBe('2026-08-17');
+    expect(isMonthlyReportSendDayForWindow(new Date('2026-08-17T08:00:00+03:00'), TZ, 15, 3)).toBe(true);
+    expect(isMonthlyReportSendDayForWindow(new Date('2026-08-15T08:00:00+03:00'), TZ, 15, 3)).toBe(false);
   });
 });
