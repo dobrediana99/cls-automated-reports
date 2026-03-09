@@ -78,14 +78,48 @@ export function getWorkingDaysInPeriod(periodStart, periodEnd) {
  * @returns {string} ISO date YYYY-MM-DD of that day
  */
 export function getMonthlyReportSendDay(now = new Date(), timezone = TZ) {
+  return getMonthlyReportSendDayForWindow(now, timezone, 5, 3);
+}
+
+/**
+ * First working day inside a fixed calendar window [windowStartDay, windowStartDay + windowLength - 1].
+ * Example:
+ *  - windowStartDay=5, windowLength=3  => 5..7
+ *  - windowStartDay=15, windowLength=3 => 15..17
+ * @param {Date} [now=new Date()] - Reference instant
+ * @param {string} [timezone='Europe/Bucharest'] - IANA timezone
+ * @param {number} [windowStartDay=5] - Start day of month (1..31)
+ * @param {number} [windowLength=3] - Number of calendar days in window (>=1)
+ * @returns {string} ISO date YYYY-MM-DD of first working day in the window
+ */
+export function getMonthlyReportSendDayForWindow(
+  now = new Date(),
+  timezone = TZ,
+  windowStartDay = 5,
+  windowLength = 3
+) {
   const dt = DateTime.fromJSDate(now, { zone: timezone });
   const year = dt.year;
   const month = dt.month;
-  for (let day = 5; day <= 8; day++) {
+  const startDay = Number(windowStartDay);
+  const len = Number(windowLength);
+  if (!Number.isInteger(startDay) || startDay < 1 || startDay > 31) {
+    throw new Error(`windowStartDay must be integer 1..31, got: ${windowStartDay}`);
+  }
+  if (!Number.isInteger(len) || len < 1) {
+    throw new Error(`windowLength must be integer >= 1, got: ${windowLength}`);
+  }
+
+  const endDay = startDay + len - 1;
+  for (let day = startDay; day <= endDay; day++) {
     const d = DateTime.fromObject({ year, month, day }, { zone: timezone });
+    if (!d.isValid) continue;
     if (d.weekday >= 1 && d.weekday <= 5) return d.toISODate();
   }
-  return `${year}-${String(month).padStart(2, '0')}-05`;
+  // Fallback (should not happen for normal 3-day windows like 5..7 / 15..17).
+  const start = DateTime.fromObject({ year, month, day: startDay }, { zone: timezone });
+  if (start.isValid) return start.toISODate();
+  throw new Error(`No valid calendar day found for window ${startDay}..${endDay} in ${year}-${String(month).padStart(2, '0')}`);
 }
 
 /**
@@ -96,8 +130,25 @@ export function getMonthlyReportSendDay(now = new Date(), timezone = TZ) {
  * @returns {boolean}
  */
 export function isMonthlyReportSendDay(now = new Date(), timezone = TZ) {
+  return isMonthlyReportSendDayForWindow(now, timezone, 5, 3);
+}
+
+/**
+ * True if today (in timezone) is the first working day inside [windowStartDay, windowStartDay+windowLength-1].
+ * @param {Date} [now=new Date()] - Reference instant
+ * @param {string} [timezone='Europe/Bucharest'] - IANA timezone
+ * @param {number} [windowStartDay=5] - Start day of month (1..31)
+ * @param {number} [windowLength=3] - Number of calendar days in window (>=1)
+ * @returns {boolean}
+ */
+export function isMonthlyReportSendDayForWindow(
+  now = new Date(),
+  timezone = TZ,
+  windowStartDay = 5,
+  windowLength = 3
+) {
   const dt = DateTime.fromJSDate(now, { zone: timezone });
   const today = dt.toISODate();
-  const sendDay = getMonthlyReportSendDay(now, timezone);
+  const sendDay = getMonthlyReportSendDayForWindow(now, timezone, windowStartDay, windowLength);
   return today === sendDay;
 }

@@ -88,15 +88,21 @@ gcloud scheduler jobs create http cls-monthly-report \
 
 Dacă vrei **fără emailuri individuale** și două rulări separate (5 + 15), configurează:
 
-- `scope=department_only` (trimite doar raportul departamental)
-- `slot=05` pentru jobul din 5 și `slot=15` pentru jobul din 15
+- Job #1 (toate emailurile): `windowStart=5`, `scope=all`, `slot=05`
+- Job #2 (doar departamental): `windowStart=15`, `scope=department_only`, `slot=15`
 
 `slot` separă idempotency/run-state, astfel încât rularea din 15 nu este blocată de cea din 5.
 
 Exemplu URL-uri Scheduler:
 
-- `POST https://<SERVICE_URL>/run/monthly?scope=department_only&slot=05&force=1`
-- `POST https://<SERVICE_URL>/run/monthly?scope=department_only&slot=15&force=1`
+- `POST https://<SERVICE_URL>/run/monthly?windowStart=5&scope=all&slot=05`
+- `POST https://<SERVICE_URL>/run/monthly?windowStart=15&scope=department_only&slot=15`
 
-> Notă: `force=1` rulează indiferent de regula „prima zi lucrătoare după 5”.  
-> Dacă vrei strict 5 și 15 calendaristic, păstrează `force=1`.
+Scheduler cron recomandat:
+
+- pentru fereastra 5..7: `0 8 5,6,7 * *`
+- pentru fereastra 15..17: `0 8 15,16,17 * *`
+
+Backend-ul va trimite **o singură dată** în fiecare fereastră (prima zi lucrătoare din fereastră).
+
+Notă importantă: endpoint-ul `/run/monthly` rulează acum cu `refresh=true` implicit, deci la trimitere se recalculează datele (fără citire snapshot).

@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import { getPreviousCalendarWeekRange, isMonthlyReportSendDay } from './lib/dateRanges.js';
+import { getPreviousCalendarWeekRange, isMonthlyReportSendDayForWindow } from './lib/dateRanges.js';
 import { getPreviousCalendarMonthRange } from './lib/dateRanges.js';
 import { runWeekly } from './jobs/weekly.js';
 import {
@@ -171,15 +171,22 @@ app.post('/run/monthly', oidcAuth, async (req, res) => {
       return res.status(400).json({ error: err?.message ?? 'Invalid monthly options' });
     }
 
+    const windowStartRaw = req.query?.windowStart ?? req.body?.windowStart ?? '5';
+    const windowStart = parseInt(String(windowStartRaw), 10);
+    if (!Number.isInteger(windowStart) || windowStart < 1 || windowStart > 31) {
+      return res.status(400).json({ error: 'windowStart must be an integer day-of-month between 1 and 31.' });
+    }
+
     const force = req.query?.force === '1' || req.query?.force === true || req.body?.force === true || req.body?.force === 1;
-    if (!force && !isMonthlyReportSendDay()) {
+    if (!force && !isMonthlyReportSendDayForWindow(new Date(), 'Europe/Bucharest', windowStart, 3)) {
       return res.status(200).json({
         skipped: true,
         reason: 'not_monthly_send_day',
-        message: 'Monthly report runs only on the first working day on or after the 5th (Europe/Bucharest). Use ?force=1 to run anyway.',
+        message: `Monthly report runs only on the first working day in window ${windowStart}-${windowStart + 2} (Europe/Bucharest). Use ?force=1 to run anyway.`,
       });
     }
-    const refresh = req.query?.refresh === '1' || req.query?.refresh === true || req.body?.refresh === true || req.body?.refresh === 1;
+    // Always recompute all queries when sending monthly emails (no snapshot reads).
+    const refresh = true;
     const getRangeWithSlot = () => {
       const range = getPreviousCalendarMonthRange();
       return { ...range, label: applyMonthlyRunSlotToLabel(range.label, runSlot) };
