@@ -184,8 +184,8 @@ export function buildReport(raw) {
   const mgmtStatsLocal = generateStats(depts.management);
 
   const companyStatsLocal = {
-    ctr: { count: 0, profit: 0, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
-    livr: { count: 0, profit: 0, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
+    ctr: { count: 0, profit: 0, turnover: 0, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
+    livr: { count: 0, profit: 0, turnover: 0, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
   };
 
   const applyToAllStats = (callback) => {
@@ -236,8 +236,11 @@ export function buildReport(raw) {
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
       const totalItemProfitCompany = toEur(totalProfitRaw, isRon);
+      const clientPaymentRaw = extractNumericValue(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
+      const clientPaymentEur = toEur(clientPaymentRaw, isRon);
       companyStatsLocal.ctr.count++;
       companyStatsLocal.ctr.profit += totalItemProfitCompany;
+      companyStatsLocal.ctr.turnover += clientPaymentEur;
       if (isWebsite) {
         companyStatsLocal.ctr.websiteCount++;
         companyStatsLocal.ctr.websiteProfit += totalItemProfitCompany;
@@ -345,8 +348,11 @@ export function buildReport(raw) {
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
       const totalItemProfitCompany = toEur(totalProfitRaw, isRon);
+      const clientPaymentRaw = extractNumericValue(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
+      const clientPaymentEur = toEur(clientPaymentRaw, isRon);
       companyStatsLocal.livr.count++;
       companyStatsLocal.livr.profit += totalItemProfitCompany;
+      companyStatsLocal.livr.turnover += clientPaymentEur;
       if (isWebsite) {
         companyStatsLocal.livr.websiteCount++;
         companyStatsLocal.livr.websiteProfit += totalItemProfitCompany;

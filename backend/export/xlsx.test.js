@@ -74,8 +74,8 @@ const mockReport = {
     },
   ],
   companyStats: {
-    ctr: { count: 3, profit: 300, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
-    livr: { count: 2, profit: 150, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
+    ctr: { count: 3, profit: 300, turnover: 900, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
+    livr: { count: 2, profit: 150, turnover: 600, websiteCount: 0, websiteProfit: 0, burseCount: 0, breakdowns: {} },
   },
 };
 const mockMeta = { label: '2026-01-19..2026-01-25', periodStart: '2026-01-19T00:00:00.000+02:00', periodEnd: '2026-01-25T23:59:59.999+02:00' };
@@ -114,6 +114,29 @@ describe('buildWeeklyXlsx', () => {
     const values = [row3.getCell(1).value, row3.getCell(2).value];
     const str = values.map((v) => String(v ?? '')).join(' ');
     expect(str).toMatch(/ANGAJAT|FURNIZORI|DUPĂ DATA CONTRACT/);
+  });
+
+  it('includes "Cifra afaceri (EUR)" row in TOTAL COMPANIE', async () => {
+    const buffer = await buildWeeklyXlsx(mockReport, mockMeta);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.getWorksheet('Raport');
+
+    let turnoverRow = null;
+    for (let i = 1; i <= sheet.rowCount; i++) {
+      const label = String(sheet.getCell(i, 1).value ?? '').trim();
+      if (label === 'Cifra afaceri (EUR)') {
+        turnoverRow = i;
+        break;
+      }
+    }
+
+    expect(turnoverRow).not.toBeNull();
+    expect(Number(sheet.getCell(turnoverRow, 2).value)).toBe(900);
+    expect(Number(sheet.getCell(turnoverRow, 3).value)).toBe(600);
+    expect(String(sheet.getCell(turnoverRow + 1, 1).value ?? '').trim()).toBe('Profitabilitate (%)');
+    expect(String(sheet.getCell(turnoverRow + 1, 2).value ?? '').trim()).toBe('33.3%');
+    expect(String(sheet.getCell(turnoverRow + 1, 3).value ?? '').trim()).toBe('25.0%');
   });
 });
 
