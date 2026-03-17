@@ -142,7 +142,7 @@ export async function runJobWithIdempotency(jobType, getRange, runJob) {
   }
 }
 
-app.post('/run/weekly', oidcAuth, async (_req, res) => {
+app.post('/run/weekly', async (_req, res) => {
   try {
     const result = await runJobWithIdempotency('weekly', getPreviousCalendarWeekRange, () => runWeekly());
     if (result.skipped) {
@@ -158,7 +158,7 @@ app.post('/run/weekly', oidcAuth, async (_req, res) => {
   }
 });
 
-app.post('/run/monthly', oidcAuth, async (req, res) => {
+app.post('/run/monthly', async (req, res) => {
   try {
 
     if (req.query?.sendMode) {
