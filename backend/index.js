@@ -160,6 +160,14 @@ app.post('/run/weekly', oidcAuth, async (_req, res) => {
 
 app.post('/run/monthly', oidcAuth, async (req, res) => {
   try {
+
+    if (req.query?.sendMode) {
+      process.env.SEND_MODE = req.query.sendMode;
+    }
+    if (req.query?.testEmails) {
+      process.env.TEST_EMAILS = req.query.testEmails;
+    }
+    
     const sendScopeRaw = req.query?.scope ?? req.body?.scope ?? process.env.MONTHLY_SEND_SCOPE;
     const runSlotRaw = req.query?.slot ?? req.body?.slot ?? process.env.MONTHLY_RUN_SLOT;
     let sendScope;
