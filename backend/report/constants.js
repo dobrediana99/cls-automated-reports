@@ -36,6 +36,7 @@ export const COLS = {
     OCUPARE: 'ocupare_mij_transport_column_id',
     CLIENT_PE: 'color_mktcqj26',
     FURNIZ_PE: 'color_mkt9as8p',
+    VALOARE_CLIENT: 'deal_value',
   },
   FURNIZORI: {
     DATA: 'date4',
