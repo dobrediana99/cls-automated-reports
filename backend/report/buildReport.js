@@ -236,7 +236,7 @@ export function buildReport(raw) {
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
       const totalItemProfitCompany = toEur(totalProfitRaw, isRon);
-      const clientPaymentRaw = extractNumericValue(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
+      const clientPaymentRaw = extractNumericValue(getCol(COLS_COMENZI.VALOARE_CLIENT));
       const clientPaymentEur = toEur(clientPaymentRaw, isRon);
       companyStatsLocal.ctr.count++;
       companyStatsLocal.ctr.profit += totalItemProfitCompany;
@@ -348,7 +348,7 @@ export function buildReport(raw) {
 
       const totalProfitRaw = extractNumericValue(getCol(COLS_COMENZI.PROFIT));
       const totalItemProfitCompany = toEur(totalProfitRaw, isRon);
-      const clientPaymentRaw = extractNumericValue(getCol(COLS_COMENZI.TERMEN_PLATA_CLIENT));
+      const clientPaymentRaw = extractNumericValue(getCol(COLS_COMENZI.VALOARE_CLIENT));
       const clientPaymentEur = toEur(clientPaymentRaw, isRon);
       companyStatsLocal.livr.count++;
       companyStatsLocal.livr.profit += totalItemProfitCompany;
