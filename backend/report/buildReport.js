@@ -7,6 +7,22 @@ function safeVal(v) {
   return typeof v === 'number' && !isNaN(v) ? v : 0;
 }
 
+function parseDurationToMinutes(text) {
+  if (!text) return 0;
+
+  const str = String(text);
+
+  const hours = (str.match(/(\d+)h/) || [])[1] || 0;
+  const minutes = (str.match(/(\d+)m/) || [])[1] || 0;
+  const seconds = (str.match(/(\d+)s/) || [])[1] || 0;
+
+  return (
+    parseInt(hours, 10) * 60 +
+    parseInt(minutes, 10) +
+    parseInt(seconds, 10) / 60
+  );
+}
+
 function parseNumericString(raw) {
   let valStr = String(raw ?? '').trim();
   if (!valStr) return null;
@@ -154,6 +170,12 @@ function generateStats(employees) {
     burseCountLivrSecondary: 0,
     livr_burseCount: 0,
     burseCount: 0,
+    avgOfferTime: 0,
+    avgCloseTime: 0,
+    sumOfferTime: 0,
+    countOfferTime: 0,
+    sumCloseTime: 0,
+    countCloseTime: 0,
   }));
 }
 
@@ -177,7 +199,7 @@ function toEur(val, isRon) {
  * @returns {{ opsStats: array, salesStats: array, mgmtStats: array, companyStats: object }}
  */
 export function buildReport(raw) {
-  const { comenziCtr, comenziLivr, solicitari, leadsContact, leadsQualified, furnizori, activities, COLS_COMENZI, dynamicCols } = raw;
+  const { comenziCtr, comenziLivr, solicitari, leadsContact, leadsQualified, furnizori, activities, COLS_COMENZI, dynamicCols, dealsData } = raw;
   const depts = getEmployeesByDepartment();
   const opsStatsLocal = generateStats(depts.operational);
   const salesStatsLocal = generateStats(depts.sales);
@@ -476,6 +498,52 @@ export function buildReport(raw) {
   };
   processLeads(leadsContact, 'contact');
   processLeads(leadsQualified, 'qualified');
+
+  // 🔥 DEALS (timp ofertare + inchidere)
+if (dealsData?.boards?.[0]?.items_page?.items) {
+  for (const item of dealsData.boards[0].items_page.items) {
+    const getCol = (id) => item.column_values?.find((c) => c.id === id);
+
+    const ownerIds = getPersonIds(getCol('deal_owner'));
+
+    const offerTime = parseDurationToMinutes(getCol('duration_mkq0z4bg')?.text);
+    const closeTime = parseDurationToMinutes(getCol('duration_mkyhd77n')?.text);
+
+    applyToAllStats((statsList) => {
+      statsList.forEach((emp) => {
+        if (ownerIds.includes(String(emp.mondayId))) {
+
+          if (offerTime > 0) {
+            emp.sumOfferTime += offerTime;
+            emp.countOfferTime++;
+          }
+
+          if (closeTime > 0) {
+            emp.sumCloseTime += closeTime;
+            emp.countCloseTime++;
+          }
+
+        }
+      });
+    });
+  }
+}
+
+  const finalizeStats = (statsList) => {
+  statsList.forEach((emp) => {
+    emp.avgOfferTime = emp.countOfferTime
+      ? emp.sumOfferTime / emp.countOfferTime
+      : 0;
+
+    emp.avgCloseTime = emp.countCloseTime
+      ? emp.sumCloseTime / emp.countCloseTime
+      : 0;
+  });
+};
+
+finalizeStats(opsStatsLocal);
+finalizeStats(salesStatsLocal);
+finalizeStats(mgmtStatsLocal);
 
   return {
     opsStats: opsStatsLocal,
