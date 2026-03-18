@@ -416,7 +416,7 @@ export async function fetchReportData(dateFrom, dateTo) {
   const rulesLeadsQualified = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [103] }]`;
 
   const dealsQuery = `
-query ($start: CompareValue!, $end: CompareValue!) {
+query {
   boards(ids: 1905911565) {
     items_page(
       query_params: {
@@ -429,7 +429,7 @@ query ($start: CompareValue!, $end: CompareValue!) {
           {
             column_id: "deal_creation_date"
             operator: between
-            compare_value: [$start, $end]
+            compare_value: ["${dateFrom}", "${dateTo}"]
           }
         ]
       }
@@ -463,10 +463,7 @@ query ($start: CompareValue!, $end: CompareValue!) {
     fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified),
   ]);
 
-  const dealsDataRaw = await mondayRequest(dealsQuery, {
-  start: dateFrom,
-  end: dateTo,
-});
+  const dealsDataRaw = await mondayRequest(dealsQuery);
 
 const dealsData = dealsDataRaw?.boards?.[0]
   ? dealsDataRaw
