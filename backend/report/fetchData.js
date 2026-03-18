@@ -415,45 +415,6 @@ export async function fetchReportData(dateFrom, dateTo) {
   const rulesLeadsContact = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [14] }]`;
   const rulesLeadsQualified = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [103] }]`;
 
-  const dealsQuery = `
-query {
-  boards(ids: 1905911565) {
-    items_page(
-      query_params: {
-        rules: [
-          {
-            column_id: "deal_stage"
-            operator: any_of
-            compare_value: [1,2]
-          },
-          {
-            column_id: "deal_creation_date"
-            operator: between
-            compare_value: ["${dateFrom}", "${dateTo}"]
-          }
-        ]
-      }
-    ) {
-      items {
-        id
-        name
-        column_values(ids:[
-          "deal_stage",
-          "deal_creation_date",
-          "deal_owner",
-          "duration_mkq0z4bg",
-          "duration_mkyhd77n"
-        ]) {
-          id
-          text
-          value
-        }
-      }
-    }
-  }
-}
-`;
-
   const [comenziCtr, comenziLivr, solicitari, furnizori, leadsContact, leadsQualified] = await Promise.all([
     fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesCtr),
     fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesLivr),
@@ -463,11 +424,28 @@ query {
     fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified),
   ]);
 
-  const dealsDataRaw = await mondayRequest(dealsQuery);
-
-const dealsData = dealsDataRaw?.boards?.[0]
-  ? dealsDataRaw
-  : { boards: [{ items_page: { items: [] } }] };
+  const dealsData = await fetchAllItems(
+  1905911565,
+  [
+    "deal_stage",
+    "deal_creation_date",
+    "deal_owner",
+    "duration_mkq0z4bg",
+    "duration_mkyhd77n"
+  ],
+  `[
+    {
+      column_id: "deal_stage",
+      operator: any_of,
+      compare_value: [1,2]
+    },
+    {
+      column_id: "deal_creation_date",
+      operator: between,
+      compare_value: ["${dateFrom}", "${dateTo}"]
+    }
+  ]`
+);
 
   const rawLeads = await fetchItemsDirectory(BOARD_IDS.LEADS, COLS.LEADS.OWNER, rulesLeadsDate);
   const rawContacts = await fetchItemsDirectory(BOARD_IDS.CONTACTE, COLS.CONTACTE.OWNER, `[{ column_id: "${COLS.CONTACTE.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`);
