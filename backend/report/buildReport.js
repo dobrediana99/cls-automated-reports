@@ -10,8 +10,20 @@ function safeVal(v) {
 function parseDurationToMinutes(text) {
   if (!text) return 0;
 
-  const str = String(text);
+  const str = String(text).trim();
 
+  // format: HH:MM:SS
+  if (str.includes(':')) {
+    const parts = str.split(':').map(Number);
+
+    const hours = parts[0] || 0;
+    const minutes = parts[1] || 0;
+    const seconds = parts[2] || 0;
+
+    return hours * 60 + minutes + seconds / 60;
+  }
+
+  // fallback (dacă apare alt format)
   const hours = (str.match(/(\d+)h/) || [])[1] || 0;
   const minutes = (str.match(/(\d+)m/) || [])[1] || 0;
   const seconds = (str.match(/(\d+)s/) || [])[1] || 0;
