@@ -85,11 +85,6 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
               value
               type
               ... on FormulaValue { display_value }
-              ... on PeopleValue {
-                personsAndTeams {
-                  id
-                }
-              }
             }
           }
         }
