@@ -107,23 +107,6 @@ function getPersonIds(columnValue) {
   }
 }
 
-function getDealOwnerIds(columnValue, allEmployees) {
-  const idsFromValue = getPersonIds(columnValue);
-  if (idsFromValue.length > 0) return idsFromValue;
-
-  const ownerName = String(columnValue?.text || '')
-    .trim()
-    .toLowerCase();
-
-  if (!ownerName) return [];
-
-  const matchedEmployee = allEmployees.find(
-    (emp) => String(emp.name || '').trim().toLowerCase() === ownerName
-  );
-
-  return matchedEmployee ? [String(matchedEmployee.mondayId)] : [];
-}
-
 function normalizeLabel(value) {
   return String(value || '')
     .toLowerCase()
@@ -539,7 +522,7 @@ if (dealsData?.items_page?.items) {
   for (const item of dealsData.items_page.items) {
     const getCol = (id) => item.column_values?.find((c) => c.id === id);
 
-    const ownerIds = getDealOwnerIds(getCol('deal_owner'), allEmployees);
+    const ownerIds = getPersonIds(getCol('deal_owner'));
 
     const offerTime = parseDurationToMinutes(getCol('duration_mkq0z4bg')?.text);
     const closeTime = parseDurationToMinutes(getCol('duration_mkyhd77n')?.text);
