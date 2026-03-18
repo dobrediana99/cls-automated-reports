@@ -87,6 +87,8 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     { t: 'INTARZIERI >15', c: 'FFFFFF', color: 'FFFF0000' },
     { t: 'FURN <30', c: 'FFF7ED' },
     { t: 'FURN >=30', c: 'FFF7ED' },
+    { t: 'TIMP OFERTARE (min)', c: 'E0F2FE' },
+    { t: 'TIMP ÎNCHIDERE (min)', c: 'E0F2FE' },
   ];
   others.forEach((o) => {
     const cell = writeHeaderCell(sheet, startRow, col, startRow + 1, col, o.t, o.c, { font: fontBold });
@@ -251,6 +253,16 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     cell.value = safeVal(item.supplierTermsOver30);
     cell.border = thinBorder;
     cell.fill = fillStyle('FFF7ED');
+    // 🔥 TIMPURI DEALS
+    cell = row.getCell(c++);
+    cell.value = safeVal(item.avgOfferTime);
+    cell.border = thinBorder;
+    cell.alignment = alignCenter;
+    
+    cell = row.getCell(c++);
+    cell.value = safeVal(item.avgCloseTime);
+    cell.border = thinBorder;
+    cell.alignment = alignCenter;
 
     if (isSales) {
       const startC = salesMetricsStartCol;
@@ -302,6 +314,10 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     acc.countProfitability += safeVal(item.countProfitability);
     acc.supplierTermsUnder30 += safeVal(item.supplierTermsUnder30);
     acc.supplierTermsOver30 += safeVal(item.supplierTermsOver30);
+    acc.sumOfferTime += safeVal(item.sumOfferTime);
+    acc.countOfferTime += safeVal(item.countOfferTime);
+    acc.sumCloseTime += safeVal(item.sumCloseTime);
+    acc.countCloseTime += safeVal(item.countCloseTime);
     acc.targetTotal += safeVal(item.target);
     return acc;
   }, {
@@ -314,6 +330,7 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     sumClientTerms: 0, countClientTerms: 0, sumSupplierTerms: 0, countSupplierTerms: 0,
     overdueInvoicesCount: 0, sumProfitability: 0, countProfitability: 0,
     supplierTermsUnder30: 0, supplierTermsOver30: 0, targetTotal: 0,
+    sumOfferTime: 0, countOfferTime: 0, sumCloseTime: 0, countCloseTime: 0,
   });
 
   const count = data.length || 1;
@@ -460,6 +477,22 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     cell.border = thinBorder;
     cell.fill = fillStyle('FFF7ED');
     if (isAvg) cell.numFmt = '0.0';
+    // 🔥 TIMP OFERTARE
+    cell = r.getCell(c++);
+    cell.value = totals.countOfferTime > 0
+      ? totals.sumOfferTime / totals.countOfferTime
+      : 0;
+    cell.border = thinBorder;
+    if (isAvg) cell.numFmt = '0.0';
+    
+    // 🔥 TIMP INCHIDERE
+    cell = r.getCell(c++);
+    cell.value = totals.countCloseTime > 0
+      ? totals.sumCloseTime / totals.countCloseTime
+      : 0;
+    cell.border = thinBorder;
+    if (isAvg) cell.numFmt = '0.0';
+    
 
     if (isSales) {
       const contactedVal = isAvg ? avg(totals.contactat) : totals.contactat;
