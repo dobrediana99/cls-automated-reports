@@ -524,8 +524,22 @@ if (dealsData?.items_page?.items) {
 
     const ownerIds = getPersonIds(getCol('deal_owner'));
 
-    const offerTime = parseDurationToMinutes(getCol('duration_mkq0z4bg')?.text);
-    const closeTime = parseDurationToMinutes(getCol('duration_mkyhd77n')?.text);
+    function getDurationMinutes(col) {
+  if (!col || !col.value) return 0;
+
+  try {
+    const parsed = JSON.parse(col.value);
+
+    if (parsed && typeof parsed.duration === 'number') {
+      return Math.floor(parsed.duration / 60);
+    }
+  } catch {}
+
+  return 0;
+}
+
+const offerTime = getDurationMinutes(getCol('duration_mkq0z4bg'));
+const closeTime = getDurationMinutes(getCol('duration_mkyhd77n'));
 
     applyToAllStats((statsList) => {
       statsList.forEach((emp) => {
