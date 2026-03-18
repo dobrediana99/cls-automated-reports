@@ -87,8 +87,8 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     { t: 'INTARZIERI >15', c: 'FFFFFF', color: 'FFFF0000' },
     { t: 'FURN <30', c: 'FFF7ED' },
     { t: 'FURN >=30', c: 'FFF7ED' },
-    { t: 'TIMP OFERTARE (min)', c: 'E0F2FE' },
-    { t: 'TIMP ÎNCHIDERE (min)', c: 'E0F2FE' },
+    { t: 'TIMP OFERTARE (h:m)', c: 'E0F2FE' },
+    { t: 'TIMP ÎNCHIDERE (h:m)', c: 'E0F2FE' },
   ];
   others.forEach((o) => {
     const cell = writeHeaderCell(sheet, startRow, col, startRow + 1, col, o.t, o.c, { font: fontBold });
@@ -253,16 +253,18 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     cell.value = safeVal(item.supplierTermsOver30);
     cell.border = thinBorder;
     cell.fill = fillStyle('FFF7ED');
-    // 🔥 TIMPURI DEALS
-    cell = row.getCell(c++);
-    cell.value = safeVal(item.avgOfferTime);
-    cell.border = thinBorder;
-    cell.alignment = alignCenter;
     
     cell = row.getCell(c++);
-    cell.value = safeVal(item.avgCloseTime);
+    cell.value = safeVal(item.avgOfferTime) / (24 * 60);
     cell.border = thinBorder;
     cell.alignment = alignCenter;
+    cell.numFmt = '[h]:mm';
+    
+    cell = row.getCell(c++);
+    cell.value = safeVal(item.avgCloseTime) / (24 * 60);
+    cell.border = thinBorder;
+    cell.alignment = alignCenter;
+    cell.numFmt = '[h]:mm';
 
     if (isSales) {
       const startC = salesMetricsStartCol;
@@ -477,22 +479,20 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     cell.border = thinBorder;
     cell.fill = fillStyle('FFF7ED');
     if (isAvg) cell.numFmt = '0.0';
-    // 🔥 TIMP OFERTARE
+    
     cell = r.getCell(c++);
     cell.value = totals.countOfferTime > 0
-      ? totals.sumOfferTime / totals.countOfferTime
+      ? (totals.sumOfferTime / totals.countOfferTime) / (24 * 60)
       : 0;
     cell.border = thinBorder;
-    if (isAvg) cell.numFmt = '0.0';
+    cell.numFmt = '[h]:mm';
     
-    // 🔥 TIMP INCHIDERE
     cell = r.getCell(c++);
     cell.value = totals.countCloseTime > 0
-      ? totals.sumCloseTime / totals.countCloseTime
+      ? (totals.sumCloseTime / totals.countCloseTime) / (24 * 60)
       : 0;
     cell.border = thinBorder;
-    if (isAvg) cell.numFmt = '0.0';
-    
+    cell.numFmt = '[h]:mm';
 
     if (isSales) {
       const contactedVal = isAvg ? avg(totals.contactat) : totals.contactat;
