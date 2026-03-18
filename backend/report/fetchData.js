@@ -416,7 +416,7 @@ export async function fetchReportData(dateFrom, dateTo) {
   const rulesLeadsQualified = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [103] }]`;
 
   const dealsQuery = `
-query ($start: String!, $end: String!) {
+query ($start: CompareValue!, $end: CompareValue!) {
   boards(ids: 1905911565) {
     items_page(
       query_params: {
