@@ -535,8 +535,8 @@ export function buildReport(raw) {
   processLeads(leadsQualified, 'qualified');
 
   // 🔥 DEALS (timp ofertare + inchidere)
-if (dealsData?.boards?.[0]?.items_page?.items) {
-  for (const item of dealsData.boards[0].items_page.items) {
+if (dealsData?.items_page?.items) {
+  for (const item of dealsData.items_page.items) {
     const getCol = (id) => item.column_values?.find((c) => c.id === id);
 
     const ownerIds = getDealOwnerIds(getCol('deal_owner'), allEmployees);
