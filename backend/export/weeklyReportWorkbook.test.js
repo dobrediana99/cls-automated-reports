@@ -130,8 +130,8 @@ describe('weeklyReportWorkbook bonus (Report_monday parity)', () => {
 
     expect(Number(offerCell.value)).toBeCloseTo(75 / (24 * 60), 8);
     expect(Number(closeCell.value)).toBeCloseTo(135 / (24 * 60), 8);
-    expect(offerCell.numFmt).toBe('h:mm');
-    expect(closeCell.numFmt).toBe('h:mm');
+    expect(offerCell.numFmt).toBe('[h]:mm');
+    expect(closeCell.numFmt).toBe('[h]:mm');
   });
 
   it('TOTAL row shows summed durations, MEDIA row shows averages', () => {
@@ -236,5 +236,9 @@ describe('weeklyReportWorkbook bonus (Report_monday parity)', () => {
     // Media: averages from sums/counts ((180/4)=45 min, (260/4)=65 min)
     expect(Number(mediaOffer)).toBeCloseTo(45 / (24 * 60), 8);
     expect(Number(mediaClose)).toBeCloseTo(65 / (24 * 60), 8);
+    expect(sheet.getRow(totalRow).getCell(avgOfferCol).numFmt).toBe('[h]:mm');
+    expect(sheet.getRow(totalRow).getCell(avgCloseCol).numFmt).toBe('[h]:mm');
+    expect(sheet.getRow(mediaRow).getCell(avgOfferCol).numFmt).toBe('[h]:mm');
+    expect(sheet.getRow(mediaRow).getCell(avgCloseCol).numFmt).toBe('[h]:mm');
   });
 });
