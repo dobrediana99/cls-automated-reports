@@ -35,6 +35,26 @@ const mockStats = {
   supplierTermsOver30: 2,
   sumProfitability: 25,
   countProfitability: 2,
+  avgOfferTime: 45.5,
+  avgCloseTime: 90,
+  sumOfferTime: 91,
+  countOfferTime: 2,
+  sumCloseTime: 180,
+  countCloseTime: 2,
+  livr_websiteCount: 2,
+  livr_websiteProfit: 210.2,
+  livr_sumClientTerms: 0,
+  livr_countClientTerms: 2,
+  livr_sumSupplierTerms: 80,
+  livr_countSupplierTerms: 4,
+  livr_overdueInvoicesCount: 0,
+  livr_supplierTermsUnder30: 2,
+  livr_supplierTermsOver30: 2,
+  livr_sumProfitability: 37.21,
+  livr_countProfitability: 2,
+  livr_websiteCountSec: 0,
+  livr_websiteProfitSec: 0,
+  livr_burseCount: 1,
 };
 
 describe('buildEmployeeDetailsTable', () => {
@@ -98,6 +118,38 @@ describe('buildEmployeeDetailsTable', () => {
     expect(html).not.toContain('Rata conversie');
     expect(html).not.toContain('Emailuri');
     expect(html).not.toContain('Apeluri');
+  });
+
+  it('includes renamed time metrics for all departments', () => {
+    const htmlOps = buildEmployeeDetailsTable(mockStats, 'Operatiuni');
+    const htmlSales = buildEmployeeDetailsTable(mockStats, 'Vanzari');
+    const htmlMgmt = buildEmployeeDetailsTable(mockStats, 'Management');
+    for (const html of [htmlOps, htmlSales, htmlMgmt]) {
+      expect(html).toContain('Timp mediu de ofertare');
+      expect(html).toContain('Timp mediu de inchidere');
+    }
+  });
+
+  it('does not render legacy livr_* technical rows from stats extras', () => {
+    const html = buildEmployeeDetailsTable(mockStats, 'Management');
+    expect(html).not.toContain('Livr website Count');
+    expect(html).not.toContain('Livr website Profit');
+    expect(html).not.toContain('Livr sum Client Terms');
+    expect(html).not.toContain('Livr count Client Terms');
+    expect(html).not.toContain('Livr sum Supplier Terms');
+    expect(html).not.toContain('Livr count Supplier Terms');
+    expect(html).not.toContain('Livr overdue Invoices Count');
+    expect(html).not.toContain('Livr supplier Terms Under30');
+    expect(html).not.toContain('Livr supplier Terms Over30');
+    expect(html).not.toContain('Livr sum Profitability');
+    expect(html).not.toContain('Livr count Profitability');
+    expect(html).not.toContain('Livr website Count Sec');
+    expect(html).not.toContain('Livr website Profit Sec');
+    expect(html).not.toContain('Livr burse Count');
+    expect(html).not.toContain('Sum Offer Time');
+    expect(html).not.toContain('Count Offer Time');
+    expect(html).not.toContain('Sum Close Time');
+    expect(html).not.toContain('Count Close Time');
   });
 
   it('does not render target/bonus rows in weekly email table', () => {

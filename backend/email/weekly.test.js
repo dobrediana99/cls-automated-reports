@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderWeeklyEmployeeEmail, renderWeeklyManagerEmail } from './weekly.js';
 
 const mockReport = {
-  opsStats: [{ name: 'Test User', mondayId: 123, ctr_principalCount: 5, ctr_secondaryCount: 0, ctr_principalProfitEur: 500, ctr_secondaryProfitEur: 0, livr_principalCount: 4, livr_secondaryCount: 0, livr_principalProfitEur: 480, livr_secondaryProfitEur: 0, target: 400 }],
+  opsStats: [{ name: 'Test User', mondayId: 123, ctr_principalCount: 5, ctr_secondaryCount: 0, ctr_principalProfitEur: 500, ctr_secondaryProfitEur: 0, livr_principalCount: 4, livr_secondaryCount: 0, livr_principalProfitEur: 480, livr_secondaryProfitEur: 0, target: 400, avgOfferTime: 12.5, avgCloseTime: 45.75 }],
   salesStats: [],
   mgmtStats: [],
   companyStats: {},
@@ -23,6 +23,8 @@ describe('renderWeeklyEmployeeEmail', () => {
   it('Operatiuni employee: table has no Contactat, Calificat, Rata conv., Emailuri, Apeluri', () => {
     const html = renderWeeklyEmployeeEmail(mockReport, mockPerson, mockMeta);
     expect(html).toContain('Termen mediu client');
+    expect(html).toContain('Timp mediu de ofertare');
+    expect(html).toContain('Timp mediu de inchidere');
     expect(html).toContain('<table');
     expect(html).toContain('Metrică');
     expect(html).toContain('Valoare');
@@ -42,6 +44,8 @@ describe('renderWeeklyEmployeeEmail', () => {
     expect(html).toContain('Clienți calificați');
     expect(html).toContain('Rata conversie');
     expect(html).toContain('Apeluri');
+    expect(html).toContain('Timp mediu de ofertare');
+    expect(html).toContain('Timp mediu de inchidere');
   });
 });
 
