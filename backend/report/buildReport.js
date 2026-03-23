@@ -114,6 +114,10 @@ function normalizeLabel(value) {
     .trim();
 }
 
+function normalizeDealStage(value) {
+  return normalizeLabel(value).replace(/%/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function isWebSolicitareSource(value) {
   const normalized = normalizeLabel(value);
   return (
@@ -540,17 +544,21 @@ if (dealsData?.items_page?.items) {
 
 const offerTime = getDurationMinutes(getCol('duration_mkq0z4bg'));
 const closeTime = getDurationMinutes(getCol('duration_mkyhd77n'));
+const dealStageText = getCol('deal_stage')?.text ?? '';
+const normalizedStage = normalizeDealStage(dealStageText);
+const isOfferStage = normalizedStage === 'ofertat 50' || normalizedStage === 'amanat 50';
+const isCloseStage = normalizedStage === 'pierdut - self resolved' || normalizedStage === 'castigat 100';
 
     applyToAllStats((statsList) => {
       statsList.forEach((emp) => {
         if (ownerIds.includes(String(emp.mondayId))) {
 
-          if (offerTime > 0) {
+          if (isOfferStage && offerTime > 0) {
             emp.sumOfferTime += offerTime;
             emp.countOfferTime++;
           }
 
-          if (closeTime > 0) {
+          if (isCloseStage && closeTime > 0) {
             emp.sumCloseTime += closeTime;
             emp.countCloseTime++;
           }

@@ -2,6 +2,7 @@ import { mondayRequest } from '../monday/client.js';
 import { BOARD_IDS, COLS } from './constants.js';
 
 const DEFAULT_MAX_PAGES = 50;
+const DEAL_STAGE_IDS_FOR_TIME_METRICS = [0, 1, 2, 11];
 
 function getMaxPagesLimit() {
   const raw = process.env.MONDAY_ITEMS_MAX_PAGES;
@@ -437,7 +438,7 @@ export async function fetchReportData(dateFrom, dateTo) {
     {
       column_id: "deal_stage",
       operator: any_of,
-      compare_value: [1,2]
+      compare_value: [${DEAL_STAGE_IDS_FOR_TIME_METRICS.join(',')}]
     },
     {
       column_id: "deal_creation_date",
