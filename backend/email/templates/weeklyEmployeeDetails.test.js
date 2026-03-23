@@ -120,13 +120,15 @@ describe('buildEmployeeDetailsTable', () => {
     expect(html).not.toContain('Apeluri');
   });
 
-  it('includes renamed time metrics for all departments', () => {
+  it('includes renamed average time metrics for all departments in h:m format', () => {
     const htmlOps = buildEmployeeDetailsTable(mockStats, 'Operatiuni');
     const htmlSales = buildEmployeeDetailsTable(mockStats, 'Vanzari');
     const htmlMgmt = buildEmployeeDetailsTable(mockStats, 'Management');
     for (const html of [htmlOps, htmlSales, htmlMgmt]) {
       expect(html).toContain('Timp mediu de ofertare');
       expect(html).toContain('Timp mediu de inchidere');
+      expect(html).toContain('0:45');
+      expect(html).toContain('1:30');
     }
   });
 
