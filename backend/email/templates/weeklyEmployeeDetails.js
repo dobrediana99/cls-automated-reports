@@ -7,8 +7,15 @@
 const safeVal = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
 const fmt = (n) => (typeof n === 'number' && !isNaN(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00');
 const fmtInt = (n) => (typeof n === 'number' && !isNaN(n) ? String(Math.round(n)) : '0');
-const fmtNum = (n) => (typeof n === 'number' && !isNaN(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00');
 const fmtPct = (n) => (typeof n === 'number' && !isNaN(n) ? n.toFixed(1) + '%' : '—');
+const fmtDurationHm = (minutes) => {
+  const val = Number(minutes);
+  if (!Number.isFinite(val) || val < 0) return '0:00';
+  const total = Math.floor(val);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  return `${h}:${String(m).padStart(2, '0')}`;
+};
 
 const TABLE_STYLE = 'border-collapse: collapse; width: 100%; max-width: 560px; font-family: Arial, sans-serif; font-size: 13px;';
 const TH_STYLE = 'padding: 8px 10px; text-align: left; border: 1px solid #ccc; background: #f2f2f2; font-weight: bold; white-space: nowrap;';
@@ -64,8 +71,8 @@ function getOrderedRows(stats) {
     ['calificat', 'Clienți calificați', () => stats.calificat, fmtInt],
     ['rata_conv', 'Rata conversie clienți (%)', getRataConv, (x) => (x != null ? fmtPct(x) : '—')],
     ['callsCount', 'Apeluri', () => stats.callsCount, fmtInt],
-    ['avgOfferTime', 'Timp mediu de ofertare', () => safeVal(stats.avgOfferTime), fmtNum],
-    ['avgCloseTime', 'Timp mediu de inchidere', () => safeVal(stats.avgCloseTime), fmtNum],
+    ['avgOfferTime', 'Timp mediu de ofertare', () => safeVal(stats.avgOfferTime), fmtDurationHm],
+    ['avgCloseTime', 'Timp mediu de inchidere', () => safeVal(stats.avgCloseTime), fmtDurationHm],
     ['suppliersAdded', 'Furnizori adăugați', () => stats.suppliersAdded, fmtInt],
     ['livr_principalCount', 'Curse livrate principal', () => stats.livr_principalCount, fmtInt],
     ['livr_principalProfitEur', 'Profit curse livrate principal (EUR)', () => stats.livr_principalProfitEur, fmt],

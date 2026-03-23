@@ -401,8 +401,10 @@ function fmtInt(val) {
 }
 function fmtMinutes(val) {
   if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
-  const r = round2(val);
-  return r != null ? String(r) : DASH;
+  const total = Math.round(val);
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  return `${hours}:${String(minutes).padStart(2, '0')}`;
 }
 function deltaPct(cur, prev) {
   if (prev == null || typeof prev !== 'number' || typeof cur !== 'number' || !Number.isFinite(prev) || !Number.isFinite(cur) || prev === 0) return DASH;

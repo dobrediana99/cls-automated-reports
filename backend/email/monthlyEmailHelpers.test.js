@@ -35,5 +35,7 @@ describe('buildDeterministicPerformanceTable', () => {
     const html = buildDeterministicPerformanceTable(data3Months, null, 20);
     expect(html).toContain('Timp mediu de ofertare');
     expect(html).toContain('Timp mediu de inchidere');
+    expect(html).toContain('0:25');
+    expect(html).toContain('0:40');
   });
 });
