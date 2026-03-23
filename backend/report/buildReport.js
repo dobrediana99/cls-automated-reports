@@ -114,6 +114,10 @@ function normalizeLabel(value) {
     .trim();
 }
 
+function normalizeDealStage(value) {
+  return normalizeLabel(value).replace(/%/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function isWebSolicitareSource(value) {
   const normalized = normalizeLabel(value);
   return (

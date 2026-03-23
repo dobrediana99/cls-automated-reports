@@ -481,16 +481,16 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     if (isAvg) cell.numFmt = '0.0';
     
     cell = r.getCell(c++);
-    cell.value = totals.countOfferTime > 0
-      ? (totals.sumOfferTime / totals.countOfferTime) / (24 * 60)
-      : 0;
+    cell.value = isAvg
+      ? (totals.countOfferTime > 0 ? (totals.sumOfferTime / totals.countOfferTime) / (24 * 60) : 0)
+      : (totals.sumOfferTime / (24 * 60));
     cell.border = thinBorder;
     cell.numFmt = 'h:mm';
     
     cell = r.getCell(c++);
-    cell.value = totals.countCloseTime > 0
-      ? (totals.sumCloseTime / totals.countCloseTime) / (24 * 60)
-      : 0;
+    cell.value = isAvg
+      ? (totals.countCloseTime > 0 ? (totals.sumCloseTime / totals.countCloseTime) / (24 * 60) : 0)
+      : (totals.sumCloseTime / (24 * 60));
     cell.border = thinBorder;
     cell.numFmt = 'h:mm';
 

@@ -133,4 +133,108 @@ describe('weeklyReportWorkbook bonus (Report_monday parity)', () => {
     expect(offerCell.numFmt).toBe('h:mm');
     expect(closeCell.numFmt).toBe('h:mm');
   });
+
+  it('TOTAL row shows summed durations, MEDIA row shows averages', () => {
+    const data = {
+      opsStats: [
+        {
+          name: 'Op1',
+          target: 0,
+          suppliersAdded: 0,
+          ctr_principalCount: 0,
+          ctr_principalProfitEur: 0,
+          ctr_secondaryCount: 0,
+          ctr_secondaryProfitEur: 0,
+          livr_principalCount: 0,
+          livr_principalProfitEur: 0,
+          livr_secondaryCount: 0,
+          livr_secondaryProfitEur: 0,
+          websiteCount: 0,
+          websiteProfit: 0,
+          websiteCountSec: 0,
+          websiteProfitSec: 0,
+          burseCount: 0,
+          solicitariCount: 0,
+          contactat: 0,
+          calificat: 0,
+          emailsCount: 0,
+          callsCount: 0,
+          sumClientTerms: 0,
+          countClientTerms: 0,
+          sumSupplierTerms: 0,
+          countSupplierTerms: 0,
+          overdueInvoicesCount: 0,
+          supplierTermsUnder30: 0,
+          supplierTermsOver30: 0,
+          sumProfitability: 0,
+          countProfitability: 0,
+          avgOfferTime: 30,
+          avgCloseTime: 50,
+          sumOfferTime: 60,
+          countOfferTime: 2,
+          sumCloseTime: 100,
+          countCloseTime: 2,
+        },
+        {
+          name: 'Op2',
+          target: 0,
+          suppliersAdded: 0,
+          ctr_principalCount: 0,
+          ctr_principalProfitEur: 0,
+          ctr_secondaryCount: 0,
+          ctr_secondaryProfitEur: 0,
+          livr_principalCount: 0,
+          livr_principalProfitEur: 0,
+          livr_secondaryCount: 0,
+          livr_secondaryProfitEur: 0,
+          websiteCount: 0,
+          websiteProfit: 0,
+          websiteCountSec: 0,
+          websiteProfitSec: 0,
+          burseCount: 0,
+          solicitariCount: 0,
+          contactat: 0,
+          calificat: 0,
+          emailsCount: 0,
+          callsCount: 0,
+          sumClientTerms: 0,
+          countClientTerms: 0,
+          sumSupplierTerms: 0,
+          countSupplierTerms: 0,
+          overdueInvoicesCount: 0,
+          supplierTermsUnder30: 0,
+          supplierTermsOver30: 0,
+          sumProfitability: 0,
+          countProfitability: 0,
+          avgOfferTime: 60,
+          avgCloseTime: 80,
+          sumOfferTime: 120,
+          countOfferTime: 2,
+          sumCloseTime: 160,
+          countCloseTime: 2,
+        },
+      ],
+      salesStats: [],
+      mgmtStats: [],
+      companyStats: { ctr: {}, livr: {} },
+    };
+    const workbook = buildWeeklyRaportWorkbook(data, ExcelJS);
+    const sheet = workbook.getWorksheet('Raport');
+    const avgOfferCol = 30;
+    const avgCloseCol = 31;
+    const totalRow = 7;
+    const mediaRow = 8;
+
+    const totalOffer = sheet.getRow(totalRow).getCell(avgOfferCol).value;
+    const totalClose = sheet.getRow(totalRow).getCell(avgCloseCol).value;
+    const mediaOffer = sheet.getRow(mediaRow).getCell(avgOfferCol).value;
+    const mediaClose = sheet.getRow(mediaRow).getCell(avgCloseCol).value;
+
+    // Total: sums (180 min and 260 min)
+    expect(Number(totalOffer)).toBeCloseTo(180 / (24 * 60), 8);
+    expect(Number(totalClose)).toBeCloseTo(260 / (24 * 60), 8);
+    // Media: averages from sums/counts ((180/4)=45 min, (260/4)=65 min)
+    expect(Number(mediaOffer)).toBeCloseTo(45 / (24 * 60), 8);
+    expect(Number(mediaClose)).toBeCloseTo(65 / (24 * 60), 8);
+  });
 });
