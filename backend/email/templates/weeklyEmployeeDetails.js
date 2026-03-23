@@ -7,6 +7,7 @@
 const safeVal = (v) => (typeof v === 'number' && !isNaN(v) ? v : 0);
 const fmt = (n) => (typeof n === 'number' && !isNaN(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00');
 const fmtInt = (n) => (typeof n === 'number' && !isNaN(n) ? String(Math.round(n)) : '0');
+const fmtNum = (n) => (typeof n === 'number' && !isNaN(n) ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00');
 const fmtPct = (n) => (typeof n === 'number' && !isNaN(n) ? n.toFixed(1) + '%' : '—');
 
 const TABLE_STYLE = 'border-collapse: collapse; width: 100%; max-width: 560px; font-family: Arial, sans-serif; font-size: 13px;';
@@ -63,6 +64,8 @@ function getOrderedRows(stats) {
     ['calificat', 'Clienți calificați', () => stats.calificat, fmtInt],
     ['rata_conv', 'Rata conversie clienți (%)', getRataConv, (x) => (x != null ? fmtPct(x) : '—')],
     ['callsCount', 'Apeluri', () => stats.callsCount, fmtInt],
+    ['avgOfferTime', 'Timp mediu de ofertare', () => safeVal(stats.avgOfferTime), fmtNum],
+    ['avgCloseTime', 'Timp mediu de inchidere', () => safeVal(stats.avgCloseTime), fmtNum],
     ['suppliersAdded', 'Furnizori adăugați', () => stats.suppliersAdded, fmtInt],
     ['livr_principalCount', 'Curse livrate principal', () => stats.livr_principalCount, fmtInt],
     ['livr_principalProfitEur', 'Profit curse livrate principal (EUR)', () => stats.livr_principalProfitEur, fmt],
@@ -99,12 +102,18 @@ const EXPLICIT_KEYS = new Set([
   'ctr_principalCount', 'ctr_principalProfitEur', 'ctr_secondaryCount', 'ctr_secondaryProfitEur',
   'livr_principalCount', 'livr_principalProfitEur', 'livr_secondaryCount', 'livr_secondaryProfitEur',
   'websiteCount', 'websiteProfit', 'websiteCountSec', 'websiteProfitSec',
+  'livr_websiteCount', 'livr_websiteProfit', 'livr_websiteCountSec', 'livr_websiteProfitSec',
   'burseCount', 'solicitariCount',
   'sumClientTerms', 'countClientTerms', 'sumSupplierTerms', 'countSupplierTerms',
+  'livr_sumClientTerms', 'livr_countClientTerms', 'livr_sumSupplierTerms', 'livr_countSupplierTerms',
   'overdueInvoicesCount', 'supplierTermsUnder30', 'supplierTermsOver30',
+  'livr_overdueInvoicesCount', 'livr_supplierTermsUnder30', 'livr_supplierTermsOver30',
   'sumProfitability', 'countProfitability',
+  'livr_sumProfitability', 'livr_countProfitability',
+  'avgOfferTime', 'avgCloseTime', 'sumOfferTime', 'countOfferTime', 'sumCloseTime', 'countCloseTime',
   'target', 'id', 'name', 'mondayId', 'profitRonRaw',
   'burseCountCtrPrincipal', 'burseCountCtrSecondary', 'burseCountLivrPrincipal', 'burseCountLivrSecondary',
+  'livr_burseCount',
 ]);
 
 function titleCase(str) {

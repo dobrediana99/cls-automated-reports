@@ -399,6 +399,11 @@ function fmtInt(val) {
   if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
   return String(Math.round(val));
 }
+function fmtMinutes(val) {
+  if (val == null || typeof val !== 'number' || !Number.isFinite(val)) return DASH;
+  const r = round2(val);
+  return r != null ? String(r) : DASH;
+}
 function deltaPct(cur, prev) {
   if (prev == null || typeof prev !== 'number' || typeof cur !== 'number' || !Number.isFinite(prev) || !Number.isFinite(cur) || prev === 0) return DASH;
   const r = round2(((cur - prev) / prev) * 100);
@@ -482,8 +487,14 @@ export function buildDeterministicPerformanceTable(data3Months, deptAverages3Mon
   const prevCalificat = n(prev, 'calificat');
   const curCallsCount = n(cur, 'callsCount');
   const prevCallsCount = n(prev, 'callsCount');
+  const curAvgOfferTime = n(cur, 'avgOfferTime');
+  const prevAvgOfferTime = n(prev, 'avgOfferTime');
+  const curAvgCloseTime = n(cur, 'avgCloseTime');
+  const prevAvgCloseTime = n(prev, 'avgCloseTime');
 
   const rows = [
+    ['Timp mediu de ofertare', fmtMinutes(curAvgOfferTime), fmtMinutes(prevAvgOfferTime), deltaPct(curAvgOfferTime, prevAvgOfferTime)],
+    ['Timp mediu de inchidere', fmtMinutes(curAvgCloseTime), fmtMinutes(prevAvgCloseTime), deltaPct(curAvgCloseTime, prevAvgCloseTime)],
     ['Apeluri medii/zi', fmtNum(curApeluri), fmtNum(prevApeluri), deltaPct(curApeluri, prevApeluri)],
     ['Clienți contactați telefonic', fmtInt(curContactat), fmtInt(prevContactat), deltaPct(curContactat, prevContactat)],
     ['Clienți calificați', fmtInt(curCalificat), fmtInt(prevCalificat), deltaPct(curCalificat, prevCalificat)],
