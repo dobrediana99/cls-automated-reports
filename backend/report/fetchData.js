@@ -425,6 +425,7 @@ export async function fetchReportData(dateFrom, dateTo) {
     fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified),
   ]);
 
+  // Modificare: Am scos limitarea pe deal_stage pentru a asigura ca extragem si Castigat / Pierdut
   const dealsData = await fetchAllItems(
   1905911565,
   [
@@ -435,11 +436,6 @@ export async function fetchReportData(dateFrom, dateTo) {
     "duration_mkyhd77n"
   ],
   `[
-    {
-      column_id: "deal_stage",
-      operator: any_of,
-      compare_value: [${DEAL_STAGE_IDS_FOR_TIME_METRICS.join(',')}]
-    },
     {
       column_id: "deal_creation_date",
       operator: between,
