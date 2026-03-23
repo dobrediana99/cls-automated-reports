@@ -518,64 +518,68 @@ export function buildReport(raw) {
   processLeads(leadsQualified, 'qualified');
 
   // 🔥 DEALS (timp ofertare + inchidere)
-if (dealsData?.items_page?.items) {
-  for (const item of dealsData.items_page.items) {
-    const getCol = (id) => item.column_values?.find((c) => c.id === id);
+  if (dealsData?.items_page?.items) {
+    for (const item of dealsData.items_page.items) {
+      const getCol = (id) => item.column_values?.find((c) => c.id === id);
 
-    const ownerIds = getPersonIds(getCol('deal_owner'));
+      const ownerIds = getPersonIds(getCol('deal_owner'));
+      
+      // Extragem si normalizam statusul pentru a ignora spatii extra posibile (ex. "Castigat  100%")
+      const rawStatus = getCol('deal_stage')?.text || '';
+      const normalizedStatus = rawStatus.replace(/\s+/g, ' ').trim();
 
-    function getDurationMinutes(col) {
-  if (!col || !col.value) return 0;
+      const isValidForOffer = normalizedStatus === 'Amanat 50%' || normalizedStatus === 'Ofertat 50%';
+      const isValidForClose = normalizedStatus === 'Pierdut - Self resolved' || normalizedStatus === 'Castigat 100%';
 
-  try {
-    const parsed = JSON.parse(col.value);
-
-    if (parsed && typeof parsed.duration === 'number') {
-      return Math.floor(parsed.duration / 60);
-    }
-  } catch {}
-
-  return 0;
-}
-
-const offerTime = getDurationMinutes(getCol('duration_mkq0z4bg'));
-const closeTime = getDurationMinutes(getCol('duration_mkyhd77n'));
-
-    applyToAllStats((statsList) => {
-      statsList.forEach((emp) => {
-        if (ownerIds.includes(String(emp.mondayId))) {
-
-          if (offerTime > 0) {
-            emp.sumOfferTime += offerTime;
-            emp.countOfferTime++;
+      function getDurationMinutes(col) {
+        if (!col || !col.value) return 0;
+        try {
+          const parsed = JSON.parse(col.value);
+          if (parsed && typeof parsed.duration === 'number') {
+            return Math.floor(parsed.duration / 60);
           }
+        } catch {}
+        return 0;
+      }
 
-          if (closeTime > 0) {
-            emp.sumCloseTime += closeTime;
-            emp.countCloseTime++;
+      const offerTime = getDurationMinutes(getCol('duration_mkq0z4bg'));
+      const closeTime = getDurationMinutes(getCol('duration_mkyhd77n'));
+
+      applyToAllStats((statsList) => {
+        statsList.forEach((emp) => {
+          if (ownerIds.includes(String(emp.mondayId))) {
+
+            if (isValidForOffer && offerTime > 0) {
+              emp.sumOfferTime += offerTime;
+              emp.countOfferTime++;
+            }
+
+            if (isValidForClose && closeTime > 0) {
+              emp.sumCloseTime += closeTime;
+              emp.countCloseTime++;
+            }
+
           }
-
-        }
+        });
       });
-    });
+    }
   }
-}
 
   const finalizeStats = (statsList) => {
-  statsList.forEach((emp) => {
-    emp.avgOfferTime = emp.countOfferTime
-      ? emp.sumOfferTime / emp.countOfferTime
-      : 0;
+    statsList.forEach((emp) => {
+      emp.avgOfferTime = emp.countOfferTime
+        ? emp.sumOfferTime / emp.countOfferTime
+        : 0;
 
-    emp.avgCloseTime = emp.countCloseTime
-      ? emp.sumCloseTime / emp.countCloseTime
-      : 0;
-  });
-};
+      emp.avgCloseTime = emp.countCloseTime
+        ? emp.sumCloseTime / emp.countCloseTime
+        : 0;
+    });
+  };
 
-finalizeStats(opsStatsLocal);
-finalizeStats(salesStatsLocal);
-finalizeStats(mgmtStatsLocal);
+  finalizeStats(opsStatsLocal);
+  finalizeStats(salesStatsLocal);
+  finalizeStats(mgmtStatsLocal);
 
   return {
     opsStats: opsStatsLocal,
