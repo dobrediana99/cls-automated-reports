@@ -340,6 +340,11 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
   const totalCtrProfit = totals.ctr_principalProfitEur + totals.ctr_secondaryProfitEur;
   const totalLivrCount = totals.livr_principalCount + totals.livr_secondaryCount;
   const totalLivrProfit = totals.livr_principalProfitEur + totals.livr_secondaryProfitEur;
+  // Time columns are per-employee averages in table rows.
+  // Keep TOTAL/MEDIA consistent with visible column semantics:
+  // TOTAL = sum of employee average times, MEDIA = average of employee averages.
+  const totalOfferAvgMinutes = data.reduce((acc, item) => acc + safeVal(item.avgOfferTime), 0);
+  const totalCloseAvgMinutes = data.reduce((acc, item) => acc + safeVal(item.avgCloseTime), 0);
   const bonusTotal = totalCtrProfit - totals.targetTotal;
   const avgProfitability = totals.countProfitability > 0 ? (totals.sumProfitability / totals.countProfitability) : 0;
   const avgClientTerm = totals.countClientTerms > 0 ? (totals.sumClientTerms / totals.countClientTerms) : 0;
@@ -482,15 +487,15 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
     
     cell = r.getCell(c++);
     cell.value = isAvg
-      ? (totals.countOfferTime > 0 ? (totals.sumOfferTime / totals.countOfferTime) / (24 * 60) : 0)
-      : (totals.sumOfferTime / (24 * 60));
+      ? ((totalOfferAvgMinutes / count) / (24 * 60))
+      : (totalOfferAvgMinutes / (24 * 60));
     cell.border = thinBorder;
     cell.numFmt = '[h]:mm';
     
     cell = r.getCell(c++);
     cell.value = isAvg
-      ? (totals.countCloseTime > 0 ? (totals.sumCloseTime / totals.countCloseTime) / (24 * 60) : 0)
-      : (totals.sumCloseTime / (24 * 60));
+      ? ((totalCloseAvgMinutes / count) / (24 * 60))
+      : (totalCloseAvgMinutes / (24 * 60));
     cell.border = thinBorder;
     cell.numFmt = '[h]:mm';
 
