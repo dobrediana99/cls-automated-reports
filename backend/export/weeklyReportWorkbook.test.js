@@ -230,10 +230,10 @@ describe('weeklyReportWorkbook bonus (Report_monday parity)', () => {
     const mediaOffer = sheet.getRow(mediaRow).getCell(avgOfferCol).value;
     const mediaClose = sheet.getRow(mediaRow).getCell(avgCloseCol).value;
 
-    // Total: sums (180 min and 260 min)
-    expect(Number(totalOffer)).toBeCloseTo(180 / (24 * 60), 8);
-    expect(Number(totalClose)).toBeCloseTo(260 / (24 * 60), 8);
-    // Media: averages from sums/counts ((180/4)=45 min, (260/4)=65 min)
+    // Total: sum of per-employee averages (30 + 60, 50 + 80)
+    expect(Number(totalOffer)).toBeCloseTo(90 / (24 * 60), 8);
+    expect(Number(totalClose)).toBeCloseTo(130 / (24 * 60), 8);
+    // Media: arithmetic average of per-employee averages ((30+60)/2, (50+80)/2)
     expect(Number(mediaOffer)).toBeCloseTo(45 / (24 * 60), 8);
     expect(Number(mediaClose)).toBeCloseTo(65 / (24 * 60), 8);
     expect(sheet.getRow(totalRow).getCell(avgOfferCol).numFmt).toBe('[h]:mm');
