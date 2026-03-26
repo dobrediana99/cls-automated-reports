@@ -17,7 +17,6 @@ export const ORG = [
   { name: "Andrei Pauna", email: "andrei.p@crystal-logistics-services.com", mondayUserId: 73046350, department: DEPARTMENTS.SALES, role: "employee", target: 3400, isActive: true },
   { name: "Nedelcu Alexandru", email: "alexandru.n@crystal-logistics-services.com", mondayUserId: 77987246, department: DEPARTMENTS.SALES, role: "employee", target: 3630, isActive: true },
   { name: "Christiana Sora", email: "christiana.s@crystal-logistics-services.com", mondayUserId: 90770132, department: DEPARTMENTS.SALES, role: "employee", target: 2310, isActive: true },
-  { name: "George Rafte", email: "george.r@crystal-logistics-services.com", mondayUserId: 98357010, department: DEPARTMENTS.SALES, role: "employee", target: 2800, isActive: true },
   { name: "David Popescu", email: "david.p@crystal-logistics-services.com", mondayUserId: 74695692, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 4007, isActive: true },
   { name: "Roberto Coica", email: "roberto.c@crystal-logistics-services.com", mondayUserId: 74668675, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3240, isActive: true },
   { name: "Dumitru Ionut", email: "ionut.d@crystal-logistics-services.com", mondayUserId: 74668676, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3240, isActive: true },
