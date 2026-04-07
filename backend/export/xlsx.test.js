@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
-import { buildWeeklyXlsx } from './xlsx.js';
+import { buildWeeklyXlsx, buildMonthlyXlsx } from './xlsx.js';
 import { formatRaportFilename } from './weeklyReportWorkbook.js';
 
 const mockReport = {
@@ -114,6 +114,34 @@ describe('buildWeeklyXlsx', () => {
     const values = [row3.getCell(1).value, row3.getCell(2).value];
     const str = values.map((v) => String(v ?? '')).join(' ');
     expect(str).toMatch(/ANGAJAT|FURNIZORI|DUPĂ DATA CONTRACT/);
+  });
+
+  it('weekly export omits TARGET / PROFIT PESTE TARGET / PROFITABILITATE % in first department header rows', async () => {
+    const buffer = await buildWeeklyXlsx(mockReport, mockMeta);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.getWorksheet('Raport');
+    let joined = '';
+    for (let col = 1; col <= 25; col++) {
+      joined += `${sheet.getRow(3).getCell(col).value ?? ''}|${sheet.getRow(4).getCell(col).value ?? ''} `;
+    }
+    expect(joined).not.toContain('TARGET');
+    expect(joined).not.toContain('PROFIT PESTE TARGET');
+    expect(joined).not.toContain('PROFITABILITATE %');
+  });
+
+  it('monthly export keeps TARGET column in department headers', async () => {
+    const buffer = await buildMonthlyXlsx(mockReport, mockMeta);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const sheet = workbook.getWorksheet('Raport');
+    let joined = '';
+    for (let col = 1; col <= 20; col++) {
+      joined += `${sheet.getRow(3).getCell(col).value ?? ''}|${sheet.getRow(4).getCell(col).value ?? ''} `;
+    }
+    expect(joined).toContain('TARGET');
+    expect(joined).toContain('PROFIT PESTE TARGET');
+    expect(joined).toContain('PROFITABILITATE %');
   });
 
   it('includes "Cifra afaceri (EUR)" row in TOTAL COMPANIE', async () => {

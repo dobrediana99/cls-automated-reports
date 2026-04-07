@@ -2,6 +2,10 @@
  * Single source of truth for weekly "Raport" XLSX layout.
  * Used by backend (Node + ExcelJS) and frontend (Browser + window.ExcelJS).
  * buildWeeklyRaportWorkbook(data, ExcelJS) returns a workbook; caller writes buffer and filename.
+ *
+ * Department table columns TARGET / PROFIT PESTE TARGET / PROFITABILITATE % are included only when
+ * data.meta.xlsxReportType is not 'weekly' (default: monthly-style = all columns). Email weekly
+ * attachments set meta.xlsxReportType = 'weekly' via buildWeeklyXlsx in xlsx.js.
  */
 
 import { DateTime } from 'luxon';
@@ -31,7 +35,7 @@ function writeHeaderCell(sheet, r1, c1, r2, c2, value, fillHex, extra = {}) {
   return cell;
 }
 
-function addDepartmentTable(sheet, ref, title, data, isSales) {
+function addDepartmentTable(sheet, ref, title, data, isSales, includeTargetColumns) {
   let currentRow = ref.currentRow;
   const titleRow = sheet.getRow(currentRow);
   titleRow.getCell(1).value = title;
@@ -68,13 +72,15 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
   });
   col += 6;
 
-  writeHeaderCell(sheet, startRow, col, startRow + 1, col, 'TARGET', 'E3F2FD', { font: fontBold });
-  col++;
-  writeHeaderCell(sheet, startRow, col, startRow + 1, col, 'PROFIT PESTE TARGET', 'E3F2FD', { font: fontBold });
-  col++;
+  if (includeTargetColumns) {
+    writeHeaderCell(sheet, startRow, col, startRow + 1, col, 'TARGET', 'E3F2FD', { font: fontBold });
+    col++;
+    writeHeaderCell(sheet, startRow, col, startRow + 1, col, 'PROFIT PESTE TARGET', 'E3F2FD', { font: fontBold });
+    col++;
+  }
 
   const others = [
-    { t: 'PROFITABILITATE %', c: 'E3F2FD' },
+    ...(includeTargetColumns ? [{ t: 'PROFITABILITATE %', c: 'E3F2FD' }] : []),
     { t: 'CURSE WEB PR.', c: 'FFFFFF' },
     { t: 'PROFIT WEB PR.', c: 'FFFFFF' },
     { t: 'CURSE WEB SEC.', c: 'F3E8FF' },
@@ -177,26 +183,28 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
       if (i >= 4) cell.font = fontBold;
     });
 
+    if (includeTargetColumns) {
+      let cellT = row.getCell(c++);
+      cellT.value = target;
+      cellT.border = thinBorder;
+      cellT.numFmt = '#,##0.00';
+      cellT.fill = fillStyle('E3F2FD');
+
+      cellT = row.getCell(c++);
+      cellT.value = bonus;
+      cellT.border = thinBorder;
+      cellT.numFmt = '#,##0.00';
+      cellT.font = { color: { argb: 'FF008000' }, bold: true };
+      cellT.fill = fillStyle('E3F2FD');
+
+      cellT = row.getCell(c++);
+      cellT.value = formatNumber(avgProfitability) + '%';
+      cellT.border = thinBorder;
+      cellT.font = { color: { argb: 'FF1E40AF' }, bold: true };
+      cellT.fill = fillStyle('E3F2FD');
+    }
+
     let cell = row.getCell(c++);
-    cell.value = target;
-    cell.border = thinBorder;
-    cell.numFmt = '#,##0.00';
-    cell.fill = fillStyle('E3F2FD');
-
-    cell = row.getCell(c++);
-    cell.value = bonus;
-    cell.border = thinBorder;
-    cell.numFmt = '#,##0.00';
-    cell.font = { color: { argb: 'FF008000' }, bold: true };
-    cell.fill = fillStyle('E3F2FD');
-
-    cell = row.getCell(c++);
-    cell.value = formatNumber(avgProfitability) + '%';
-    cell.border = thinBorder;
-    cell.font = { color: { argb: 'FF1E40AF' }, bold: true };
-    cell.fill = fillStyle('E3F2FD');
-
-    cell = row.getCell(c++);
     cell.value = websiteCount;
     cell.border = thinBorder;
 
@@ -400,26 +408,28 @@ function addDepartmentTable(sheet, ref, title, data, isSales) {
       if (isAvg && (i === 0 || i === 2 || i === 4)) cell.numFmt = '0.0';
     });
 
-    const targetVal = isAvg ? (totals.targetTotal / count) : totals.targetTotal;
-    cell = r.getCell(c++);
-    cell.value = targetVal;
-    cell.border = thinBorder;
-    cell.numFmt = '#,##0.00';
-    cell.fill = fillStyle('E3F2FD');
+    if (includeTargetColumns) {
+      const targetVal = isAvg ? (totals.targetTotal / count) : totals.targetTotal;
+      cell = r.getCell(c++);
+      cell.value = targetVal;
+      cell.border = thinBorder;
+      cell.numFmt = '#,##0.00';
+      cell.fill = fillStyle('E3F2FD');
 
-    const bonusVal = isAvg ? (bonusTotal / count) : bonusTotal;
-    cell = r.getCell(c++);
-    cell.value = bonusVal;
-    cell.border = thinBorder;
-    cell.numFmt = '#,##0.00';
-    cell.fill = fillStyle('E3F2FD');
-    cell.font = { color: { argb: 'FF008000' }, bold: true };
+      const bonusVal = isAvg ? (bonusTotal / count) : bonusTotal;
+      cell = r.getCell(c++);
+      cell.value = bonusVal;
+      cell.border = thinBorder;
+      cell.numFmt = '#,##0.00';
+      cell.fill = fillStyle('E3F2FD');
+      cell.font = { color: { argb: 'FF008000' }, bold: true };
 
-    cell = r.getCell(c++);
-    cell.value = `${formatNumber(avgProfitability)}%`;
-    cell.border = thinBorder;
-    cell.fill = fillStyle('E3F2FD');
-    cell.font = { color: { argb: 'FF1E40AF' }, bold: true };
+      cell = r.getCell(c++);
+      cell.value = `${formatNumber(avgProfitability)}%`;
+      cell.border = thinBorder;
+      cell.fill = fillStyle('E3F2FD');
+      cell.font = { color: { argb: 'FF1E40AF' }, bold: true };
+    }
 
     cell = r.getCell(c++);
     cell.value = isAvg ? avg(totals.websiteCount) : totals.websiteCount;
@@ -630,18 +640,21 @@ function addCompanyTable(sheet, ref, companyStats) {
 /**
  * Build the weekly "Raport" workbook. Same layout as frontend export.
  * @param {object} data - { opsStats, salesStats, mgmtStats, companyStats, meta? }
+ * @param {object} data.meta - optional; meta.xlsxReportType 'weekly' drops TARGET / PROFIT PESTE TARGET / PROFITABILITATE % from department tables only.
  * @param {object} ExcelJS - ExcelJS constructor (from 'exceljs' in Node or window.ExcelJS in Browser)
  * @returns {object} ExcelJS Workbook (caller calls workbook.xlsx.writeBuffer() and sets filename)
  */
 export function buildWeeklyRaportWorkbook(data, ExcelJS) {
   const { opsStats = [], salesStats = [], mgmtStats = [], companyStats = {} } = data;
+  const xlsxReportType = data.meta?.xlsxReportType ?? 'monthly';
+  const includeTargetColumns = xlsxReportType !== 'weekly';
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Raport', { sheetView: { showGridLines: true } });
   const ref = { currentRow: 1 };
 
-  if (mgmtStats.length) addDepartmentTable(sheet, ref, 'Departament Management', mgmtStats, false);
-  if (opsStats.length) addDepartmentTable(sheet, ref, 'Departament Operațiuni', opsStats, false);
-  if (salesStats.length) addDepartmentTable(sheet, ref, 'Departament Vânzări', salesStats, true);
+  if (mgmtStats.length) addDepartmentTable(sheet, ref, 'Departament Management', mgmtStats, false, includeTargetColumns);
+  if (opsStats.length) addDepartmentTable(sheet, ref, 'Departament Operațiuni', opsStats, false, includeTargetColumns);
+  if (salesStats.length) addDepartmentTable(sheet, ref, 'Departament Vânzări', salesStats, true, includeTargetColumns);
   addCompanyTable(sheet, ref, companyStats);
 
   sheet.columns.forEach((column) => { column.width = 15; });

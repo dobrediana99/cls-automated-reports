@@ -61,6 +61,64 @@ describe('weeklyReportWorkbook bonus (Report_monday parity)', () => {
     expect(Number(bonusTotalVal)).toBe(20);
   });
 
+  it('xlsxReportType weekly omits TARGET / PROFIT PESTE TARGET / PROFITABILITATE %; columns stay contiguous', () => {
+    const data = {
+      opsStats: [
+        {
+          name: 'Op1',
+          target: 80,
+          ctr_principalCount: 1,
+          ctr_principalProfitEur: 100,
+          ctr_secondaryCount: 0,
+          ctr_secondaryProfitEur: 0,
+          livr_principalCount: 1,
+          livr_principalProfitEur: 50,
+          livr_secondaryCount: 0,
+          livr_secondaryProfitEur: 0,
+          suppliersAdded: 0,
+          websiteCount: 3,
+          websiteProfit: 0,
+          websiteCountSec: 0,
+          websiteProfitSec: 0,
+          burseCount: 0,
+          solicitariCount: 0,
+          contactat: 0,
+          calificat: 0,
+          emailsCount: 0,
+          callsCount: 0,
+          sumClientTerms: 0,
+          countClientTerms: 0,
+          sumSupplierTerms: 0,
+          countSupplierTerms: 0,
+          overdueInvoicesCount: 0,
+          supplierTermsUnder30: 0,
+          supplierTermsOver30: 0,
+          sumProfitability: 10,
+          countProfitability: 1,
+        },
+      ],
+      salesStats: [],
+      mgmtStats: [],
+      companyStats: { ctr: {}, livr: {} },
+      meta: { xlsxReportType: 'weekly' },
+    };
+    const workbook = buildWeeklyRaportWorkbook(data, ExcelJS);
+    const sheet = workbook.getWorksheet('Raport');
+    const h3 = [];
+    const h4 = [];
+    for (let col = 1; col <= 20; col++) {
+      h3.push(String(sheet.getRow(3).getCell(col).value ?? ''));
+      h4.push(String(sheet.getRow(4).getCell(col).value ?? ''));
+    }
+    const joined = `${h3.join('|')} ${h4.join('|')}`;
+    expect(joined).not.toMatch(/\bTARGET\b/);
+    expect(joined).not.toContain('PROFIT PESTE TARGET');
+    expect(joined).not.toContain('PROFITABILITATE %');
+    // First column after livr block (col 15): subheader is CURSE WEB PR.; data is websiteCount
+    expect(String(sheet.getRow(4).getCell(15).value ?? '')).toContain('CURSE WEB PR');
+    expect(Number(sheet.getRow(5).getCell(15).value)).toBe(3);
+  });
+
   it('uses average offer/close time headers and h:mm format cells', () => {
     const data = {
       opsStats: [
