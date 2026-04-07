@@ -28,7 +28,7 @@ export const ORG = [
     mondayUserId: 73962695,
     department: DEPARTMENTS.MANAGEMENT,
     role: "manager",
-    target: 3960,
+    target: 5364,
     isActive: true,
   },
   {
@@ -37,7 +37,7 @@ export const ORG = [
     mondayUserId: 73962698,
     department: DEPARTMENTS.MANAGEMENT,
     role: "manager",
-    target: 3780,
+    target: 5364,
     isActive: true,
   },
 
@@ -48,7 +48,7 @@ export const ORG = [
     mondayUserId: 74108553,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 2442,
+    target: 2686,
     isActive: true,
   },
   {
@@ -57,7 +57,7 @@ export const ORG = [
     mondayUserId: 73046350,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 3400,
+    target: 3740,
     isActive: true,
   },
   {
@@ -66,7 +66,7 @@ export const ORG = [
     mondayUserId: 77987246,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 3630,
+    target: 3993,
     isActive: true,
   },
   {
@@ -75,16 +75,7 @@ export const ORG = [
     mondayUserId: 90770132,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 2310,
-    isActive: true,
-  },
-  {
-    name: "George Rafte",
-    email: "george.r@crystal-logistics-services.com",
-    mondayUserId: 98357010,
-    department: DEPARTMENTS.SALES,
-    role: "employee",
-    target: 2800,
+    target: 2541,
     isActive: true,
   },
 
@@ -95,7 +86,7 @@ export const ORG = [
     mondayUserId: 74695692,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 4004,
+    target: 4007,
     isActive: true,
   },
   {
@@ -113,7 +104,7 @@ export const ORG = [
     mondayUserId: 74668676,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 3240,
+    target: 3740,
     isActive: true,
   },
   {
@@ -141,15 +132,6 @@ export const ORG = [
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
     target: 1920,
-    isActive: true,
-  },
-  {
-    name: "Mocanu George",
-    email: "george.m@crystal-logistics-services.com",
-    mondayUserId: 96568400,
-    department: DEPARTMENTS.OPERATIONS,
-    role: "employee",
-    target: 3040,
     isActive: true,
   },
 ];
