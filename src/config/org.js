@@ -69,15 +69,6 @@ export const ORG = [
     target: 3993,
     isActive: true,
   },
-  {
-    name: "Christiana Sora",
-    email: "christiana.s@crystal-logistics-services.com",
-    mondayUserId: 90770132,
-    department: DEPARTMENTS.SALES,
-    role: "employee",
-    target: 2541,
-    isActive: true,
-  },
 
   // ───────────────────────── Operatiuni
   {
