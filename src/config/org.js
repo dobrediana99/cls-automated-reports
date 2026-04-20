@@ -133,7 +133,7 @@ export const ORG = [
     role: "employee",
     target: 1920,
     isActive: true,
-  },
+  }
 ];
 
 // Convenience lists/helpers
