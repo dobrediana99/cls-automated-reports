@@ -2,7 +2,10 @@ import { mondayRequest } from '../monday/client.js';
 import { BOARD_IDS, COLS } from './constants.js';
 
 const DEFAULT_MAX_PAGES = 50;
-const DEAL_STAGE_IDS_FOR_TIME_METRICS = [0, 1, 2, 11];
+const DEFAULT_ITEMS_PAGE_RETRY_ATTEMPTS = 4;
+const DEFAULT_ITEMS_PAGE_RETRY_BASE_MS = 1500;
+const DEFAULT_ITEMS_PAGE_RETRY_MAX_MS = 15000;
+const DEFAULT_ITEMS_PAGE_MIN_LIMIT = 50;
 
 function getMaxPagesLimit() {
   const raw = process.env.MONDAY_ITEMS_MAX_PAGES;
@@ -10,6 +13,76 @@ function getMaxPagesLimit() {
   const n = parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX_PAGES;
   return n;
+}
+
+function envInt(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === '') return fallback;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getItemsPageRetryConfig() {
+  const maxAttempts = Math.max(1, envInt('MONDAY_ITEMS_PAGE_MAX_ATTEMPTS', DEFAULT_ITEMS_PAGE_RETRY_ATTEMPTS));
+  const baseDelayMs = Math.max(0, envInt('MONDAY_ITEMS_PAGE_RETRY_BASE_MS', DEFAULT_ITEMS_PAGE_RETRY_BASE_MS));
+  const maxDelayMs = Math.max(baseDelayMs, envInt('MONDAY_ITEMS_PAGE_RETRY_MAX_MS', DEFAULT_ITEMS_PAGE_RETRY_MAX_MS));
+  const minLimit = Math.max(1, envInt('MONDAY_ITEMS_PAGE_MIN_LIMIT', DEFAULT_ITEMS_PAGE_MIN_LIMIT));
+  return { maxAttempts, baseDelayMs, maxDelayMs, minLimit };
+}
+
+function getRetryAfterSeconds(err) {
+  const n = Number(err?.retryAfter);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function computeItemsPageRetryDelay(attempt, err, config) {
+  const retryAfterSeconds = getRetryAfterSeconds(err);
+  let delayMs = Math.min(config.baseDelayMs * Math.pow(2, attempt - 1), config.maxDelayMs);
+  delayMs = jitter(delayMs);
+  if (retryAfterSeconds != null) {
+    delayMs = Math.max(delayMs, retryAfterSeconds * 1000);
+  }
+  return delayMs;
+}
+
+async function requestItemsPageWithRetry({ boardId, cursor, initialLimit, contextLabel, queryBuilder }) {
+  const config = getItemsPageRetryConfig();
+  let pageLimit = initialLimit;
+  let lastError = null;
+  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+    try {
+      const query = queryBuilder(pageLimit);
+      const data = await mondayRequest(query, undefined, 'items_page');
+      return { data, pageLimit };
+    } catch (err) {
+      lastError = err;
+      if (!isTransientError(err) || attempt >= config.maxAttempts) {
+        break;
+      }
+      const nextLimit = Math.max(config.minLimit, Math.floor(pageLimit / 2));
+      if (nextLimit < pageLimit) {
+        console.warn(
+          `[fetchData][items_page][limit] boardId=${boardId} context=${contextLabel} from=${pageLimit} to=${nextLimit}`
+        );
+        pageLimit = nextLimit;
+      }
+      const delayMs = computeItemsPageRetryDelay(attempt, err, config);
+      const statusCode = err?.statusCode ?? 'network';
+      const reason = String(err?.message ?? 'unknown error').slice(0, 180);
+      console.warn(
+        `[fetchData][items_page][retry] boardId=${boardId} context=${contextLabel} cursor=${cursor ? 'yes' : 'no'} attempt=${attempt}/${config.maxAttempts} status=${statusCode} limit=${pageLimit} waitMs=${delayMs} reason=${reason}`
+      );
+      await sleep(delayMs);
+    }
+  }
+  const fallbackMessage = String(lastError?.message ?? 'unknown error').slice(0, 250);
+  const finalErr = new Error(
+    `[fetchData] items_page failed after retries: boardId=${boardId} context=${contextLabel} cursor=${cursor ? 'yes' : 'no'} reason=${fallbackMessage}`
+  );
+  finalErr.statusCode = lastError?.statusCode;
+  finalErr.operationName = 'items_page';
+  if (lastError != null) finalErr.cause = lastError;
+  throw finalErr;
 }
 
 /**
@@ -58,6 +131,7 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
   let cursor = null;
   let hasMore = true;
   const colsString = colIdsArray.map((c) => `"${c}"`).join(', ');
+  let pageLimit = 250;
   const maxPages = getMaxPagesLimit();
   const seenCursors = new Set();
   let pageCount = 0;
@@ -70,10 +144,15 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
       );
     }
 
-    let args = cursor ? `limit: 250, cursor: "${cursor}"` : 'limit: 250';
-    if (!cursor && rulesString) args += `, query_params: { rules: ${rulesString} }`;
-
-    const query = `query {
+    const { data, pageLimit: resolvedPageLimit } = await requestItemsPageWithRetry({
+      boardId,
+      cursor,
+      initialLimit: pageLimit,
+      contextLabel: 'full',
+      queryBuilder: (limit) => {
+        let args = cursor ? `limit: ${limit}, cursor: "${cursor}"` : `limit: ${limit}`;
+        if (!cursor && rulesString) args += `, query_params: { rules: ${rulesString} }`;
+        return `query {
       boards (ids: [${boardId}]) {
         items_page (${args}) {
           cursor
@@ -91,8 +170,9 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
         }
       }
     }`;
-
-    const data = await mondayRequest(query, undefined, 'items_page');
+      },
+    });
+    pageLimit = resolvedPageLimit;
     const page = data.boards?.[0]?.items_page;
     if (!page) break;
 
@@ -120,6 +200,7 @@ export async function fetchItemsDirectory(boardId, ownerColId, rulesString = nul
   const allItems = [];
   let cursor = null;
   let hasMore = true;
+  let pageLimit = 500;
   const maxPages = getMaxPagesLimit();
   const seenCursors = new Set();
   let pageCount = 0;
@@ -132,10 +213,15 @@ export async function fetchItemsDirectory(boardId, ownerColId, rulesString = nul
       );
     }
 
-    let args = cursor ? `limit: 500, cursor: "${cursor}"` : 'limit: 500';
-    if (!cursor && rulesString) args += `, query_params: { rules: ${rulesString} }`;
-
-    const query = `query {
+    const { data, pageLimit: resolvedPageLimit } = await requestItemsPageWithRetry({
+      boardId,
+      cursor,
+      initialLimit: pageLimit,
+      contextLabel: 'directory',
+      queryBuilder: (limit) => {
+        let args = cursor ? `limit: ${limit}, cursor: "${cursor}"` : `limit: ${limit}`;
+        if (!cursor && rulesString) args += `, query_params: { rules: ${rulesString} }`;
+        return `query {
       boards (ids: [${boardId}]) {
         items_page (${args}) {
           cursor
@@ -149,8 +235,9 @@ export async function fetchItemsDirectory(boardId, ownerColId, rulesString = nul
         }
       }
     }`;
-
-    const data = await mondayRequest(query, undefined, 'items_page');
+      },
+    });
+    pageLimit = resolvedPageLimit;
     const page = data.boards?.[0]?.items_page;
     if (page?.items) allItems.push(...page.items);
     cursor = page?.cursor;
