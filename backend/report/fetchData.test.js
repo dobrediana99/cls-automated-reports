@@ -194,6 +194,10 @@ describe('fetchAllItems', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.MONDAY_ITEMS_MAX_PAGES;
+    delete process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS;
+    delete process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS;
+    delete process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS;
+    delete process.env.MONDAY_ITEMS_PAGE_MIN_LIMIT;
   });
 
   it('returns all items when single page (no cursor)', async () => {
@@ -247,6 +251,38 @@ describe('fetchAllItems', () => {
     );
     expect(mondayRequest).toHaveBeenCalledTimes(2);
   });
+
+  it('retries transient page failure and reduces page limit', async () => {
+    process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS = '3';
+    process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS = '0';
+    process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS = '0';
+    const err503 = new Error('Service Unavailable');
+    err503.statusCode = 503;
+    const page = {
+      boards: [{ items_page: { items: [{ id: 1 }], cursor: null } }],
+    };
+    mondayRequest
+      .mockRejectedValueOnce(err503)
+      .mockResolvedValueOnce(page);
+
+    const result = await fetchAllItems(boardId, colIds);
+    expect(result).toEqual({ items_page: { items: [{ id: 1 }] } });
+    expect(mondayRequest).toHaveBeenCalledTimes(2);
+    expect(mondayRequest.mock.calls[0][0]).toContain('items_page (limit: 250');
+    expect(mondayRequest.mock.calls[1][0]).toContain('items_page (limit: 125');
+  });
+
+  it('does not retry non-transient page failure', async () => {
+    process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS = '3';
+    process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS = '0';
+    process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS = '0';
+    const err400 = new Error('Bad request');
+    err400.statusCode = 400;
+    mondayRequest.mockRejectedValueOnce(err400);
+
+    await expect(fetchAllItems(boardId, colIds)).rejects.toThrow(/items_page failed after retries/);
+    expect(mondayRequest).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('fetchItemsDirectory', () => {
@@ -260,6 +296,10 @@ describe('fetchItemsDirectory', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.MONDAY_ITEMS_MAX_PAGES;
+    delete process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS;
+    delete process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS;
+    delete process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS;
+    delete process.env.MONDAY_ITEMS_PAGE_MIN_LIMIT;
   });
 
   it('returns items when single page (no cursor)', async () => {
@@ -312,5 +352,25 @@ describe('fetchItemsDirectory', () => {
       /max pages exceeded.*boardId=888.*limit=2/
     );
     expect(mondayRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries transient directory page failure and lowers limit', async () => {
+    process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS = '3';
+    process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS = '0';
+    process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS = '0';
+    const err429 = new Error('Too Many Requests');
+    err429.statusCode = 429;
+    const page = {
+      boards: [{ items_page: { items: [{ id: 10 }], cursor: null } }],
+    };
+    mondayRequest
+      .mockRejectedValueOnce(err429)
+      .mockResolvedValueOnce(page);
+
+    const result = await fetchItemsDirectory(boardId, ownerColId);
+    expect(result).toEqual({ items_page: { items: [{ id: 10 }] } });
+    expect(mondayRequest).toHaveBeenCalledTimes(2);
+    expect(mondayRequest.mock.calls[0][0]).toContain('items_page (limit: 500');
+    expect(mondayRequest.mock.calls[1][0]).toContain('items_page (limit: 250');
   });
 });
