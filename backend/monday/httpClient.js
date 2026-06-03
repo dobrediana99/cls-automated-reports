@@ -253,7 +253,7 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
           `[monday][graphql-error] op=${op} status=${statusCode} message=${msg.slice(0, 200)} errors=${errorsStr.slice(0, 1500)}`
         );
         lastError = new Error(msg);
-        lastError.statusCode = 400;
+        lastError.statusCode = statusCode;
         lastError.bodyPreview = rawText ? rawText.slice(0, 2000) : '';
         lastError.graphqlErrors = errorsTruncated;
         throw lastError;
