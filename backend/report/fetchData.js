@@ -2,10 +2,9 @@ import { mondayRequest } from '../monday/client.js';
 import { BOARD_IDS, COLS } from './constants.js';
 
 const DEFAULT_MAX_PAGES = 50;
-const DEFAULT_ITEMS_PAGE_RETRY_ATTEMPTS = 4;
+const DEFAULT_ITEMS_PAGE_RETRY_ATTEMPTS = 3;
 const DEFAULT_ITEMS_PAGE_RETRY_BASE_MS = 1500;
 const DEFAULT_ITEMS_PAGE_RETRY_MAX_MS = 15000;
-const DEFAULT_ITEMS_PAGE_MIN_LIMIT = 50;
 
 function getMaxPagesLimit() {
   const raw = process.env.MONDAY_ITEMS_MAX_PAGES;
@@ -26,8 +25,7 @@ function getItemsPageRetryConfig() {
   const maxAttempts = Math.max(1, envInt('MONDAY_ITEMS_PAGE_MAX_ATTEMPTS', DEFAULT_ITEMS_PAGE_RETRY_ATTEMPTS));
   const baseDelayMs = Math.max(0, envInt('MONDAY_ITEMS_PAGE_RETRY_BASE_MS', DEFAULT_ITEMS_PAGE_RETRY_BASE_MS));
   const maxDelayMs = Math.max(baseDelayMs, envInt('MONDAY_ITEMS_PAGE_RETRY_MAX_MS', DEFAULT_ITEMS_PAGE_RETRY_MAX_MS));
-  const minLimit = Math.max(1, envInt('MONDAY_ITEMS_PAGE_MIN_LIMIT', DEFAULT_ITEMS_PAGE_MIN_LIMIT));
-  return { maxAttempts, baseDelayMs, maxDelayMs, minLimit };
+  return { maxAttempts, baseDelayMs, maxDelayMs };
 }
 
 function getRetryAfterSeconds(err) {
@@ -58,13 +56,6 @@ async function requestItemsPageWithRetry({ boardId, cursor, initialLimit, contex
       lastError = err;
       if (!isTransientError(err) || attempt >= config.maxAttempts) {
         break;
-      }
-      const nextLimit = Math.max(config.minLimit, Math.floor(pageLimit / 2));
-      if (nextLimit < pageLimit) {
-        console.warn(
-          `[fetchData][items_page][limit] boardId=${boardId} context=${contextLabel} from=${pageLimit} to=${nextLimit}`
-        );
-        pageLimit = nextLimit;
       }
       const delayMs = computeItemsPageRetryDelay(attempt, err, config);
       const statusCode = err?.statusCode ?? 'network';
@@ -190,32 +181,6 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
   }
 
   return { items_page: { items: allItems } };
-}
-
-function eachIsoDate(dateFrom, dateTo) {
-  const dates = [];
-  const current = new Date(`${dateFrom}T00:00:00Z`);
-  const end = new Date(`${dateTo}T00:00:00Z`);
-  while (!Number.isNaN(current.getTime()) && !Number.isNaN(end.getTime()) && current <= end) {
-    dates.push(current.toISOString().slice(0, 10));
-    current.setUTCDate(current.getUTCDate() + 1);
-  }
-  return dates;
-}
-
-/**
- * Fetch a date-filtered board in daily chunks. Monday's items_page cursor can fail
- * with internal errors on larger filtered result sets for some boards.
- */
-export async function fetchAllItemsByDateChunks(boardId, colIdsArray, dateColId, dateFrom, dateTo, extraRules = []) {
-  const items = [];
-  for (const day of eachIsoDate(dateFrom, dateTo)) {
-    const extraRulesString = extraRules.length > 0 ? `, ${extraRules.join(', ')}` : '';
-    const rules = `[{ column_id: "${dateColId}", operator: between, compare_value: ["${day}", "${day}"] }${extraRulesString}]`;
-    const page = await fetchAllItems(boardId, colIdsArray, rules);
-    items.push(...(page.items_page?.items ?? []));
-  }
-  return { items_page: { items } };
 }
 
 /**
@@ -528,17 +493,15 @@ export async function fetchReportData(dateFrom, dateTo) {
   const rulesLeadsContact = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [14] }]`;
   const rulesLeadsQualified = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [103] }]`;
 
-  const [comenziCtr, comenziLivr, solicitari, furnizori, leadsContact, leadsQualified] = await Promise.all([
-    fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesCtr),
-    fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesLivr),
-    fetchAllItemsByDateChunks(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), COLS.SOLICITARI.DATA, dateFrom, dateTo),
-    fetchAllItems(BOARD_IDS.FURNIZORI, [furnDateCol, furnPersonCol], rulesFurnizori),
-    fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsContact),
-    fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified),
-  ]);
+  const comenziCtr = await fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesCtr);
+  const comenziLivr = await fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesLivr);
+  const solicitari = await fetchAllItems(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), rulesSolicitari);
+  const furnizori = await fetchAllItems(BOARD_IDS.FURNIZORI, [furnDateCol, furnPersonCol], rulesFurnizori);
+  const leadsContact = await fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsContact);
+  const leadsQualified = await fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified);
 
   // Modificare: Am scos limitarea pe deal_stage pentru a asigura ca extragem si Castigat / Pierdut
-  const dealsData = await fetchAllItemsByDateChunks(
+  const dealsData = await fetchAllItems(
     1905911565,
     [
       "deal_stage",
@@ -547,9 +510,7 @@ export async function fetchReportData(dateFrom, dateTo) {
       "duration_mkq0z4bg",
       "duration_mkyhd77n"
     ],
-    "deal_creation_date",
-    dateFrom,
-    dateTo
+    `[{ column_id: "deal_creation_date", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`
   );
 
   const rawLeads = await fetchItemsDirectory(BOARD_IDS.LEADS, COLS.LEADS.OWNER, rulesLeadsDate);

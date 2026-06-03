@@ -3,7 +3,6 @@ import { mondayRequest } from '../monday/client.js';
 import {
   fetchActivitiesForItems,
   fetchAllItems,
-  fetchAllItemsByDateChunks,
   fetchItemsDirectory,
   ensureRequiredColumn,
 } from './fetchData.js';
@@ -198,7 +197,6 @@ describe('fetchAllItems', () => {
     delete process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS;
     delete process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS;
     delete process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS;
-    delete process.env.MONDAY_ITEMS_PAGE_MIN_LIMIT;
   });
 
   it('returns all items when single page (no cursor)', async () => {
@@ -253,7 +251,7 @@ describe('fetchAllItems', () => {
     expect(mondayRequest).toHaveBeenCalledTimes(2);
   });
 
-  it('retries transient page failure and reduces page limit', async () => {
+  it('retries transient page failure using the same items_page query shape', async () => {
     process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS = '3';
     process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS = '0';
     process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS = '0';
@@ -270,7 +268,7 @@ describe('fetchAllItems', () => {
     expect(result).toEqual({ items_page: { items: [{ id: 1 }] } });
     expect(mondayRequest).toHaveBeenCalledTimes(2);
     expect(mondayRequest.mock.calls[0][0]).toContain('items_page (limit: 250');
-    expect(mondayRequest.mock.calls[1][0]).toContain('items_page (limit: 125');
+    expect(mondayRequest.mock.calls[1][0]).toContain('items_page (limit: 250');
   });
 
   it('does not retry non-transient page failure', async () => {
@@ -285,35 +283,8 @@ describe('fetchAllItems', () => {
     expect(mondayRequest).toHaveBeenCalledTimes(1);
   });
 
-  it('fetches date-filtered items in daily chunks and aggregates them', async () => {
-    mondayRequest.mockImplementation(async (query) => {
-      const day = query.match(/compare_value: \["([^"]+)", "\1"\]/)?.[1];
-      return {
-        boards: [
-          {
-            items_page: {
-              items: [{ id: day, name: `Item ${day}` }],
-              cursor: null,
-            },
-          },
-        ],
-      };
-    });
 
-    const result = await fetchAllItemsByDateChunks(boardId, colIds, 'date_col', '2026-01-19', '2026-01-21');
-
-    expect(result.items_page.items).toEqual([
-      { id: '2026-01-19', name: 'Item 2026-01-19' },
-      { id: '2026-01-20', name: 'Item 2026-01-20' },
-      { id: '2026-01-21', name: 'Item 2026-01-21' },
-    ]);
-    expect(mondayRequest).toHaveBeenCalledTimes(3);
-    expect(mondayRequest.mock.calls[0][0]).toContain('compare_value: ["2026-01-19", "2026-01-19"]');
-    expect(mondayRequest.mock.calls[1][0]).toContain('compare_value: ["2026-01-20", "2026-01-20"]');
-    expect(mondayRequest.mock.calls[2][0]).toContain('compare_value: ["2026-01-21", "2026-01-21"]');
-  });
 });
-
 describe('fetchItemsDirectory', () => {
   const boardId = 888;
   const ownerColId = 'owner_col';
@@ -328,7 +299,6 @@ describe('fetchItemsDirectory', () => {
     delete process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS;
     delete process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS;
     delete process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS;
-    delete process.env.MONDAY_ITEMS_PAGE_MIN_LIMIT;
   });
 
   it('returns items when single page (no cursor)', async () => {
@@ -383,7 +353,7 @@ describe('fetchItemsDirectory', () => {
     expect(mondayRequest).toHaveBeenCalledTimes(2);
   });
 
-  it('retries transient directory page failure and lowers limit', async () => {
+  it('retries transient directory page failure using the same items_page query shape', async () => {
     process.env.MONDAY_ITEMS_PAGE_MAX_ATTEMPTS = '3';
     process.env.MONDAY_ITEMS_PAGE_RETRY_BASE_MS = '0';
     process.env.MONDAY_ITEMS_PAGE_RETRY_MAX_MS = '0';
@@ -400,6 +370,6 @@ describe('fetchItemsDirectory', () => {
     expect(result).toEqual({ items_page: { items: [{ id: 10 }] } });
     expect(mondayRequest).toHaveBeenCalledTimes(2);
     expect(mondayRequest.mock.calls[0][0]).toContain('items_page (limit: 500');
-    expect(mondayRequest.mock.calls[1][0]).toContain('items_page (limit: 250');
+    expect(mondayRequest.mock.calls[1][0]).toContain('items_page (limit: 500');
   });
 });
