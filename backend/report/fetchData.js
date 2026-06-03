@@ -52,7 +52,7 @@ async function requestItemsPageWithRetry({ boardId, cursor, initialLimit, contex
   for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
     try {
       const query = queryBuilder(pageLimit);
-      const data = await mondayRequest(query, undefined, 'items_page');
+      const data = await mondayRequest(query, undefined, 'items_page', { maxAttempts: 1 });
       return { data, pageLimit };
     } catch (err) {
       lastError = err;

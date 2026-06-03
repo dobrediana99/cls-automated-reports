@@ -164,18 +164,22 @@ function enqueue(task) {
 /**
  * Single Monday API request with timeout and retries. Called only from within enqueue.
  */
-async function doRequest({ query, variables, operationName, timeoutMs }) {
+async function doRequest({ query, variables, operationName, timeoutMs, maxAttempts }) {
   const token = process.env.MONDAY_API_TOKEN;
   if (!token || !String(token).trim()) {
     throw new Error('MONDAY_API_TOKEN is not set');
   }
 
   const config = getConfig();
+  const parsedMaxAttempts = Number(maxAttempts);
+  const requestMaxAttempts = maxAttempts == null || !Number.isFinite(parsedMaxAttempts)
+    ? config.maxAttempts
+    : Math.max(1, Math.floor(parsedMaxAttempts));
   const timeout = timeoutMs ?? config.defaultTimeoutMs;
   const op = operationName ?? 'unknown';
   let lastError;
 
-  for (let attempt = 1; attempt <= config.maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= requestMaxAttempts; attempt++) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(new Error('timeout')), timeout);
 
@@ -209,11 +213,11 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
         console.error('[monday][http-error]', { operationName: op, statusCode: status, bodyPreview });
         console.error(`[monday][http-error] op=${op} statusCode=${status} bodyPreview=${bodyPreview.slice(0, 500)}`);
         const config = getConfig();
-        if (isRetryableStatus(status) && attempt < config.maxAttempts) {
+        if (isRetryableStatus(status) && attempt < requestMaxAttempts) {
           const retryAfterSecs = parseRetryAfter(response.headers?.get?.('Retry-After'));
           const waitMs = computeDelay(attempt, retryAfterSecs, config);
           console.log(
-            `[monday][retry] op=${op} attempt=${attempt}/${config.maxAttempts} status=${status} waitMs=${waitMs} reason=HTTP`
+            `[monday][retry] op=${op} attempt=${attempt}/${requestMaxAttempts} status=${status} waitMs=${waitMs} reason=HTTP`
           );
           await sleep(waitMs);
           continue;
@@ -226,12 +230,13 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
 
       if (json.errors && json.errors.length > 0) {
         const config = getConfig();
-        if (isRetryableGraphQLError(json.errors) && attempt < config.maxAttempts) {
+        if (isRetryableGraphQLError(json.errors) && attempt < requestMaxAttempts) {
           const retryAfterSecs = parseRetryAfter(response.headers?.get?.('Retry-After'));
           const waitMs = computeDelay(attempt, retryAfterSecs, config);
           const msg = json.errors[0]?.message ?? String(json.errors[0]);
+          const statusCode = getGraphQLErrorStatusCode(json.errors);
           console.log(
-            `[monday][retry] op=${op} attempt=${attempt}/${config.maxAttempts} status=429 waitMs=${waitMs} reason=GraphQL: ${msg.slice(0, 60)}`
+            `[monday][retry] op=${op} attempt=${attempt}/${requestMaxAttempts} status=${statusCode} waitMs=${waitMs} reason=GraphQL: ${msg.slice(0, 60)}`
           );
           await sleep(waitMs);
           continue;
@@ -268,11 +273,11 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
         isNetworkError(err) ||
         err?.name === 'AbortError';
 
-      if (isRetryable && attempt < config.maxAttempts) {
+      if (isRetryable && attempt < requestMaxAttempts) {
         const status = err?.statusCode ?? (err?.name === 'AbortError' ? 'timeout' : 'network');
         const waitMs = computeDelay(attempt, err?.retryAfter ?? null, config);
         console.log(
-          `[monday][retry] op=${op} attempt=${attempt}/${config.maxAttempts} status=${status} waitMs=${waitMs} reason=${err?.message?.slice(0, 50) ?? 'error'}`
+          `[monday][retry] op=${op} attempt=${attempt}/${requestMaxAttempts} status=${status} waitMs=${waitMs} reason=${err?.message?.slice(0, 50) ?? 'error'}`
         );
         await sleep(waitMs);
         continue;
@@ -306,6 +311,6 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
  * @returns {Promise<object>} Full JSON response (data + errors if any; on success errors are absent)
  */
 export async function mondayRequest(opts) {
-  const { query, variables, operationName, timeoutMs } = opts;
-  return enqueue(() => doRequest({ query, variables, operationName, timeoutMs }));
+  const { query, variables, operationName, timeoutMs, maxAttempts } = opts;
+  return enqueue(() => doRequest({ query, variables, operationName, timeoutMs, maxAttempts }));
 }

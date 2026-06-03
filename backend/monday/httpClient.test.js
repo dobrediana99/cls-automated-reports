@@ -129,6 +129,19 @@ describe('httpClient mondayRequest', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+
+  it('honors per-request maxAttempts override', async () => {
+    process.env.MONDAY_MAX_ATTEMPTS = '5';
+    mockFetch.mockResolvedValue(
+      mockResponse({ ok: false, status: 503, body: { message: 'Service Unavailable' } }),
+    );
+
+    await expect(
+      mondayRequest({ query: 'query { x }', operationName: 'items_page', maxAttempts: 1 })
+    ).rejects.toThrow('Service Unavailable');
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('limits concurrency to MONDAY_MAX_CONCURRENT', async () => {
     process.env.MONDAY_MAX_CONCURRENT = '2';
     process.env.MONDAY_MIN_DELAY_MS = '0';
