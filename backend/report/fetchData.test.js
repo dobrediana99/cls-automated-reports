@@ -3,6 +3,7 @@ import { mondayRequest } from '../monday/client.js';
 import {
   fetchActivitiesForItems,
   fetchAllItems,
+  fetchAllItemsByDateChunks,
   fetchItemsDirectory,
   ensureRequiredColumn,
 } from './fetchData.js';
@@ -282,6 +283,34 @@ describe('fetchAllItems', () => {
 
     await expect(fetchAllItems(boardId, colIds)).rejects.toThrow(/items_page failed after retries/);
     expect(mondayRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches date-filtered items in daily chunks and aggregates them', async () => {
+    mondayRequest.mockImplementation(async (query) => {
+      const day = query.match(/compare_value: \["([^"]+)", "\1"\]/)?.[1];
+      return {
+        boards: [
+          {
+            items_page: {
+              items: [{ id: day, name: `Item ${day}` }],
+              cursor: null,
+            },
+          },
+        ],
+      };
+    });
+
+    const result = await fetchAllItemsByDateChunks(boardId, colIds, 'date_col', '2026-01-19', '2026-01-21');
+
+    expect(result.items_page.items).toEqual([
+      { id: '2026-01-19', name: 'Item 2026-01-19' },
+      { id: '2026-01-20', name: 'Item 2026-01-20' },
+      { id: '2026-01-21', name: 'Item 2026-01-21' },
+    ]);
+    expect(mondayRequest).toHaveBeenCalledTimes(3);
+    expect(mondayRequest.mock.calls[0][0]).toContain('compare_value: ["2026-01-19", "2026-01-19"]');
+    expect(mondayRequest.mock.calls[1][0]).toContain('compare_value: ["2026-01-20", "2026-01-20"]');
+    expect(mondayRequest.mock.calls[2][0]).toContain('compare_value: ["2026-01-21", "2026-01-21"]');
   });
 });
 
