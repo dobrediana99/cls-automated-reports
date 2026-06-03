@@ -100,6 +100,35 @@ describe('httpClient mondayRequest', () => {
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
+  it('preserves GraphQL extension status_code on final error', async () => {
+    process.env.MONDAY_MAX_ATTEMPTS = '1';
+    mockFetch.mockResolvedValueOnce(
+      mockResponse({
+        body: {
+          data: { boards: null },
+          errors: [
+            { message: 'Internal Server Error', extensions: { code: 'INTERNAL_SERVER_ERROR' } },
+            {
+              message: 'Internal server error',
+              extensions: { status_code: 500, error_code: 'INTERNAL_SERVER_ERROR' },
+            },
+          ],
+        },
+      }),
+    );
+
+    let thrown;
+    try {
+      await mondayRequest({ query: 'query { x }', operationName: 'items_page' });
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect(thrown.statusCode).toBe(500);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('limits concurrency to MONDAY_MAX_CONCURRENT', async () => {
     process.env.MONDAY_MAX_CONCURRENT = '2';
     process.env.MONDAY_MIN_DELAY_MS = '0';

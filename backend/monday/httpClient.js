@@ -78,6 +78,22 @@ function isRetryableStatus(status) {
   return status === 429 || (status >= 500 && status < 600);
 }
 
+function getGraphQLErrorStatusCode(errors) {
+  if (!Array.isArray(errors) || errors.length === 0) return 400;
+
+  for (const err of errors) {
+    const ext = err?.extensions;
+    const rawStatus = ext?.status_code ?? ext?.statusCode;
+    const statusCode = typeof rawStatus === 'number' ? rawStatus : Number(rawStatus);
+    if (Number.isFinite(statusCode)) return statusCode;
+  }
+
+  const msg = errors.map((err) => err?.message ?? String(err)).join(' ').toLowerCase();
+  if (msg.includes('429') || msg.includes('rate limit')) return 429;
+  if (msg.includes('internal server error')) return 500;
+  return 400;
+}
+
 /** True if error is network/timeout. */
 function isNetworkError(err) {
   if (err?.cause?.code === 'ECONNRESET' || err?.cause?.code === 'ETIMEDOUT') return true;
@@ -93,15 +109,13 @@ function isRetryableGraphQLError(errors) {
   if (!Array.isArray(errors) || errors.length === 0) return false;
   const first = errors[0];
   const msg = (first?.message ?? String(first)).toLowerCase();
-  const ext = first?.extensions;
-  const statusCode = ext?.status_code ?? ext?.statusCode;
-  const is5xx = typeof statusCode === 'number' && statusCode >= 500;
+  const statusCode = getGraphQLErrorStatusCode(errors);
   return (
     msg.includes('429') ||
     msg.includes('rate limit') ||
     (msg.includes('column_values') && msg.includes('429')) ||
     msg.includes('internal server error') ||
-    is5xx
+    isRetryableStatus(statusCode)
   );
 }
 
@@ -228,7 +242,7 @@ async function doRequest({ query, variables, operationName, timeoutMs }) {
           extensions: e?.extensions,
         }));
         const errorsStr = JSON.stringify(errorsTruncated);
-        const statusCode = 200;
+        const statusCode = getGraphQLErrorStatusCode(json.errors);
         console.error('[monday][graphql-error]', {
           operationName: op,
           statusCode,
