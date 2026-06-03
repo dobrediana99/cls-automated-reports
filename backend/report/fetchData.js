@@ -192,6 +192,32 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
   return { items_page: { items: allItems } };
 }
 
+function eachIsoDate(dateFrom, dateTo) {
+  const dates = [];
+  const current = new Date(`${dateFrom}T00:00:00Z`);
+  const end = new Date(`${dateTo}T00:00:00Z`);
+  while (!Number.isNaN(current.getTime()) && !Number.isNaN(end.getTime()) && current <= end) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+/**
+ * Fetch a date-filtered board in daily chunks. Monday's items_page cursor can fail
+ * with internal errors on larger filtered result sets for some boards.
+ */
+export async function fetchAllItemsByDateChunks(boardId, colIdsArray, dateColId, dateFrom, dateTo, extraRules = []) {
+  const items = [];
+  for (const day of eachIsoDate(dateFrom, dateTo)) {
+    const extraRulesString = extraRules.length > 0 ? `, ${extraRules.join(', ')}` : '';
+    const rules = `[{ column_id: "${dateColId}", operator: between, compare_value: ["${day}", "${day}"] }${extraRulesString}]`;
+    const page = await fetchAllItems(boardId, colIdsArray, rules);
+    items.push(...(page.items_page?.items ?? []));
+  }
+  return { items_page: { items } };
+}
+
 /**
  * Lightweight directory fetch (single owner column).
  * Pagination guards: repeated cursor (loop) and max pages limit.
@@ -497,7 +523,6 @@ export async function fetchReportData(dateFrom, dateTo) {
 
   const rulesCtr = `[{ column_id: "${COLS_COMENZI.DATA_CTR}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLivr = `[{ column_id: "${COLS_COMENZI.DATA_LIVRARE}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
-  const rulesSolicitari = `[{ column_id: "${COLS.SOLICITARI.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesFurnizori = `[{ column_id: "${furnDateCol}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLeadsDate = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLeadsContact = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [14] }]`;
@@ -506,30 +531,26 @@ export async function fetchReportData(dateFrom, dateTo) {
   const [comenziCtr, comenziLivr, solicitari, furnizori, leadsContact, leadsQualified] = await Promise.all([
     fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesCtr),
     fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesLivr),
-    fetchAllItems(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), rulesSolicitari),
+    fetchAllItemsByDateChunks(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), COLS.SOLICITARI.DATA, dateFrom, dateTo),
     fetchAllItems(BOARD_IDS.FURNIZORI, [furnDateCol, furnPersonCol], rulesFurnizori),
     fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsContact),
     fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified),
   ]);
 
   // Modificare: Am scos limitarea pe deal_stage pentru a asigura ca extragem si Castigat / Pierdut
-  const dealsData = await fetchAllItems(
-  1905911565,
-  [
-    "deal_stage",
+  const dealsData = await fetchAllItemsByDateChunks(
+    1905911565,
+    [
+      "deal_stage",
+      "deal_creation_date",
+      "deal_owner",
+      "duration_mkq0z4bg",
+      "duration_mkyhd77n"
+    ],
     "deal_creation_date",
-    "deal_owner",
-    "duration_mkq0z4bg",
-    "duration_mkyhd77n"
-  ],
-  `[
-    {
-      column_id: "deal_creation_date",
-      operator: between,
-      compare_value: ["${dateFrom}", "${dateTo}"]
-    }
-  ]`
-);
+    dateFrom,
+    dateTo
+  );
 
   const rawLeads = await fetchItemsDirectory(BOARD_IDS.LEADS, COLS.LEADS.OWNER, rulesLeadsDate);
   const rawContacts = await fetchItemsDirectory(BOARD_IDS.CONTACTE, COLS.CONTACTE.OWNER, `[{ column_id: "${COLS.CONTACTE.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`);
