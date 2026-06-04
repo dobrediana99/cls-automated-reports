@@ -183,6 +183,42 @@ export async function fetchAllItems(boardId, colIdsArray, rulesString = null) {
   return { items_page: { items: allItems } };
 }
 
+function eachIsoDate(dateFrom, dateTo) {
+  const dates = [];
+  const current = new Date(`${dateFrom}T00:00:00Z`);
+  const end = new Date(`${dateTo}T00:00:00Z`);
+  while (!Number.isNaN(current.getTime()) && !Number.isNaN(end.getTime()) && current <= end) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+async function fetchAllItemsByDateChunks(boardId, colIdsArray, dateColId, dateFrom, dateTo) {
+  const items = [];
+  for (const day of eachIsoDate(dateFrom, dateTo)) {
+    const rules = `[{ column_id: "${dateColId}", operator: between, compare_value: ["${day}", "${day}"] }]`;
+    const result = await fetchAllItems(boardId, colIdsArray, rules);
+    items.push(...(result.items_page?.items ?? []));
+  }
+  return { items_page: { items } };
+}
+
+export async function fetchAllItemsWithDateFallback(boardId, colIdsArray, dateColId, dateFrom, dateTo, contextLabel) {
+  const rules = `[{ column_id: "${dateColId}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
+  try {
+    return await fetchAllItems(boardId, colIdsArray, rules);
+  } catch (err) {
+    const isCursorItemsPageFailure = err?.operationName === 'items_page' && err?.message?.includes('cursor=yes');
+    if (!isCursorItemsPageFailure) throw err;
+
+    console.warn(
+      `[fetchData][items_page][date-fallback] boardId=${boardId} context=${contextLabel} reason=${String(err?.message ?? err).slice(0, 180)}`
+    );
+    return await fetchAllItemsByDateChunks(boardId, colIdsArray, dateColId, dateFrom, dateTo);
+  }
+}
+
 /**
  * Lightweight directory fetch (single owner column).
  * Pagination guards: repeated cursor (loop) and max pages limit.
@@ -488,7 +524,6 @@ export async function fetchReportData(dateFrom, dateTo) {
 
   const rulesCtr = `[{ column_id: "${COLS_COMENZI.DATA_CTR}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLivr = `[{ column_id: "${COLS_COMENZI.DATA_LIVRARE}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
-  const rulesSolicitari = `[{ column_id: "${COLS.SOLICITARI.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesFurnizori = `[{ column_id: "${furnDateCol}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLeadsDate = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`;
   const rulesLeadsContact = `[{ column_id: "${COLS.LEADS.DATA}", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }, { column_id: "${COLS.LEADS.STATUS}", operator: any_of, compare_value: [14] }]`;
@@ -496,13 +531,13 @@ export async function fetchReportData(dateFrom, dateTo) {
 
   const comenziCtr = await fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesCtr);
   const comenziLivr = await fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesLivr);
-  const solicitari = await fetchAllItems(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), rulesSolicitari);
+  const solicitari = await fetchAllItemsWithDateFallback(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), COLS.SOLICITARI.DATA, dateFrom, dateTo, 'solicitari');
   const furnizori = await fetchAllItems(BOARD_IDS.FURNIZORI, [furnDateCol, furnPersonCol], rulesFurnizori);
   const leadsContact = await fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsContact);
   const leadsQualified = await fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified);
 
   // Modificare: Am scos limitarea pe deal_stage pentru a asigura ca extragem si Castigat / Pierdut
-  const dealsData = await fetchAllItems(
+  const dealsData = await fetchAllItemsWithDateFallback(
     1905911565,
     [
       "deal_stage",
@@ -511,7 +546,10 @@ export async function fetchReportData(dateFrom, dateTo) {
       "duration_mkq0z4bg",
       "duration_mkyhd77n"
     ],
-    `[{ column_id: "deal_creation_date", operator: between, compare_value: ["${dateFrom}", "${dateTo}"] }]`
+    "deal_creation_date",
+    dateFrom,
+    dateTo,
+    'dealsData'
   );
 
   const rawLeads = await fetchItemsDirectory(BOARD_IDS.LEADS, COLS.LEADS.OWNER, rulesLeadsDate);
