@@ -3,6 +3,7 @@ import { mondayRequest } from '../monday/client.js';
 import {
   fetchActivitiesForItems,
   fetchAllItems,
+  fetchAllItemsWithDateFallback,
   fetchItemsDirectory,
   ensureRequiredColumn,
 } from './fetchData.js';
@@ -281,6 +282,38 @@ describe('fetchAllItems', () => {
 
     await expect(fetchAllItems(boardId, colIds)).rejects.toThrow(/items_page failed after retries/);
     expect(mondayRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to daily date chunks when a date-filtered items_page cursor fails', async () => {
+    const err = new Error('[fetchData] items_page failed after retries: boardId=999 context=full cursor=yes reason=Internal Server Error');
+    err.operationName = 'items_page';
+    mondayRequest.mockRejectedValueOnce(err);
+    mondayRequest.mockImplementation(async (query) => {
+      const day = query.match(/compare_value: \["([^"]+)", "\1"\]/)?.[1];
+      return {
+        boards: [
+          {
+            items_page: {
+              items: [{ id: day, name: `Item ${day}` }],
+              cursor: null,
+            },
+          },
+        ],
+      };
+    });
+
+    const result = await fetchAllItemsWithDateFallback(boardId, colIds, 'date_col', '2026-01-19', '2026-01-21', 'test');
+
+    expect(result.items_page.items).toEqual([
+      { id: '2026-01-19', name: 'Item 2026-01-19' },
+      { id: '2026-01-20', name: 'Item 2026-01-20' },
+      { id: '2026-01-21', name: 'Item 2026-01-21' },
+    ]);
+    expect(mondayRequest).toHaveBeenCalledTimes(4);
+    expect(mondayRequest.mock.calls[0][0]).toContain('compare_value: ["2026-01-19", "2026-01-21"]');
+    expect(mondayRequest.mock.calls[1][0]).toContain('compare_value: ["2026-01-19", "2026-01-19"]');
+    expect(mondayRequest.mock.calls[2][0]).toContain('compare_value: ["2026-01-20", "2026-01-20"]');
+    expect(mondayRequest.mock.calls[3][0]).toContain('compare_value: ["2026-01-21", "2026-01-21"]');
   });
 
 
