@@ -21,6 +21,7 @@ export const ORG = [
   { name: "Dumitru Ionut", email: "ionut.d@crystal-logistics-services.com", mondayUserId: 74668676, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3240, isActive: true },
   { name: "Robert Florea", email: "robert.f@crystal-logistics-services.com", mondayUserId: 74668678, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 4590, isActive: true },
   { name: "David Mitrica", email: "david.m@crystal-logistics-services.com", mondayUserId: 89227837, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 1920, isActive: true },
+  { name: "Zinca Dan", email: "dan.z@crystal-logistics-services.com", mondayUserId: 102891982, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3710, isActive: true },
 ];
 
 export const MANAGERS = ORG.filter((p) => p.role === "manager" && p.isActive);
