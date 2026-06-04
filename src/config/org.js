@@ -108,15 +108,6 @@ export const ORG = [
     isActive: true,
   },
   {
-    name: "Alexandra Ghiurca",
-    email: "alexandra.g@crystal-logistics-services.com",
-    mondayUserId: 96280239,
-    department: DEPARTMENTS.OPERATIONS,
-    role: "employee",
-    target: 3040,
-    isActive: true,
-  },
-  {
     name: "David Mitrica",
     email: "david.m@crystal-logistics-services.com",
     mondayUserId: 89227837,

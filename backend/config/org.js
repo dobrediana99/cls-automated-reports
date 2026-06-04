@@ -20,7 +20,6 @@ export const ORG = [
   { name: "Roberto Coica", email: "roberto.c@crystal-logistics-services.com", mondayUserId: 74668675, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3240, isActive: true },
   { name: "Dumitru Ionut", email: "ionut.d@crystal-logistics-services.com", mondayUserId: 74668676, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3240, isActive: true },
   { name: "Robert Florea", email: "robert.f@crystal-logistics-services.com", mondayUserId: 74668678, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 4590, isActive: true },
-  { name: "Alexandra Ghiurca", email: "alexandra.g@crystal-logistics-services.com", mondayUserId: 96280239, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 3040, isActive: true },
   { name: "David Mitrica", email: "david.m@crystal-logistics-services.com", mondayUserId: 89227837, department: DEPARTMENTS.OPERATIONS, role: "employee", target: 1920, isActive: true },
 ];
 
