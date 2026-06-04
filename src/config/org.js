@@ -115,6 +115,15 @@ export const ORG = [
     role: "employee",
     target: 1920,
     isActive: true,
+  },
+  {
+    name: "Zinca Dan",
+    email: "dan.z@crystal-logistics-services.com",
+    mondayUserId: 102891982,
+    department: DEPARTMENTS.OPERATIONS,
+    role: "employee",
+    target: 3710,
+    isActive: true,
   }
 ];
 

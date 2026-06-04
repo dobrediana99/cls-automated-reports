@@ -111,6 +111,7 @@ const DEPARTMENTS = {
             { id: 105, name: "Dumitru Ionut", mondayUserId: 74668676, target: 3240 },
             { id: 106, name: "Robert Florea", mondayUserId: 74668678, target: 4590 },
             { id: 108, name: "David Mitrica", mondayUserId: 89227837, target: 1920 },
+            { id: 110, name: "Zinca Dan", mondayUserId: 102891982, target: 3710 },
             { id: 109, name: "Mocanu George", mondayUserId: 96568400, target: 3040 }
         ]
     }
