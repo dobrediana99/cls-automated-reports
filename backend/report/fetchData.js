@@ -531,13 +531,13 @@ export async function fetchReportData(dateFrom, dateTo) {
 
   const comenziCtr = await fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesCtr);
   const comenziLivr = await fetchAllItems(BOARD_IDS.COMENZI, Object.values(COLS_COMENZI), rulesLivr);
-  const solicitari = await fetchAllItemsWithDateFallback(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), COLS.SOLICITARI.DATA, dateFrom, dateTo, 'solicitari');
+  const solicitari = await fetchAllItemsByDateChunks(BOARD_IDS.SOLICITARI, Object.values(COLS.SOLICITARI), COLS.SOLICITARI.DATA, dateFrom, dateTo);
   const furnizori = await fetchAllItems(BOARD_IDS.FURNIZORI, [furnDateCol, furnPersonCol], rulesFurnizori);
   const leadsContact = await fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsContact);
   const leadsQualified = await fetchAllItems(BOARD_IDS.LEADS, Object.values(COLS.LEADS), rulesLeadsQualified);
 
   // Modificare: Am scos limitarea pe deal_stage pentru a asigura ca extragem si Castigat / Pierdut
-  const dealsData = await fetchAllItemsWithDateFallback(
+  const dealsData = await fetchAllItemsByDateChunks(
     1905911565,
     [
       "deal_stage",
@@ -548,8 +548,7 @@ export async function fetchReportData(dateFrom, dateTo) {
     ],
     "deal_creation_date",
     dateFrom,
-    dateTo,
-    'dealsData'
+    dateTo
   );
 
   const rawLeads = await fetchItemsDirectory(BOARD_IDS.LEADS, COLS.LEADS.OWNER, rulesLeadsDate);
