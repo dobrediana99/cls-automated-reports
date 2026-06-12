@@ -100,7 +100,8 @@ const DEPARTMENTS = {
             { id: 204, name: "Nedelcu Alexandru", mondayUserId: 77987246, target: 3630 },
             { id: 205, name: "Christiana Sora", mondayUserId: 90770132, target: 2310 },
             { id: 208, name: "Eduard Grigore", mondayUserId: 96568397, target: 2100 },
-            { id: 209, name: "George Rafte", mondayUserId: 98357010, target: 2800 }
+            { id: 209, name: "George Rafte", mondayUserId: 98357010, target: 2800 },
+            { id: 110, name: "Zinca Dan", mondayUserId: 102891982, target: 3710 }
         ]
     },
     operational: {
@@ -111,7 +112,6 @@ const DEPARTMENTS = {
             { id: 105, name: "Dumitru Ionut", mondayUserId: 74668676, target: 3240 },
             { id: 106, name: "Robert Florea", mondayUserId: 74668678, target: 4590 },
             { id: 108, name: "David Mitrica", mondayUserId: 89227837, target: 1920 },
-            { id: 110, name: "Zinca Dan", mondayUserId: 102891982, target: 3710 },
             { id: 109, name: "Mocanu George", mondayUserId: 96568400, target: 3040 }
         ]
     }
