@@ -28,7 +28,7 @@ export const ORG = [
     mondayUserId: 73962695,
     department: DEPARTMENTS.MANAGEMENT,
     role: "manager",
-    target: 5364,
+    target: 6494,
     isActive: true,
   },
   {
@@ -37,7 +37,7 @@ export const ORG = [
     mondayUserId: 73962698,
     department: DEPARTMENTS.MANAGEMENT,
     role: "manager",
-    target: 5364,
+    target: 6494,
     isActive: true,
   },
 
@@ -48,7 +48,7 @@ export const ORG = [
     mondayUserId: 74108553,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 2686,
+    target: 3336,
     isActive: true,
   },
   {
@@ -57,7 +57,7 @@ export const ORG = [
     mondayUserId: 73046350,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 3740,
+    target: 4000,
     isActive: true,
   },
   {
@@ -66,7 +66,7 @@ export const ORG = [
     mondayUserId: 77987246,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 3993,
+    target: 4800,
     isActive: true,
   },
   {
@@ -75,7 +75,7 @@ export const ORG = [
     mondayUserId: 102891982,
     department: DEPARTMENTS.SALES,
     role: "employee",
-    target: 3710,
+    target: 2968,
     isActive: true,
   },
 
@@ -86,7 +86,7 @@ export const ORG = [
     mondayUserId: 74695692,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 4007,
+    target: 4000,
     isActive: true,
   },
   {
@@ -95,16 +95,7 @@ export const ORG = [
     mondayUserId: 74668675,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 3240,
-    isActive: true,
-  },
-  {
-    name: "Dumitru Ionut",
-    email: "ionut.d@crystal-logistics-services.com",
-    mondayUserId: 74668676,
-    department: DEPARTMENTS.OPERATIONS,
-    role: "employee",
-    target: 3740,
+    target: 3600,
     isActive: true,
   },
   {
@@ -113,7 +104,7 @@ export const ORG = [
     mondayUserId: 74668678,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 4590,
+    target: 4968,
     isActive: true,
   },
   {
@@ -122,7 +113,7 @@ export const ORG = [
     mondayUserId: 89227837,
     department: DEPARTMENTS.OPERATIONS,
     role: "employee",
-    target: 1920,
+    target: 3200,
     isActive: true,
   }
 ];

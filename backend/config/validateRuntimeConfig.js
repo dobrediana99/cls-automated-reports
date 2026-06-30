@@ -72,9 +72,14 @@ export function validateMonthlyRuntimeConfig(opts = {}) {
   const env = opts.env ?? process.env;
 
   // --- Required for monthly (always) ---
-  const mondayToken = getEnv(env, 'MONDAY_API_TOKEN');
-  if (!mondayToken) {
-    throw new Error('MONDAY_API_TOKEN must be set for monthly report (fetch or snapshot build).');
+  // Data source is the CRM report endpoint (replaces Monday.com).
+  const crmUrl = getEnv(env, 'CRM_REPORTS_URL');
+  if (!crmUrl) {
+    throw new Error('CRM_REPORTS_URL must be set: the CRM report endpoint that provides report data.');
+  }
+  const crmSecret = getEnv(env, 'CRM_REPORTS_SECRET');
+  if (!crmSecret) {
+    throw new Error('CRM_REPORTS_SECRET must be set to authenticate with the CRM report endpoint.');
   }
 
   const openRouterKey = getEnv(env, 'OPENROUTER_API_KEY');
@@ -123,29 +128,17 @@ export function validateMonthlyRuntimeConfig(opts = {}) {
     predicate: (n) => n > 0,
   });
 
-  // --- Numeric envs (Monday) ---
-  validateIntEnv({
-    env,
-    key: 'MONDAY_MAX_CONCURRENT',
-    description: 'must be an integer >= 1',
-    predicate: (n) => n >= 1,
-  });
+  // --- Numeric envs (CRM report client) ---
   validateNumericEnv({
     env,
-    key: 'MONDAY_MIN_DELAY_MS',
-    description: 'must be >= 0',
-    predicate: (n) => n >= 0,
+    key: 'CRM_REPORTS_TIMEOUT_MS',
+    description: 'must be a positive number (milliseconds)',
+    predicate: (n) => n > 0,
   });
   validateIntEnv({
     env,
-    key: 'MONDAY_MAX_ATTEMPTS',
+    key: 'CRM_REPORTS_MAX_ATTEMPTS',
     description: 'must be an integer >= 1',
-    predicate: (n) => n >= 1,
-  });
-  validateIntEnv({
-    env,
-    key: 'MONDAY_ITEMS_MAX_PAGES',
-    description: 'must be an integer >= 1 (max items_page requests per board)',
     predicate: (n) => n >= 1,
   });
 }

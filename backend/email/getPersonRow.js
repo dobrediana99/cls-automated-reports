@@ -35,6 +35,15 @@ export function getPersonRow(report, person) {
     console.warn('[getPersonRow] no row for mondayUserId', { name: person.name, mondayUserId: person.mondayUserId, department: person.department });
   }
 
+  // CRM rows carry `email` (and no `mondayId`); prefer a stable email match.
+  const personEmail = typeof person.email === 'string' ? person.email.trim().toLowerCase() : '';
+  if (personEmail) {
+    const byEmail = list.find(
+      (r) => typeof r.email === 'string' && r.email.trim().toLowerCase() === personEmail,
+    );
+    if (byEmail) return byEmail;
+  }
+
   const byName = list.filter((r) => r.name === person.name);
   if (byName.length === 1) return byName[0];
   if (byName.length > 1) {

@@ -6,13 +6,18 @@ import { validateMonthlyRuntimeConfig } from './validateRuntimeConfig.js';
 
 function minimalMonthlyEnv() {
   return {
-    MONDAY_API_TOKEN: 'token',
+    CRM_REPORTS_URL: 'https://crm.example.com/api/reports/performance',
+    CRM_REPORTS_SECRET: 'secret',
     OPENROUTER_API_KEY: 'key',
     GMAIL_USER: 'u@example.com',
     GMAIL_APP_PASSWORD: 'pass',
     TEST_EMAILS: 'test@example.com',
     SEND_MODE: 'prod',
   };
+}
+
+function minimalDataEnv() {
+  return { CRM_REPORTS_URL: 'https://crm.example.com/r', CRM_REPORTS_SECRET: 's' };
 }
 
 describe('validateMonthlyRuntimeConfig', () => {
@@ -26,8 +31,8 @@ describe('validateMonthlyRuntimeConfig', () => {
     process.env = { ...savedEnv };
   });
 
-  it('does not throw when dryRun=true and only MONDAY + OPENROUTER set', () => {
-    const env = { MONDAY_API_TOKEN: 't', OPENROUTER_API_KEY: 'k' };
+  it('does not throw when dryRun=true and only CRM + OPENROUTER set', () => {
+    const env = { ...minimalDataEnv(), OPENROUTER_API_KEY: 'k' };
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env })).not.toThrow();
   });
 
@@ -41,14 +46,20 @@ describe('validateMonthlyRuntimeConfig', () => {
     expect(() => validateMonthlyRuntimeConfig({ dryRun: false, sendMode: 'test', env })).not.toThrow();
   });
 
-  it('throws when MONDAY_API_TOKEN missing', () => {
-    const env = { OPENROUTER_API_KEY: 'k' };
+  it('throws when CRM_REPORTS_URL missing', () => {
+    const env = { CRM_REPORTS_SECRET: 's', OPENROUTER_API_KEY: 'k' };
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
-      .toThrow('MONDAY_API_TOKEN must be set');
+      .toThrow('CRM_REPORTS_URL must be set');
+  });
+
+  it('throws when CRM_REPORTS_SECRET missing', () => {
+    const env = { CRM_REPORTS_URL: 'https://crm.example.com/r', OPENROUTER_API_KEY: 'k' };
+    expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
+      .toThrow('CRM_REPORTS_SECRET must be set');
   });
 
   it('throws when OPENROUTER_API_KEY missing', () => {
-    const env = { MONDAY_API_TOKEN: 't' };
+    const env = { ...minimalDataEnv() };
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
       .toThrow('OPENROUTER_API_KEY must be set');
   });
@@ -103,29 +114,26 @@ describe('validateMonthlyRuntimeConfig', () => {
       .toThrow('OPENROUTER_MAX_TOKENS');
   });
 
-  it('MONDAY_MAX_CONCURRENT must be integer >= 1', () => {
-    const env = { ...minimalMonthlyEnv(), MONDAY_MAX_CONCURRENT: '0' };
+  it('CRM_REPORTS_TIMEOUT_MS must be positive number', () => {
+    const env = { ...minimalMonthlyEnv(), CRM_REPORTS_TIMEOUT_MS: '0' };
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
-      .toThrow('MONDAY_MAX_CONCURRENT');
-    env.MONDAY_MAX_CONCURRENT = '2.5';
+      .toThrow('CRM_REPORTS_TIMEOUT_MS');
+    env.CRM_REPORTS_TIMEOUT_MS = 'abc';
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
-      .toThrow('MONDAY_MAX_CONCURRENT');
+      .toThrow('CRM_REPORTS_TIMEOUT_MS');
   });
 
-  it('MONDAY_MIN_DELAY_MS must be >= 0', () => {
-    const env = { ...minimalMonthlyEnv(), MONDAY_MIN_DELAY_MS: '-1' };
+  it('CRM_REPORTS_MAX_ATTEMPTS must be integer >= 1', () => {
+    const env = { ...minimalMonthlyEnv(), CRM_REPORTS_MAX_ATTEMPTS: '0' };
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
-      .toThrow('MONDAY_MIN_DELAY_MS');
-  });
-
-  it('MONDAY_MAX_ATTEMPTS must be integer >= 1', () => {
-    const env = { ...minimalMonthlyEnv(), MONDAY_MAX_ATTEMPTS: '0' };
+      .toThrow('CRM_REPORTS_MAX_ATTEMPTS');
+    env.CRM_REPORTS_MAX_ATTEMPTS = '2.5';
     expect(() => validateMonthlyRuntimeConfig({ dryRun: true, sendMode: 'test', env }))
-      .toThrow('MONDAY_MAX_ATTEMPTS');
+      .toThrow('CRM_REPORTS_MAX_ATTEMPTS');
   });
 
   it('error messages do not contain secrets', () => {
-    const env = { MONDAY_API_TOKEN: 'secret-token-123', OPENROUTER_API_KEY: 'sk-xxx' };
+    const env = { CRM_REPORTS_URL: 'https://crm.example.com/r', CRM_REPORTS_SECRET: 'secret-token-123', OPENROUTER_API_KEY: 'sk-xxx' };
     try {
       validateMonthlyRuntimeConfig({ dryRun: false, sendMode: 'prod', env });
     } catch (e) {

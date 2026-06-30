@@ -1,5 +1,4 @@
-import { fetchReportData } from './fetchData.js';
-import { buildReport } from './buildReport.js';
+import { fetchCrmReport } from './crmClient.js';
 import { getWorkingDaysInPeriod } from '../lib/dateRanges.js';
 
 function safeVal(v) {
@@ -99,8 +98,15 @@ export async function runReport(options) {
   const dateFrom = periodStart.slice(0, 10);
   const dateTo = periodEnd.slice(0, 10);
 
-  const raw = await fetchReportData(dateFrom, dateTo);
-  const { opsStats, salesStats, mgmtStats, companyStats } = buildReport(raw);
+  // Data source: CRM (single source of truth). Replaces the former Monday.com
+  // fetchReportData + buildReport path. The CRM computes the same per-employee
+  // and company stats (keyed by board crmKey), so everything downstream
+  // (computeTotals, departmentAnalytics, emails, XLSX) is unchanged.
+  const { opsStats, salesStats, mgmtStats, companyStats } = await fetchCrmReport({
+    dateFrom,
+    dateTo,
+    label,
+  });
 
   const reportSummary = {
     departments: {

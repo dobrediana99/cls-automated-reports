@@ -176,7 +176,8 @@ describe('runMonthly', () => {
     delete process.env.OPENROUTER_TIMEOUT_MS;
     delete process.env.MONTHLY_SEND_SCOPE;
     delete process.env.MONTHLY_RUN_SLOT;
-    process.env.MONDAY_API_TOKEN = 'test-token';
+    process.env.CRM_REPORTS_URL = 'https://crm.example.com/api/reports/performance';
+    process.env.CRM_REPORTS_SECRET = 'test-secret';
     process.env.OPENROUTER_API_KEY = 'test-key';
     sendMailMock.mockClear();
     sendMailMock.mockResolvedValue({});
@@ -227,12 +228,12 @@ describe('runMonthly', () => {
     );
   });
 
-  it('throws when MONDAY_API_TOKEN is missing (before heavy compute)', async () => {
-    delete process.env.MONDAY_API_TOKEN;
+  it('throws when CRM_REPORTS_URL is missing (before heavy compute)', async () => {
+    delete process.env.CRM_REPORTS_URL;
     vi.mocked(loadOrComputeMonthlyReport).mockClear();
 
     await expect(runMonthly({ now: new Date('2026-01-15T09:30:00') })).rejects.toThrow(
-      'MONDAY_API_TOKEN'
+      'CRM_REPORTS_URL'
     );
     expect(loadOrComputeMonthlyReport).not.toHaveBeenCalled();
   });

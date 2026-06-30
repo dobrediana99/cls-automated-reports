@@ -355,7 +355,7 @@ export async function runMonthly(opts = {}) {
     region: process.env.K_REGION || null,
     hasOpenRouterKey: Boolean(process.env.OPENROUTER_API_KEY),
     openRouterModel: process.env.OPENROUTER_MODEL || 'DEFAULT',
-    hasMondayToken: Boolean(process.env.MONDAY_API_TOKEN),
+    hasCrmReportsConfig: Boolean(process.env.CRM_REPORTS_URL && process.env.CRM_REPORTS_SECRET),
     dryRun: process.env.DRY_RUN || null,
     sendMode: process.env.SEND_MODE || null,
     sendScope,
