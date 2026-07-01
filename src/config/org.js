@@ -28,7 +28,7 @@ export const ORG = [
     mondayUserId: 73962695,
     department: DEPARTMENTS.MANAGEMENT,
     role: "manager",
-    target: 6494,
+    target: 5196,
     isActive: true,
   },
   {
@@ -37,7 +37,7 @@ export const ORG = [
     mondayUserId: 73962698,
     department: DEPARTMENTS.MANAGEMENT,
     role: "manager",
-    target: 6494,
+    target: 5196,
     isActive: true,
   },
 

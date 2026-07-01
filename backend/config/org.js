@@ -11,8 +11,8 @@ export const DEPARTMENTS = {
 
 export const ORG = [
   { name: "Rafael Onișoară", email: "rafael.o@crystal-logistics-services.com", mondayUserId: 73046209, department: DEPARTMENTS.MANAGEMENT, role: "manager", target: 0, isActive: true },
-  { name: "Alin Lita", email: "alin.l@crystal-logistics-services.com", mondayUserId: 73962695, department: DEPARTMENTS.MANAGEMENT, role: "manager", target: 6494, isActive: true },
-  { name: "Bogdan Serafim", email: "bogdan.s@crystal-logistics-services.com", mondayUserId: 73962698, department: DEPARTMENTS.MANAGEMENT, role: "manager", target: 6494, isActive: true },
+  { name: "Alin Lita", email: "alin.l@crystal-logistics-services.com", mondayUserId: 73962695, department: DEPARTMENTS.MANAGEMENT, role: "manager", target: 5196, isActive: true },
+  { name: "Bogdan Serafim", email: "bogdan.s@crystal-logistics-services.com", mondayUserId: 73962698, department: DEPARTMENTS.MANAGEMENT, role: "manager", target: 5196, isActive: true },
   { name: "Denisa Ionescu", email: "denisa.i@crystal-logistics-services.com", mondayUserId: 74108553, department: DEPARTMENTS.SALES, role: "employee", target: 3336, isActive: true },
   { name: "Andrei Pauna", email: "andrei.p@crystal-logistics-services.com", mondayUserId: 73046350, department: DEPARTMENTS.SALES, role: "employee", target: 4000, isActive: true },
   { name: "Nedelcu Alexandru", email: "alexandru.n@crystal-logistics-services.com", mondayUserId: 77987246, department: DEPARTMENTS.SALES, role: "employee", target: 4800, isActive: true },
